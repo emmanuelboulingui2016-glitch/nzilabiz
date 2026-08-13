@@ -1,0 +1,578 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createId } from "@paralleldrive/cuid2";
+import { toast } from "sonner";
+import { WifiOff } from "lucide-react";
+import { Dialog } from "@/components/ui/dialog";
+import { formatFcfa } from "@/lib/currency";
+import {
+  offlineDb,
+  enqueueMutation,
+  getOrCreateDeviceId,
+  type OfflineSale,
+} from "@/lib/offline/db";
+import { runSync, startAutoSync } from "@/lib/offline/sync-engine";
+import { ProductGrid } from "./product-grid";
+import { CartPanel } from "./cart-panel";
+import { ReceiptView } from "./receipt-view";
+import { BarcodeScannerDialog } from "./barcode-scanner-dialog";
+import type {
+  CartLine,
+  DiscountType,
+  PaymentLine,
+  PaymentMode,
+  ReceiptData,
+  VendreCategory,
+  VendreClient,
+  VendreProduct,
+} from "./types";
+
+function toVendreProduct(p: {
+  id: string;
+  storeId: string;
+  reference: string;
+  nom: string;
+  categoryId?: string | null;
+  codeBarres?: string | null;
+  prixAchat: number;
+  prixVente: number;
+  quantiteStock: number;
+  seuilAlerte: number;
+}): VendreProduct {
+  return {
+    id: p.id,
+    storeId: p.storeId,
+    reference: p.reference,
+    nom: p.nom,
+    photoUrl: null,
+    categoryId: p.categoryId ?? null,
+    codeBarres: p.codeBarres ?? null,
+    prixAchat: String(p.prixAchat),
+    prixVente: String(p.prixVente),
+    prixGros: null,
+    unite: "unité",
+    quantiteStock: String(p.quantiteStock),
+    seuilAlerte: String(p.seuilAlerte),
+  };
+}
+
+export function VendreScreen({
+  storeId,
+  userId,
+  storeName,
+}: {
+  storeId: string;
+  userId: string;
+  storeName: string;
+}) {
+  // Catalogue
+  const [products, setProducts] = useState<VendreProduct[]>([]);
+  const [categories, setCategories] = useState<VendreCategory[]>([]);
+  const [clients, setClients] = useState<VendreClient[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(true);
+  const [search, setSearch] = useState("");
+  const [categoryId, setCategoryId] = useState("TOUS");
+  const [barcode, setBarcode] = useState("");
+  const [scannerOpen, setScannerOpen] = useState(false);
+
+  // Panier
+  const [cart, setCart] = useState<CartLine[]>([]);
+  const [remise, setRemise] = useState(0);
+  const [typeRemise, setTypeRemise] = useState<DiscountType>("MONTANT");
+  const [cartDialogOpen, setCartDialogOpen] = useState(false);
+
+  // Paiement
+  const [mixte, setMixte] = useState(false);
+  const [singleMode, setSingleMode] = useState<PaymentMode>("ESPECES");
+  const [montantRecu, setMontantRecu] = useState<number | null>(null);
+  const [reference, setReference] = useState("");
+  const [mixedPayments, setMixedPayments] = useState<PaymentLine[]>([]);
+  const [clientId, setClientId] = useState<string | null>(null);
+
+  // Validation / réseau
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [receipt, setReceipt] = useState<ReceiptData | null>(null);
+  const [online, setOnline] = useState(true);
+  const [pendingSyncCount, setPendingSyncCount] = useState(0);
+
+  const deviceIdRef = useRef<string>("");
+
+  // --- Réseau / synchro hors-ligne ---------------------------------------
+  useEffect(() => {
+    deviceIdRef.current = getOrCreateDeviceId();
+    setOnline(navigator.onLine);
+    const onOnline = () => setOnline(true);
+    const onOffline = () => setOnline(false);
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+    const stopSync = startAutoSync();
+    return () => {
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
+      stopSync();
+    };
+  }, []);
+
+  // Réconcilie périodiquement les ventes locales marquées `synced:false` dont la mutation en file
+  // a fini par être traitée par le moteur de synchro en arrière-plan (hors du parcours immédiat).
+  useEffect(() => {
+    const reconcile = async () => {
+      const localSales = await offlineDb.sales.where("storeId").equals(storeId).toArray();
+      const unsynced = localSales.filter((s) => !s.synced);
+      setPendingSyncCount(unsynced.length);
+      for (const sale of unsynced) {
+        const stillQueued = await offlineDb.syncQueue.where("entiteId").equals(sale.id).count();
+        if (stillQueued === 0) {
+          await offlineDb.sales.update(sale.id, { synced: true });
+        }
+      }
+    };
+    void reconcile();
+    const interval = window.setInterval(() => void reconcile(), 15_000);
+    return () => window.clearInterval(interval);
+  }, [storeId]);
+
+  // --- Chargement du catalogue --------------------------------------------
+  const loadProducts = useCallback(
+    async (opts: { q: string; categoryId: string }) => {
+      setLoadingProducts(true);
+      try {
+        const params = new URLSearchParams();
+        if (opts.q) params.set("q", opts.q);
+        if (opts.categoryId && opts.categoryId !== "TOUS") params.set("categoryId", opts.categoryId);
+        const res = await fetch(`/api/vendre/produits?${params.toString()}`);
+        if (!res.ok) throw new Error("network");
+        const data = await res.json();
+        setProducts(data.products);
+        setCategories(data.categories);
+        setClients(data.clients);
+        await offlineDb.products.bulkPut(
+          (data.products as VendreProduct[]).map((p) => ({
+            id: p.id,
+            storeId: p.storeId,
+            reference: p.reference,
+            nom: p.nom,
+            categoryId: p.categoryId,
+            codeBarres: p.codeBarres,
+            prixAchat: Number(p.prixAchat),
+            prixVente: Number(p.prixVente),
+            quantiteStock: Number(p.quantiteStock),
+            seuilAlerte: Number(p.seuilAlerte),
+            misAJourLe: new Date().toISOString(),
+          }))
+        );
+      } catch {
+        // Hors-ligne ou erreur réseau : repli sur le cache local IndexedDB (best effort).
+        const cached = await offlineDb.products.where("storeId").equals(storeId).toArray();
+        const q = opts.q.trim().toLowerCase();
+        const filtered = cached.filter((p) => {
+          const matchesCategory = opts.categoryId === "TOUS" || !opts.categoryId || p.categoryId === opts.categoryId;
+          const matchesSearch =
+            !q || p.nom.toLowerCase().includes(q) || p.reference.toLowerCase().includes(q) || p.codeBarres?.includes(q);
+          return matchesCategory && matchesSearch;
+        });
+        setProducts(filtered.map(toVendreProduct));
+        if (cached.length === 0) {
+          toast.error("Impossible de charger les produits (hors-ligne, aucun cache disponible).");
+        }
+      } finally {
+        setLoadingProducts(false);
+      }
+    },
+    [storeId]
+  );
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => void loadProducts({ q: search, categoryId }), 250);
+    return () => window.clearTimeout(timeout);
+  }, [search, categoryId, loadProducts]);
+
+  // --- Panier ---------------------------------------------------------------
+  const addProduct = useCallback((product: VendreProduct) => {
+    const stock = Number(product.quantiteStock);
+    setCart((prev) => {
+      const existing = prev.find((l) => l.productId === product.id);
+      const currentQty = existing?.quantite ?? 0;
+      if (stock > 0 && currentQty + 1 > stock) {
+        toast.error("Stock insuffisant pour ce produit.");
+        return prev;
+      }
+      if (existing) {
+        return prev.map((l) => (l.productId === product.id ? { ...l, quantite: l.quantite + 1 } : l));
+      }
+      return [
+        ...prev,
+        {
+          productId: product.id,
+          nom: product.nom,
+          prixUnitaire: Number(product.prixVente),
+          prixAchatUnitaire: Number(product.prixAchat),
+          quantite: 1,
+          stockDisponible: stock,
+          unite: product.unite,
+        },
+      ];
+    });
+  }, []);
+
+  const increment = useCallback((productId: string) => {
+    setCart((prev) =>
+      prev.map((l) => {
+        if (l.productId !== productId) return l;
+        if (l.stockDisponible > 0 && l.quantite + 1 > l.stockDisponible) {
+          toast.error("Stock insuffisant pour ce produit.");
+          return l;
+        }
+        return { ...l, quantite: l.quantite + 1 };
+      })
+    );
+  }, []);
+
+  const decrement = useCallback((productId: string) => {
+    setCart((prev) =>
+      prev.map((l) => (l.productId === productId ? { ...l, quantite: l.quantite - 1 } : l)).filter((l) => l.quantite > 0)
+    );
+  }, []);
+
+  const removeLine = useCallback((productId: string) => {
+    setCart((prev) => prev.filter((l) => l.productId !== productId));
+  }, []);
+
+  const addByBarcode = useCallback(
+    async (rawCode: string) => {
+      const code = rawCode.trim();
+      if (!code) return;
+      const local = products.find((p) => p.codeBarres === code);
+      if (local) {
+        addProduct(local);
+        setBarcode("");
+        return;
+      }
+      try {
+        const res = await fetch(`/api/vendre/produits?codeBarres=${encodeURIComponent(code)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.products?.length) {
+            addProduct(data.products[0]);
+            setBarcode("");
+            return;
+          }
+        }
+      } catch {
+        const cached = await offlineDb.products.where("codeBarres").equals(code).first();
+        if (cached) {
+          addProduct(toVendreProduct(cached));
+          setBarcode("");
+          return;
+        }
+      }
+      toast.error("Produit introuvable pour ce code-barres.");
+    },
+    [products, addProduct]
+  );
+
+  // --- Totaux -----------------------------------------------------------
+  const sousTotal = useMemo(() => Math.round(cart.reduce((s, l) => s + l.prixUnitaire * l.quantite, 0)), [cart]);
+  const remiseAmount = useMemo(() => {
+    const amount = typeRemise === "POURCENTAGE" ? (sousTotal * remise) / 100 : remise;
+    return Math.min(Math.max(0, Math.round(amount)), sousTotal);
+  }, [sousTotal, remise, typeRemise]);
+  const total = Math.max(0, sousTotal - remiseAmount);
+
+  const effectivePayments = useMemo<PaymentLine[]>(() => {
+    if (mixte) return mixedPayments.filter((p) => p.montant > 0);
+    if (singleMode === "ESPECES") {
+      return [{ mode: "ESPECES", montant: total, montantRecu: montantRecu ?? total }];
+    }
+    if (singleMode === "MOBILE_MONEY") {
+      return [{ mode: "MOBILE_MONEY", montant: total, reference: reference || undefined }];
+    }
+    return [{ mode: "CREDIT", montant: total }];
+  }, [mixte, mixedPayments, singleMode, total, montantRecu, reference]);
+
+  const requiresClient = effectivePayments.some((p) => p.mode === "CREDIT");
+
+  const resetCart = useCallback(() => {
+    setCart([]);
+    setRemise(0);
+    setTypeRemise("MONTANT");
+    setMixte(false);
+    setSingleMode("ESPECES");
+    setMontantRecu(null);
+    setReference("");
+    setMixedPayments([]);
+    setClientId(null);
+    setError(null);
+  }, []);
+
+  const validate = useCallback((): string | null => {
+    if (cart.length === 0) return "Le panier est vide.";
+    const sum = Math.round(effectivePayments.reduce((s, p) => s + p.montant, 0));
+    if (sum !== Math.round(total)) {
+      return `Le total des paiements (${formatFcfa(sum)}) ne correspond pas au total de la vente (${formatFcfa(total)}).`;
+    }
+    if (requiresClient && !clientId) return "Un client est requis pour un paiement à crédit.";
+    if (!mixte && singleMode === "ESPECES" && montantRecu != null && montantRecu < total) {
+      return "Le montant reçu est inférieur au total à payer.";
+    }
+    if (mixte && mixedPayments.length === 0) return "Ajoutez au moins un mode de paiement.";
+    return null;
+  }, [cart.length, effectivePayments, total, requiresClient, clientId, mixte, singleMode, montantRecu, mixedPayments.length]);
+
+  // --- Validation de la vente ---------------------------------------------
+  const handleSubmit = useCallback(async () => {
+    const validationError = validate();
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+    setError(null);
+    setSubmitting(true);
+
+    const saleId = createId();
+    const deviceId = deviceIdRef.current || getOrCreateDeviceId();
+    const nowIso = new Date().toISOString();
+    const clientNom = clientId ? clients.find((c) => c.id === clientId)?.nom ?? null : null;
+
+    const itemsPayload = cart.map((l) => ({
+      productId: l.productId,
+      quantite: l.quantite,
+      prixUnitaire: l.prixUnitaire,
+      prixAchatUnitaire: l.prixAchatUnitaire,
+      sousTotal: Math.round(l.prixUnitaire * l.quantite),
+    }));
+
+    const paymentsPayload = effectivePayments.map((p) => ({
+      mode: p.mode,
+      montant: Math.round(p.montant),
+      montantRecu: p.mode === "ESPECES" && p.montantRecu != null ? Math.round(p.montantRecu) : undefined,
+      monnaieRendue:
+        p.mode === "ESPECES" && p.montantRecu != null ? Math.max(0, Math.round(p.montantRecu - p.montant)) : undefined,
+      reference: p.reference ?? undefined,
+    }));
+
+    let serverSale: { numero: string } | null = null;
+    let usedOnlinePath = false;
+
+    if (typeof navigator !== "undefined" && navigator.onLine) {
+      try {
+        const res = await fetch("/api/vendre", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: saleId,
+            clientId,
+            remise: remiseAmount,
+            typeRemise,
+            items: cart.map((l) => ({ productId: l.productId, quantite: l.quantite })),
+            payments: paymentsPayload,
+          }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error ?? "Erreur serveur");
+        }
+        const data = await res.json();
+        serverSale = data.sale;
+        usedOnlinePath = true;
+      } catch (e) {
+        // Repli hors-ligne ci-dessous (réseau instable malgré navigator.onLine, timeout, etc.).
+        console.warn("[vendre] création en ligne échouée, repli hors-ligne", e);
+      }
+    }
+
+    const offlineSaleRecord: OfflineSale = {
+      id: saleId,
+      storeId,
+      numero: serverSale?.numero ?? "HORS-LIGNE",
+      dateHeure: nowIso,
+      userId,
+      deviceId,
+      clientId: clientId ?? null,
+      sousTotal,
+      remise: remiseAmount,
+      typeRemise,
+      total,
+      statut: "VALIDEE",
+      items: itemsPayload,
+      payments: paymentsPayload,
+      synced: usedOnlinePath,
+    };
+    await offlineDb.sales.add(offlineSaleRecord);
+
+    if (!usedOnlinePath) {
+      await enqueueMutation({
+        entite: "sale",
+        entiteId: saleId,
+        action: "create",
+        payload: {
+          id: saleId,
+          clientId,
+          dateHeure: nowIso,
+          remise: remiseAmount,
+          typeRemise,
+          userId,
+          deviceId,
+          items: itemsPayload,
+          payments: paymentsPayload,
+        },
+        userId,
+        deviceId,
+      });
+      // Tentative immédiate (utile si navigator.onLine mentait, ou si la connexion vient de revenir) ;
+      // sinon la vente reste en file et sera rejouée par le listener "online"/l'intervalle du moteur de synchro.
+      void runSync().then(async () => {
+        const stillQueued = await offlineDb.syncQueue.where("entiteId").equals(saleId).count();
+        if (stillQueued === 0) {
+          await offlineDb.sales.update(saleId, { synced: true });
+        }
+        setPendingSyncCount((await offlineDb.syncQueue.where("entite").equals("sale").count()) ?? 0);
+      });
+    }
+
+    // Décompte optimiste du stock affiché dans la grille (le serveur reste la source de vérité).
+    setProducts((prev) =>
+      prev.map((p) => {
+        const line = cart.find((l) => l.productId === p.id);
+        if (!line) return p;
+        return { ...p, quantiteStock: String(Math.max(0, Number(p.quantiteStock) - line.quantite)) };
+      })
+    );
+
+    setReceipt({
+      numero: serverSale?.numero ?? "En attente (hors-ligne)",
+      dateHeure: nowIso,
+      storeName,
+      clientNom,
+      items: cart.map((l) => ({
+        nom: l.nom,
+        quantite: l.quantite,
+        prixUnitaire: l.prixUnitaire,
+        sousTotal: Math.round(l.prixUnitaire * l.quantite),
+      })),
+      sousTotal,
+      remise: remiseAmount,
+      typeRemise,
+      total,
+      payments: paymentsPayload.map((p) => ({ mode: p.mode, montant: p.montant, montantRecu: p.montantRecu ?? null })),
+      pending: !usedOnlinePath,
+    });
+    setCartDialogOpen(false);
+    resetCart();
+    setSubmitting(false);
+    toast.success(usedOnlinePath ? "Vente enregistrée." : "Vente enregistrée hors-ligne — en attente de synchronisation.");
+  }, [
+    validate,
+    clientId,
+    clients,
+    cart,
+    effectivePayments,
+    remiseAmount,
+    typeRemise,
+    sousTotal,
+    total,
+    storeId,
+    userId,
+    storeName,
+    resetCart,
+  ]);
+
+  const cartPanelProps = {
+    lines: cart,
+    onIncrement: increment,
+    onDecrement: decrement,
+    onRemove: removeLine,
+    remise,
+    typeRemise,
+    onRemiseChange: (v: number) => setRemise(v),
+    onTypeRemiseChange: (v: DiscountType) => setTypeRemise(v),
+    sousTotal,
+    remiseAmount,
+    total,
+    mixte,
+    onToggleMixte: () => setMixte((v) => !v),
+    singleMode,
+    onSingleModeChange: setSingleMode,
+    montantRecu,
+    onMontantRecuChange: setMontantRecu,
+    reference,
+    onReferenceChange: setReference,
+    mixedPayments,
+    onMixedPaymentsChange: setMixedPayments,
+    clients,
+    clientId,
+    onClientChange: setClientId,
+    onSubmit: handleSubmit,
+    submitting,
+    error,
+  };
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-3 lg:h-[calc(100dvh-6.5rem)] lg:flex-row">
+      {!online && (
+        <div className="flex items-center gap-2 rounded-lg bg-warning/15 px-3 py-2 text-xs font-medium text-warning lg:hidden">
+          <WifiOff size={14} /> Mode hors-ligne — les ventes seront synchronisées automatiquement au retour du réseau.
+        </div>
+      )}
+
+      <div className="min-h-[420px] flex-1 lg:min-h-0">
+        <ProductGrid
+          products={products}
+          categories={categories}
+          loading={loadingProducts}
+          search={search}
+          onSearchChange={setSearch}
+          categoryId={categoryId}
+          onCategoryChange={setCategoryId}
+          barcode={barcode}
+          onBarcodeChange={setBarcode}
+          onBarcodeSubmit={() => void addByBarcode(barcode)}
+          onScanClick={() => setScannerOpen(true)}
+          onAddProduct={addProduct}
+        />
+      </div>
+
+      {/* Panier — colonne fixe visible sur grand écran */}
+      <div className="hidden lg:block lg:w-[380px] lg:shrink-0">
+        <div className="flex h-full flex-col rounded-xl border border-border bg-card p-3">
+          {!online && (
+            <div className="mb-2 flex items-center gap-2 rounded-lg bg-warning/15 px-3 py-2 text-xs font-medium text-warning">
+              <WifiOff size={14} /> Hors-ligne{pendingSyncCount > 0 ? ` — ${pendingSyncCount} vente(s) en attente` : ""}
+            </div>
+          )}
+          <CartPanel {...cartPanelProps} />
+        </div>
+      </div>
+
+      {/* Barre panier mobile */}
+      {cart.length > 0 && (
+        <button
+          type="button"
+          onClick={() => setCartDialogOpen(true)}
+          className="fixed inset-x-3 bottom-20 z-30 flex h-14 items-center justify-between rounded-xl bg-primary px-4 text-primary-foreground shadow-lg lg:hidden"
+        >
+          <span className="font-medium">{cart.length} article{cart.length > 1 ? "s" : ""}</span>
+          <span className="font-bold">{formatFcfa(total)} · Voir le panier</span>
+        </button>
+      )}
+      <Dialog open={cartDialogOpen} onClose={() => setCartDialogOpen(false)} title="Panier" className="lg:hidden">
+        <CartPanel {...cartPanelProps} />
+      </Dialog>
+
+      <BarcodeScannerDialog
+        open={scannerOpen}
+        onClose={() => setScannerOpen(false)}
+        onDetected={(code) => {
+          setScannerOpen(false);
+          void addByBarcode(code);
+        }}
+      />
+
+      <Dialog open={!!receipt} onClose={() => setReceipt(null)} title="Vente validée">
+        {receipt && <ReceiptView receipt={receipt} onClose={() => setReceipt(null)} />}
+      </Dialog>
+    </div>
+  );
+}

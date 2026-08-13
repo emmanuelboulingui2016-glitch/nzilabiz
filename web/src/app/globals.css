@@ -1,0 +1,112 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+   NzilaBiz — design tokens (voir cahier des charges §17 "Design system")
+   Palette : Émeraude #0F9D58 · Forêt #0B5A38 · Clair #3FBE7D · Crème #FAF7F0
+--------------------------------------------------------------------------- */
+
+:root {
+  --color-emeraude: #0f9d58;
+  --color-foret: #0b5a38;
+  --color-clair: #3fbe7d;
+  --color-creme: #faf7f0;
+
+  --background: var(--color-creme);
+  --foreground: #14261d;
+  --card: #ffffff;
+  --card-foreground: #14261d;
+  --sidebar: var(--color-foret);
+  --sidebar-foreground: #f3f9f5;
+  --sidebar-muted: #bcd9c9;
+  --primary: var(--color-emeraude);
+  --primary-foreground: #ffffff;
+  --accent: var(--color-clair);
+  --muted: #eef1ec;
+  --muted-foreground: #5b6b62;
+  --border: #e2e6df;
+  --success: #16a34a;
+  --warning: #d97706;
+  --danger: #dc2626;
+  --radius: 0.75rem;
+}
+
+.dark {
+  --background: #0e1712;
+  --foreground: #eef3ef;
+  --card: #16221c;
+  --card-foreground: #eef3ef;
+  --sidebar: #08140f;
+  --sidebar-foreground: #eef3ef;
+  --sidebar-muted: #7fa593;
+  --primary: var(--color-clair);
+  --primary-foreground: #06150e;
+  --accent: var(--color-emeraude);
+  --muted: #1c2921;
+  --muted-foreground: #9db3a8;
+  --border: #24352c;
+  --success: #22c55e;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+}
+
+@theme inline {
+  --font-sans: "Manrope", ui-sans-serif, system-ui, sans-serif;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-muted: var(--sidebar-muted);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+
+  --color-emeraude: var(--color-emeraude);
+  --color-foret: var(--color-foret);
+  --color-clair: var(--color-clair);
+  --color-creme: var(--color-creme);
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 0.25rem);
+  --radius-sm: calc(var(--radius) - 0.5rem);
+}
+
+* {
+  border-color: var(--color-border);
+}
+
+html {
+  color-scheme: light;
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-sans);
+}
+
+/* RTL — support complet arabe (§18 exigences non-fonctionnelles) */
+html[dir="rtl"] {
+  text-align: right;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 999px;
+}

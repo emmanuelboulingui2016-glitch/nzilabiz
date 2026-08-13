@@ -1,0 +1,33 @@
+import { redirect } from "next/navigation";
+import { eq } from "drizzle-orm";
+import { getSession } from "@/lib/auth/session";
+import { can } from "@/lib/auth/rbac";
+import { db } from "@/db/client";
+import { stores } from "@/db/schema";
+import { SubscriptionView } from "@/components/parametres/abonnement/subscription-view";
+
+// Onglet Abonnement — §14 + §16 du cahier des charges. Purement informatif côté données
+// (plan courant, dates d'expiration) : aucune mutation serveur, le paiement Mobile Money est
+// un stub (voir composant) et le clic "Choisir" ne modifie pas `stores.plan` dans ce build.
+export default async function AbonnementPage() {
+  const session = await getSession();
+  if (!session) redirect("/connexion");
+  if (!can(session.role, "parametres.abonnement")) {
+    return (
+      <div className="rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">
+        Vous n&apos;avez pas accès à ce réglage.
+      </div>
+    );
+  }
+
+  const store = await db.query.stores.findFirst({ where: eq(stores.id, session.storeId) });
+  if (!store) redirect("/connexion");
+
+  return (
+    <SubscriptionView
+      plan={store.plan}
+      essaiExpireLe={store.essaiExpireLe ? store.essaiExpireLe.toISOString() : null}
+      abonnementExpireLe={store.abonnementExpireLe ? store.abonnementExpireLe.toISOString() : null}
+    />
+  );
+}
