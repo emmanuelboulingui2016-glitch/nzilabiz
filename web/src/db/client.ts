@@ -11,9 +11,24 @@ const connectionString =
   process.env.DATABASE_URL ||
   "postgresql://nzilabiz:nzilabiz_dev_password@localhost:5432/nzilabiz";
 
+// Hébergement sans serveur (Vercel, Netlify) : chaque requête peut réveiller une instance
+// différente, et 10 connexions par instance épuisent le serveur Postgres en quelques minutes. On
+// passe alors par un pooler en **mode transaction** — port 6543 chez Supabase — qui impose deux
+// contraintes : une seule connexion par instance, et pas d'instructions préparées, le pooler ne
+// garantissant pas de retomber sur la même session d'une requête à l'autre.
+//
+// La détection porte sur le port et non sur le nom d'hôte : le pooler « session » de Supabase est
+// sur le même hôte mais sur le port 5432, accepte les instructions préparées et plusieurs
+// connexions. Le confondre avec le mode transaction briderait inutilement un serveur persistant.
+//
+// Passer par la chaîne de connexion plutôt que par une variable dédiée évite d'oublier de la
+// positionner, et laisse le développement local en connexion directe inchangé.
+const modeTransaction = /:6543(?:[/?]|$)|pgbouncer=true/.test(connectionString);
+
 // Réutilise la connexion entre rechargements à chaud en dev (évite d'épuiser le pool Postgres).
 const client =
-  global.__nzilabiz_pg__ ?? postgres(connectionString, { max: 10 });
+  global.__nzilabiz_pg__ ??
+  postgres(connectionString, modeTransaction ? { max: 1, prepare: false } : { max: 10 });
 
 if (process.env.NODE_ENV !== "production") {
   global.__nzilabiz_pg__ = client;

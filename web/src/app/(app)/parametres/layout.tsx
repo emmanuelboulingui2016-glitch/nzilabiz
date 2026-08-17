@@ -3,7 +3,10 @@ import Link from "next/link";
 import { getSession } from "@/lib/auth/session";
 import { can, type Permission } from "@/lib/auth/rbac";
 
-const TABS: { href: string; label: string; permission: Permission }[] = [
+// `permission` absente = onglet visible par tous les rôles. C'est le cas de « Mon compte » :
+// chacun doit pouvoir gérer et supprimer son propre accès, y compris un vendeur qui n'a aucun
+// droit sur les réglages de la boutique.
+const TABS: { href: string; label: string; permission?: Permission }[] = [
   { href: "/parametres/boutique", label: "Boutique", permission: "parametres.boutique" },
   { href: "/parametres/abonnement", label: "Abonnement", permission: "parametres.abonnement" },
   { href: "/parametres/facturation", label: "Facturation", permission: "parametres.boutique" },
@@ -13,13 +16,15 @@ const TABS: { href: string; label: string; permission: Permission }[] = [
   { href: "/parametres/notifications", label: "Notifications", permission: "parametres.notifications" },
   { href: "/parametres/mobile-money", label: "Mobile Money", permission: "parametres.mobilemoney" },
   { href: "/parametres/synchronisation", label: "Synchronisation", permission: "parametres.synchronisation" },
+  { href: "/parametres/compte", label: "Mon compte" },
+  { href: "/parametres/aide", label: "Aide & support" },
 ];
 
 export default async function ParametresLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
   if (!session) redirect("/connexion");
 
-  const visibleTabs = TABS.filter((tab) => can(session.role, tab.permission));
+  const visibleTabs = TABS.filter((tab) => !tab.permission || can(session.role, tab.permission));
 
   return (
     <div>

@@ -4,38 +4,36 @@ import { useEffect, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { AlertTriangle, GripVertical, Save } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 
-// Onglet Mobile Money — §14 + §16 🔧. Écran de configuration réel (Airtel Money en priorité par
-// défaut, cf. §20, puis Moov Money) + champs d'identifiants pour un futur agrégateur type
-// CinetPay. AUCUNE intégration de paiement réelle ici : ce sont des champs de configuration
-// destinés à préparer le branchement d'un agrégateur, pas un flux de paiement fonctionnel.
+// Onglet Mobile Money — §14 + §16.
 //
-// 🔧 Simplification assumée (voir résumé de tâche / README) : persisté en `localStorage`
-// uniquement (clé par boutique), PAS sur le serveur — `schema.ts` est partagé et hors périmètre de
-// cet agent, il n'y a pas de table dédiée. Une prochaine itération doit ajouter une table
-// `mobile_money_settings` et brancher `GET/PUT /api/parametres/mobile-money` dessus (route déjà
-// posée en stub).
+// La configuration est enregistrée côté serveur (table `mobile_money_settings`), donc partagée
+// par tous les appareils et tous les utilisateurs de la boutique. La clé API de l'agrégateur
+// n'est jamais renvoyée en clair : le serveur n'en expose que les 4 derniers caractères, et un
+// champ laissé vide conserve la clé déjà enregistrée.
 
 type Provider = "AIRTEL_MONEY" | "MOOV_MONEY";
 
 type Config = {
-  providerOrder: Provider[];
+  operateurPrioritaire: Provider;
   numeroMarchandAirtel: string;
   numeroMarchandMoov: string;
-  cinetpayApiKey: string;
-  cinetpaySiteId: string;
+  agregateurSiteId: string;
+  apiKeyDefinie: boolean;
+  apiKeyApercu: string;
   modeProduction: boolean;
 };
 
 const DEFAULT_CONFIG: Config = {
-  providerOrder: ["AIRTEL_MONEY", "MOOV_MONEY"],
+  operateurPrioritaire: "AIRTEL_MONEY",
   numeroMarchandAirtel: "",
   numeroMarchandMoov: "",
-  cinetpayApiKey: "",
-  cinetpaySiteId: "",
+  agregateurSiteId: "",
+  apiKeyDefinie: false,
+  apiKeyApercu: "",
   modeProduction: false,
 };
 
@@ -44,39 +42,87 @@ const PROVIDER_LABEL: Record<Provider, string> = {
   MOOV_MONEY: "Moov Money",
 };
 
-function storageKey(storeId: string) {
-  return `nzilabiz:mobile-money-config:${storeId}`;
+function ordreOperateurs(prioritaire: Provider): Provider[] {
+  return prioritaire === "AIRTEL_MONEY" ? ["AIRTEL_MONEY", "MOOV_MONEY"] : ["MOOV_MONEY", "AIRTEL_MONEY"];
 }
 
-export function MobileMoneyForm({ storeId }: { storeId: string }) {
+export function MobileMoneyForm() {
   const [config, setConfig] = useState<Config>(DEFAULT_CONFIG);
+  const [nouvelleApiKey, setNouvelleApiKey] = useState("");
   const [loaded, setLoaded] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(storageKey(storeId));
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        setConfig({ ...DEFAULT_CONFIG, ...parsed });
-      }
-    } catch {
-      // localStorage indisponible ou JSON corrompu — on repart des valeurs par défaut.
-    } finally {
-      setLoaded(true);
-    }
-  }, [storeId]);
+    fetch("/api/parametres/mobile-money")
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error("chargement"))))
+      .then((data) => setConfig({ ...DEFAULT_CONFIG, ...data.config }))
+      .catch(() => toast.error("Impossible de charger la configuration Mobile Money."))
+      .finally(() => setLoaded(true));
+  }, []);
 
   const swapPriority = () => {
-    setConfig((prev) => ({ ...prev, providerOrder: [prev.providerOrder[1], prev.providerOrder[0]] }));
+    setConfig((prev) => ({
+      ...prev,
+      operateurPrioritaire: prev.operateurPrioritaire === "AIRTEL_MONEY" ? "MOOV_MONEY" : "AIRTEL_MONEY",
+    }));
   };
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    setSaving(true);
     try {
-      window.localStorage.setItem(storageKey(storeId), JSON.stringify(config));
-      toast.success("Configuration Mobile Money enregistrée sur cet appareil.");
+      const res = await fetch("/api/parametres/mobile-money", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          operateurPrioritaire: config.operateurPrioritaire,
+          numeroMarchandAirtel: config.numeroMarchandAirtel,
+          numeroMarchandMoov: config.numeroMarchandMoov,
+          agregateurSiteId: config.agregateurSiteId,
+          agregateurApiKey: nouvelleApiKey,
+          modeProduction: config.modeProduction,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error ?? "Enregistrement impossible.");
+        return;
+      }
+      setConfig({ ...DEFAULT_CONFIG, ...data.config });
+      setNouvelleApiKey("");
+      toast.success("Configuration Mobile Money enregistrée pour toute la boutique.");
     } catch {
-      toast.error("Impossible d'enregistrer localement (stockage du navigateur indisponible).");
+      toast.error("Erreur réseau — réessayez.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const effacerApiKey = async () => {
+    if (!window.confirm("Effacer la clé API enregistrée ?")) return;
+    setSaving(true);
+    try {
+      const res = await fetch("/api/parametres/mobile-money", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          operateurPrioritaire: config.operateurPrioritaire,
+          numeroMarchandAirtel: config.numeroMarchandAirtel,
+          numeroMarchandMoov: config.numeroMarchandMoov,
+          agregateurSiteId: config.agregateurSiteId,
+          agregateurApiKey: null,
+          modeProduction: config.modeProduction,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error ?? "Suppression impossible.");
+        return;
+      }
+      setConfig({ ...DEFAULT_CONFIG, ...data.config });
+      toast.success("Clé API effacée.");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -87,10 +133,9 @@ export function MobileMoneyForm({ storeId }: { storeId: string }) {
       <div className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm text-warning">
         <AlertTriangle size={16} className="mt-0.5 shrink-0" />
         <p>
-          <strong>Configuration locale</strong>, à connecter à un vrai stockage serveur. Cette configuration est
-          enregistrée uniquement dans le navigateur de cet appareil (localStorage) — elle n&apos;est pas partagée
-          entre appareils ni sauvegardée côté serveur tant qu&apos;une table dédiée n&apos;est pas ajoutée au
-          schéma. Aucun paiement Mobile Money réel n&apos;est traité par cet écran.
+          Ces réglages sont enregistrés pour toute la boutique, mais{" "}
+          <strong>aucun paiement Mobile Money réel n&apos;est encore traité</strong> : la connexion à
+          l&apos;agrégateur reste à brancher. Renseignez-les dès maintenant, ils seront utilisés tels quels.
         </p>
       </div>
 
@@ -103,7 +148,7 @@ export function MobileMoneyForm({ storeId }: { storeId: string }) {
           </p>
         </CardHeader>
         <CardContent className="space-y-2">
-          {config.providerOrder.map((provider, index) => (
+          {ordreOperateurs(config.operateurPrioritaire).map((provider, index) => (
             <div key={provider} className="flex items-center gap-3 rounded-lg border border-border p-3">
               <GripVertical size={16} className="text-muted-foreground" />
               <Badge tone="info">{index + 1}</Badge>
@@ -147,28 +192,40 @@ export function MobileMoneyForm({ storeId }: { storeId: string }) {
           <CardTitle>Identifiants agrégateur (ex. CinetPay)</CardTitle>
           <p className="text-xs text-muted-foreground">
             Un agrégateur de paiement (CinetPay ou équivalent) permet d&apos;encaisser Airtel Money / Moov Money
-            directement depuis l&apos;app, sans passer par une saisie manuelle du montant. Ces champs préparent
-            cette intégration ; ils ne sont pas encore utilisés pour un paiement réel.
+            directement depuis l&apos;app, sans saisie manuelle du montant. La clé API est stockée sur le
+            serveur et n&apos;est jamais réaffichée en clair.
           </p>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
           <div>
-            <Label htmlFor="mm-apikey">Clé API CinetPay</Label>
+            <Label htmlFor="mm-apikey">
+              Clé API {config.apiKeyDefinie ? <span className="font-normal">(enregistrée : {config.apiKeyApercu})</span> : null}
+            </Label>
             <Input
               id="mm-apikey"
               type="password"
-              placeholder="Clé API de l'agrégateur"
-              value={config.cinetpayApiKey}
-              onChange={(e) => setConfig((c) => ({ ...c, cinetpayApiKey: e.target.value }))}
+              autoComplete="off"
+              placeholder={config.apiKeyDefinie ? "Laisser vide pour conserver la clé actuelle" : "Clé API de l'agrégateur"}
+              value={nouvelleApiKey}
+              onChange={(e) => setNouvelleApiKey(e.target.value)}
             />
+            {config.apiKeyDefinie ? (
+              <button
+                type="button"
+                onClick={effacerApiKey}
+                className="mt-1 text-xs font-semibold text-danger hover:underline"
+              >
+                Effacer la clé enregistrée
+              </button>
+            ) : null}
           </div>
           <div>
             <Label htmlFor="mm-siteid">ID du site</Label>
             <Input
               id="mm-siteid"
               placeholder="Identifiant du site marchand"
-              value={config.cinetpaySiteId}
-              onChange={(e) => setConfig((c) => ({ ...c, cinetpaySiteId: e.target.value }))}
+              value={config.agregateurSiteId}
+              onChange={(e) => setConfig((c) => ({ ...c, agregateurSiteId: e.target.value }))}
             />
           </div>
           <div>
@@ -186,9 +243,9 @@ export function MobileMoneyForm({ storeId }: { storeId: string }) {
       </Card>
 
       <div className="flex justify-end">
-        <Button type="submit">
+        <Button type="submit" disabled={saving}>
           <Save size={16} />
-          Enregistrer (local)
+          {saving ? "Enregistrement..." : "Enregistrer"}
         </Button>
       </div>
     </form>

@@ -2,19 +2,17 @@
 
 import { useState, type FormEvent } from "react";
 import { toast } from "sonner";
-import { CheckCircle2, KeyRound, ShieldCheck } from "lucide-react";
+import { CheckCircle2, KeyRound } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
 
 export type SecurityInitial = {
   nom: string;
   email: string;
   aMotDePasse: boolean;
   googleLie: boolean;
-  twoFactorActive: boolean;
 };
 
 async function callSecurite(body: Record<string, unknown>) {
@@ -36,11 +34,6 @@ export function SecurityForm({ initial }: { initial: SecurityInitial }) {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [savingPassword, setSavingPassword] = useState(false);
-
-  const [twoFactorActive, setTwoFactorActive] = useState(initial.twoFactorActive);
-  const [twoFaSecret, setTwoFaSecret] = useState<string | null>(null);
-  const [twoFaCode, setTwoFaCode] = useState("");
-  const [twoFaBusy, setTwoFaBusy] = useState(false);
 
   const handleProfile = async (e: FormEvent) => {
     e.preventDefault();
@@ -89,61 +82,6 @@ export function SecurityForm({ initial }: { initial: SecurityInitial }) {
       toast.error("Erreur réseau — réessayez.");
     } finally {
       setSavingPassword(false);
-    }
-  };
-
-  const startTwoFa = async () => {
-    setTwoFaBusy(true);
-    try {
-      const { ok, data } = await callSecurite({ action: "2fa-init" });
-      if (!ok) {
-        toast.error(data.error ?? "Impossible de démarrer la configuration 2FA.");
-        return;
-      }
-      setTwoFaSecret(data.secret);
-    } catch {
-      toast.error("Erreur réseau — réessayez.");
-    } finally {
-      setTwoFaBusy(false);
-    }
-  };
-
-  const verifyTwoFa = async (e: FormEvent) => {
-    e.preventDefault();
-    setTwoFaBusy(true);
-    try {
-      const { ok, data } = await callSecurite({ action: "2fa-verify", code: twoFaCode });
-      if (!ok) {
-        toast.error(data.error ?? "Code invalide.");
-        return;
-      }
-      setTwoFactorActive(true);
-      setTwoFaSecret(null);
-      setTwoFaCode("");
-      toast.success("Authentification à deux facteurs activée.");
-    } catch {
-      toast.error("Erreur réseau — réessayez.");
-    } finally {
-      setTwoFaBusy(false);
-    }
-  };
-
-  const disableTwoFa = async () => {
-    if (!window.confirm("Désactiver l'authentification à deux facteurs ?")) return;
-    setTwoFaBusy(true);
-    try {
-      const { ok, data } = await callSecurite({ action: "2fa-disable" });
-      if (!ok) {
-        toast.error(data.error ?? "Impossible de désactiver le 2FA.");
-        return;
-      }
-      setTwoFactorActive(false);
-      setTwoFaSecret(null);
-      toast.success("Authentification à deux facteurs désactivée.");
-    } catch {
-      toast.error("Erreur réseau — réessayez.");
-    } finally {
-      setTwoFaBusy(false);
     }
   };
 
@@ -249,66 +187,6 @@ export function SecurityForm({ initial }: { initial: SecurityInitial }) {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader className="flex-row items-center justify-between">
-          <div>
-            <CardTitle>Authentification à deux facteurs (2FA)</CardTitle>
-            <p className="text-xs text-muted-foreground">
-              Code à usage unique généré par une appli comme Google Authenticator ou Authy.
-            </p>
-          </div>
-          <Badge tone={twoFactorActive ? "success" : "neutral"}>
-            <ShieldCheck size={12} /> {twoFactorActive ? "Activé" : "Désactivé"}
-          </Badge>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <p className="rounded-lg bg-warning/10 p-2 text-xs text-warning">
-            Important : dans ce build, l&apos;écran de connexion ne demande pas encore ce second facteur — seule
-            l&apos;activation/désactivation du réglage est fonctionnelle. L&apos;application complète au login sera
-            une prochaine itération.
-          </p>
-
-          {!twoFactorActive && !twoFaSecret && (
-            <Button variant="outline" onClick={startTwoFa} disabled={twoFaBusy}>
-              Activer le 2FA
-            </Button>
-          )}
-
-          {!twoFactorActive && twoFaSecret && (
-            <form onSubmit={verifyTwoFa} className="space-y-3 rounded-lg border border-border p-3">
-              <p className="text-sm">
-                Ajoutez ce compte dans votre appli d&apos;authentification en saisissant la clé secrète
-                manuellement (pas de QR code dans ce build) :
-              </p>
-              <code className={cn("block break-all rounded bg-muted px-2 py-1.5 font-mono text-sm")}>
-                {twoFaSecret}
-              </code>
-              <div className="flex flex-wrap items-end gap-2">
-                <div className="flex-1 min-w-40">
-                  <Label htmlFor="sec-2fa-code">Code à 6 chiffres</Label>
-                  <Input
-                    id="sec-2fa-code"
-                    value={twoFaCode}
-                    onChange={(e) => setTwoFaCode(e.target.value)}
-                    maxLength={6}
-                    inputMode="numeric"
-                    required
-                  />
-                </div>
-                <Button type="submit" disabled={twoFaBusy}>
-                  Confirmer et activer
-                </Button>
-              </div>
-            </form>
-          )}
-
-          {twoFactorActive && (
-            <Button variant="danger" onClick={disableTwoFa} disabled={twoFaBusy}>
-              Désactiver le 2FA
-            </Button>
-          )}
-        </CardContent>
-      </Card>
     </>
   );
 }

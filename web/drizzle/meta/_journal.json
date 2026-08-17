@@ -22,6 +22,41 @@
       "when": 1786581633788,
       "tag": "0002_kind_colossus",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1786625593746,
+      "tag": "0003_faithful_bloodscream",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1786693969127,
+      "tag": "0004_worried_shadowcat",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1786693984634,
+      "tag": "0005_shocking_wilson_fisk",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1786703346823,
+      "tag": "0006_mighty_iron_lad",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1786999464299,
+      "tag": "0007_greedy_cargill",
+      "breakpoints": true
     }
   ]
 }

@@ -15,6 +15,8 @@ export type Permission =
   | "stock.view"
   | "stock.edit"
   | "stock.ajustement"
+  | "clients.view"
+  | "clients.edit"
   | "creances.view"
   | "creances.edit"
   | "depenses.view"
@@ -42,6 +44,8 @@ const MATRIX: Record<Role, Permission[]> = {
     "stock.view",
     "stock.edit",
     "stock.ajustement",
+    "clients.view",
+    "clients.edit",
     "creances.view",
     "creances.edit",
     "depenses.view",
@@ -68,6 +72,8 @@ const MATRIX: Record<Role, Permission[]> = {
     "stock.view",
     "stock.edit",
     "stock.ajustement",
+    "clients.view",
+    "clients.edit",
     "creances.view",
     "creances.edit",
     "depenses.view",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,23 +12,16 @@ const CURRENCIES = [
   { code: "USD", label: "Dollar américain (USD)" },
 ] as const;
 
-// Clé de stockage local pour le taux de change manuel — voir note ⚠️ ci-dessous.
-const FX_RATE_STORAGE_KEY = "nzilabiz_fx_rate_manual";
-
-export function DeviseForm({ initialDevise }: { initialDevise: string }) {
+export function DeviseForm({
+  initialDevise,
+  initialTauxChange,
+}: {
+  initialDevise: string;
+  initialTauxChange: number | null;
+}) {
   const [devise, setDevise] = useState(initialDevise);
-  const [fxRate, setFxRate] = useState("");
+  const [fxRate, setFxRate] = useState(initialTauxChange !== null ? String(initialTauxChange) : "");
   const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    const stored = window.localStorage.getItem(FX_RATE_STORAGE_KEY);
-    if (stored) setFxRate(stored);
-  }, []);
-
-  const handleFxRateChange = (value: string) => {
-    setFxRate(value);
-    window.localStorage.setItem(FX_RATE_STORAGE_KEY, value);
-  };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -37,7 +30,10 @@ export function DeviseForm({ initialDevise }: { initialDevise: string }) {
       const res = await fetch("/api/parametres/devise", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ devise }),
+        body: JSON.stringify({
+          devise,
+          tauxChangeManuel: devise === "XAF" || fxRate.trim() === "" ? null : Number(fxRate),
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -84,12 +80,11 @@ export function DeviseForm({ initialDevise }: { initialDevise: string }) {
                 min="0"
                 step="0.01"
                 value={fxRate}
-                onChange={(e) => handleFxRateChange(e.target.value)}
+                onChange={(e) => setFxRate(e.target.value)}
                 placeholder="Ex. 655.96"
               />
               <p className="mt-1 text-xs text-muted-foreground">
-                ⚠️ Ce taux est enregistré uniquement sur cet appareil (pas encore synchronisé côté
-                serveur) — voir le résumé de la tâche pour le détail.
+                Enregistré avec la devise, pour toute la boutique et tous ses appareils.
               </p>
             </div>
           )}

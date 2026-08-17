@@ -20,5 +20,10 @@ export default async function DevisePage() {
   const store = await db.query.stores.findFirst({ where: eq(stores.id, session.storeId) });
   if (!store) redirect("/connexion");
 
-  return <DeviseForm initialDevise={store.devise} />;
+  return (
+    <DeviseForm
+      initialDevise={store.devise}
+      initialTauxChange={store.tauxChangeManuel !== null ? Number(store.tauxChangeManuel) : null}
+    />
+  );
 }

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, ShoppingCart, Receipt, Package, Menu } from "lucide-react";
+import { LayoutDashboard, ShoppingCart, Receipt, Package, Menu, Settings } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "@/lib/i18n/provider";
@@ -55,25 +55,38 @@ export function MobileNav({ role }: { role: Role }) {
           {NAV_SECTIONS.map((section) => {
             const items = section.items.filter((item) => can(role, item.permission as Permission));
             if (items.length === 0) return null;
+            const SectionIcon = section.icon;
             return (
               <div key={section.titleKey}>
-                <p className="mb-1 text-xs font-semibold uppercase text-muted-foreground">{t(section.titleKey)}</p>
+                <p className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase text-muted-foreground">
+                  <SectionIcon size={13} />
+                  {t(section.titleKey)}
+                </p>
                 <div className="space-y-1">
-                  {items.map((item) => (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      onClick={() => setOpen(false)}
-                      className="block rounded-lg px-3 py-2 text-sm hover:bg-muted"
-                    >
-                      {t(item.labelKey)}
-                    </Link>
-                  ))}
+                  {items.map((item) => {
+                    const ItemIcon = item.icon;
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        onClick={() => setOpen(false)}
+                        className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-semibold hover:bg-muted"
+                      >
+                        <ItemIcon size={18} className="shrink-0 text-muted-foreground" />
+                        {t(item.labelKey)}
+                      </Link>
+                    );
+                  })}
                 </div>
               </div>
             );
           })}
-          <Link href="/parametres" onClick={() => setOpen(false)} className="block rounded-lg px-3 py-2 text-sm font-medium hover:bg-muted">
+          <Link
+            href="/parametres"
+            onClick={() => setOpen(false)}
+            className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-semibold hover:bg-muted"
+          >
+            <Settings size={18} className="shrink-0 text-muted-foreground" />
             {t("nav.parametres")}
           </Link>
         </div>

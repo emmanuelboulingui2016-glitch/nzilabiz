@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Label, Select } from "@/components/ui/input";
 import { formatFcfa, parseFcfaInput } from "@/lib/currency";
 import { cn } from "@/lib/utils";
+import { ClientPicker } from "./client-picker";
 import type { CartLine, DiscountType, PaymentLine, PaymentMode, VendreClient } from "./types";
 
 const MODE_OPTIONS: { value: PaymentMode; label: string; icon: typeof Wallet }[] = [
@@ -43,6 +44,7 @@ export function CartPanel({
   clients,
   clientId,
   onClientChange,
+  onClientCreated,
 
   onSubmit,
   submitting,
@@ -77,6 +79,7 @@ export function CartPanel({
   clients: VendreClient[];
   clientId: string | null;
   onClientChange: (id: string | null) => void;
+  onClientCreated: (client: VendreClient) => void;
 
   onSubmit: () => void;
   submitting: boolean;
@@ -323,25 +326,13 @@ export function CartPanel({
         </div>
 
         {/* Client */}
-        <div>
-          <Label htmlFor="vendre-client" className="text-xs">
-            Client {requiresClient ? <span className="text-danger">(obligatoire pour le crédit)</span> : "(optionnel)"}
-          </Label>
-          <Select
-            id="vendre-client"
-            value={clientId ?? ""}
-            onChange={(e) => onClientChange(e.target.value || null)}
-            className="h-10"
-          >
-            <option value="">— Aucun client —</option>
-            {clients.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.nom}
-                {c.telephone ? ` (${c.telephone})` : ""}
-              </option>
-            ))}
-          </Select>
-        </div>
+        <ClientPicker
+          clients={clients}
+          clientId={clientId}
+          onClientChange={onClientChange}
+          onClientCreated={onClientCreated}
+          requis={requiresClient}
+        />
 
         {error && <p className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>}
 

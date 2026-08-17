@@ -3,55 +3,117 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
+import { useEffect, useState } from "react";
 import { NAV_SECTIONS } from "./nav-config";
 import { useTranslations } from "@/lib/i18n/provider";
 import { can, type Permission, type Role } from "@/lib/auth/rbac";
 import { cn } from "@/lib/utils";
-import { LogOut, Settings } from "lucide-react";
+import { LogOut, PanelLeftClose, PanelLeftOpen, Settings, ShieldCheck } from "lucide-react";
+
+// Le menu replié laisse les icônes visibles : sur un petit écran de portable (fréquent en
+// boutique), ça rend une bonne moitié de la largeur à l'écran de caisse sans perdre la
+// navigation. Le choix est mémorisé d'une session à l'autre.
+const STORAGE_KEY = "nzilabiz.sidebar.collapsed";
 
 export function Sidebar({
   role,
   userName,
   storeName,
+  superAdmin = false,
   onLogout,
 }: {
   role: Role;
   userName: string;
   storeName: string;
+  superAdmin?: boolean;
   onLogout: () => void;
 }) {
   const pathname = usePathname();
   const { t } = useTranslations();
+  const [collapsed, setCollapsed] = useState(false);
+
+  // Lu après le montage (et non à l'initialisation) : le serveur ne connaît pas localStorage,
+  // le lire trop tôt provoquerait une erreur d'hydratation.
+  useEffect(() => {
+    setCollapsed(window.localStorage.getItem(STORAGE_KEY) === "1");
+  }, []);
+
+  function toggle() {
+    setCollapsed((prev) => {
+      const next = !prev;
+      window.localStorage.setItem(STORAGE_KEY, next ? "1" : "0");
+      return next;
+    });
+  }
 
   return (
-    <aside className="hidden w-64 shrink-0 flex-col bg-sidebar text-sidebar-foreground md:flex">
-      <div className="flex items-center gap-2 px-4 py-5">
-        <Image src="/brand/nzilabiz-icone-transparent.png" alt="NzilaBiz" width={32} height={32} />
-        <span className="truncate font-extrabold text-lg">{storeName || "NzilaBiz"}</span>
+    <aside
+      className={cn(
+        "hidden shrink-0 flex-col bg-sidebar text-sidebar-foreground transition-[width] duration-200 md:flex",
+        collapsed ? "w-[76px]" : "w-64"
+      )}
+    >
+      <div className={cn("flex items-center gap-2 px-4 py-5", collapsed && "flex-col gap-3 px-2")}>
+        <Link href="/dashboard" className="flex min-w-0 items-center gap-2" title={storeName || "NzilaBiz"}>
+          <Image
+            src="/brand/nzilabiz-icone-transparent.png"
+            alt="NzilaBiz"
+            width={32}
+            height={32}
+            className="shrink-0"
+          />
+          {collapsed ? null : <span className="truncate text-lg font-extrabold">{storeName || "NzilaBiz"}</span>}
+        </Link>
+        <button
+          onClick={toggle}
+          aria-label={collapsed ? t("nav.expandMenu") : t("nav.collapseMenu")}
+          title={collapsed ? t("nav.expandMenu") : t("nav.collapseMenu")}
+          aria-expanded={!collapsed}
+          className={cn(
+            "rounded-lg p-1.5 text-sidebar-foreground/70 transition-colors hover:bg-white/10 hover:text-white",
+            collapsed ? "" : "ml-auto"
+          )}
+        >
+          {collapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+        </button>
       </div>
 
-      <nav className="flex-1 space-y-6 overflow-y-auto px-3 pb-4">
+      <nav className={cn("flex-1 space-y-5 overflow-y-auto overflow-x-hidden pb-4", collapsed ? "px-2" : "px-3")}>
         {NAV_SECTIONS.map((section) => {
           const items = section.items.filter((item) => can(role, item.permission as Permission));
           if (items.length === 0) return null;
+          const SectionIcon = section.icon;
           return (
             <div key={section.titleKey}>
-              <p className="mb-1 px-3 text-xs font-semibold uppercase tracking-wider text-sidebar-muted">
-                {t(section.titleKey)}
-              </p>
+              {collapsed ? (
+                <div className="mx-auto mb-2 h-px w-8 bg-white/15" aria-hidden />
+              ) : (
+                <p className="mb-1.5 flex items-center gap-1.5 px-3 text-xs font-bold uppercase tracking-wider text-sidebar-muted">
+                  <SectionIcon size={13} className="shrink-0" />
+                  {t(section.titleKey)}
+                </p>
+              )}
               <div className="space-y-0.5">
                 {items.map((item) => {
                   const active = pathname === item.href || pathname?.startsWith(item.href + "/");
+                  const ItemIcon = item.icon;
+                  const label = t(item.labelKey);
                   return (
                     <Link
                       key={item.href}
                       href={item.href}
+                      title={collapsed ? label : undefined}
+                      aria-current={active ? "page" : undefined}
                       className={cn(
-                        "block rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                        active ? "bg-white/15 text-white" : "text-sidebar-foreground/85 hover:bg-white/10"
+                        "flex items-center gap-2.5 rounded-lg py-2 text-sm transition-colors",
+                        collapsed ? "justify-center px-2" : "px-3",
+                        active
+                          ? "bg-white/15 font-bold text-white"
+                          : "font-semibold text-sidebar-foreground/90 hover:bg-white/10 hover:text-white"
                       )}
                     >
-                      {t(item.labelKey)}
+                      <ItemIcon size={18} className="shrink-0" />
+                      {collapsed ? <span className="sr-only">{label}</span> : <span className="truncate">{label}</span>}
                     </Link>
                   );
                 })}
@@ -61,21 +123,50 @@ export function Sidebar({
         })}
       </nav>
 
-      <div className="border-t border-white/10 p-3">
+      <div className={cn("border-t border-white/10 p-3", collapsed && "px-2")}>
+        {superAdmin ? (
+          <Link
+            href="/superadmin"
+            title={collapsed ? "Administration" : undefined}
+            className={cn(
+              "mb-1 flex items-center gap-2.5 rounded-lg py-2 text-sm font-semibold text-accent transition-colors hover:bg-white/10",
+              collapsed ? "justify-center px-2" : "px-3"
+            )}
+          >
+            <ShieldCheck size={18} className="shrink-0" />
+            {collapsed ? <span className="sr-only">Administration</span> : "Administration"}
+          </Link>
+        ) : null}
         <Link
           href="/parametres"
-          className="mb-1 flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-sidebar-foreground/85 hover:bg-white/10"
+          title={collapsed ? t("nav.parametres") : undefined}
+          className={cn(
+            "mb-1 flex items-center gap-2.5 rounded-lg py-2 text-sm font-semibold text-sidebar-foreground/90 transition-colors hover:bg-white/10 hover:text-white",
+            collapsed ? "justify-center px-2" : "px-3"
+          )}
         >
-          <Settings size={16} />
-          {t("nav.parametres")}
+          <Settings size={18} className="shrink-0" />
+          {collapsed ? <span className="sr-only">{t("nav.parametres")}</span> : t("nav.parametres")}
         </Link>
-        <div className="flex items-center justify-between rounded-lg px-3 py-2">
-          <div className="min-w-0">
-            <p className="truncate text-sm font-medium">{userName}</p>
-            <p className="truncate text-xs text-sidebar-muted">{role}</p>
-          </div>
-          <button onClick={onLogout} aria-label={t("nav.logout")} className="rounded-lg p-1.5 hover:bg-white/10">
-            <LogOut size={16} />
+        <div
+          className={cn(
+            "flex items-center rounded-lg py-2",
+            collapsed ? "justify-center px-2" : "justify-between px-3"
+          )}
+        >
+          {collapsed ? null : (
+            <div className="min-w-0">
+              <p className="truncate text-sm font-bold">{userName}</p>
+              <p className="truncate text-xs font-medium text-sidebar-muted">{role}</p>
+            </div>
+          )}
+          <button
+            onClick={onLogout}
+            aria-label={t("nav.logout")}
+            title={t("nav.logout")}
+            className="rounded-lg p-1.5 transition-colors hover:bg-white/10"
+          >
+            <LogOut size={18} />
           </button>
         </div>
       </div>

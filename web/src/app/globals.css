@@ -110,3 +110,50 @@ html[dir="rtl"] {
   background: var(--color-border);
   border-radius: 999px;
 }
+
+/* ---------------------------------------------------------------------------
+   Animations de la page vitrine
+   Les composants publics (aperçu de l'app, révélations) s'appuient dessus.
+   Tout est neutralisé si le visiteur a demandé « moins d'animations ».
+--------------------------------------------------------------------------- */
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes growBar {
+  from { height: 0; }
+}
+
+@keyframes floatSoft {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+/* Ancrage : le défilement vers une section doit tenir compte de l'en-tête collant. */
+html {
+  scroll-behavior: smooth;
+}
+
+[id] {
+  scroll-margin-top: 5rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

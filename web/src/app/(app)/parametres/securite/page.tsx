@@ -7,8 +7,8 @@ import { users } from "@/db/schema";
 import { SecurityForm } from "@/components/parametres/securite/security-form";
 import { ActiveSessions } from "@/components/parametres/securite/active-sessions";
 
-// Onglet Sécurité & connexion — §14 du cahier des charges + amélioration 🔧 (2FA + sessions
-// actives). Réservé au Patron par la matrice de permissions (rbac.ts).
+// Onglet Sécurité & connexion — §14 du cahier des charges (profil, mot de passe, sessions
+// actives, suppression du compte). Réservé au Patron par la matrice de permissions (rbac.ts).
 export default async function SecuritePage() {
   const session = await getSession();
   if (!session) redirect("/connexion");
@@ -31,7 +31,6 @@ export default async function SecuritePage() {
           email: user.email,
           aMotDePasse: Boolean(user.motDePasseHash),
           googleLie: Boolean(user.googleId),
-          twoFactorActive: user.twoFactorActive,
         }}
       />
       <ActiveSessions currentUserId={session.userId} currentDeviceId={session.deviceId ?? null} />

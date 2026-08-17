@@ -36,18 +36,22 @@
   "nav": {
     "sectionVente": "المبيعات",
     "sectionBoutique": "المتجر",
+    "sectionClients": "العملاء",
     "sectionAnalyse": "التحليلات",
     "dashboard": "لوحة التحكم",
     "vendre": "بيع",
     "ventes": "المبيعات",
     "stock": "المخزون",
+    "clients": "العملاء",
     "creances": "الديون",
     "depenses": "المصاريف",
     "synchronisation": "المزامنة",
     "documents": "المستندات",
     "rapports": "التقارير",
     "parametres": "الإعدادات",
-    "logout": "تسجيل الخروج"
+    "logout": "تسجيل الخروج",
+    "collapseMenu": "طي القائمة",
+    "expandMenu": "توسيع القائمة"
   },
   "auth": {
     "loginTitle": "تسجيل الدخول",

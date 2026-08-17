@@ -42,6 +42,7 @@ export const approvalActionTypeEnum = pgEnum("approval_action_type", ["ANNULATIO
 export const approvalStatusEnum = pgEnum("approval_status", ["EN_ATTENTE", "APPROUVEE", "REJETEE"]);
 export const documentTypeEnum = pgEnum("document_type", ["FACTURE", "PROFORMA", "REMBOURSEMENT"]);
 export const documentStatusEnum = pgEnum("document_status", ["BROUILLON", "EMISE", "CONVERTIE", "ANNULEE"]);
+export const supportStatusEnum = pgEnum("support_status", ["OUVERT", "EN_COURS", "RESOLU", "FERME"]);
 
 // ---------------------------------------------------------------------------
 // Boutique / Tenant
@@ -59,6 +60,9 @@ export const stores = pgTable("stores", {
   indicatif: text("indicatif").notNull().default("+241"),
   typeCommerce: text("type_commerce"),
   devise: text("devise").notNull().default("XAF"),
+  // Taux de change manuel saisi par le commerçant (1 unité de `devise` = X FCFA). Sert à
+  // afficher un ordre de grandeur quand la boutique travaille dans une autre devise que le FCFA.
+  tauxChangeManuel: numeric("taux_change_manuel", { precision: 14, scale: 4 }),
   langueDefaut: text("langue_defaut").notNull().default("fr"),
   plan: subscriptionPlanEnum("plan").notNull().default("ESSAI"),
   essaiExpireLe: timestamp("essai_expire_le"),
@@ -80,9 +84,11 @@ export const users = pgTable("users", {
   role: roleEnum("role").notNull().default("VENDEUR"),
   photoUrl: text("photo_url"),
   googleId: text("google_id"),
-  twoFactorActive: boolean("two_factor_active").notNull().default(false),
-  twoFactorSecret: text("two_factor_secret"),
   derniereConnexion: timestamp("derniere_connexion"),
+  // Suppression de compte d'un employé : on anonymise et on désactive au lieu de supprimer la
+  // ligne — ses ventes passées doivent rester dans l'historique et les rapports de la boutique.
+  // Un compte désactivé ne peut plus se connecter (vérifié dans /api/auth/login).
+  desactiveLe: timestamp("desactive_le"),
   creeLe: timestamp("cree_le").notNull().defaultNow(),
 });
 
@@ -142,6 +148,15 @@ export const clients = pgTable("clients", {
   telephone: text("telephone"),
   limiteCredit: money("limite_credit"),
   echeanceJours: integer("echeance_jours"),
+  // Fiche clientèle (module Clients) — informations de contact et de suivi pour les boutiques
+  // qui ont une clientèle fidèle et récurrente. Le segment de fidélité (fidèle/récurrent/…)
+  // n'est pas stocké : il est recalculé depuis l'historique des ventes à chaque lecture.
+  email: text("email"),
+  adresse: text("adresse"),
+  notes: text("notes"),
+  // Archivage plutôt que suppression : un client est référencé par ses ventes passées
+  // (sales.client_id), le supprimer casserait l'historique.
+  archive: boolean("archive").notNull().default(false),
   creeLe: timestamp("cree_le").notNull().defaultNow(),
 });
 
@@ -300,6 +315,99 @@ export const notificationSettings = pgTable("notification_settings", {
   remiseSeuilApprobation: money("remise_seuil_approbation").notNull().default("0"),
 });
 
+// Configuration Mobile Money de la boutique (§16). Partagée par tous les appareils de la
+// boutique — elle vivait auparavant dans le localStorage du navigateur, donc perdue au moindre
+// changement d'appareil et invisible pour les autres utilisateurs.
+//
+// La clé API de l'agrégateur est stockée ici mais n'est JAMAIS renvoyée en clair par l'API :
+// seuls sa présence et ses 4 derniers caractères remontent au navigateur.
+export const mobileMoneySettings = pgTable("mobile_money_settings", {
+  id: id(),
+  storeId: text("store_id").notNull().unique().references(() => stores.id, { onDelete: "cascade" }),
+  operateurPrioritaire: text("operateur_prioritaire").notNull().default("AIRTEL_MONEY"),
+  numeroMarchandAirtel: text("numero_marchand_airtel"),
+  numeroMarchandMoov: text("numero_marchand_moov"),
+  agregateurSiteId: text("agregateur_site_id"),
+  agregateurApiKey: text("agregateur_api_key"),
+  modeProduction: boolean("mode_production").notNull().default(false),
+  misAJourLe: timestamp("mis_a_jour_le").notNull().defaultNow(),
+});
+
+// ---------------------------------------------------------------------------
+// Plateforme : réglages éditables, support, invitations
+// ---------------------------------------------------------------------------
+
+// Réglages de la plateforme, éditables depuis l'administration — une seule ligne.
+// Ils alimentent le site public (coordonnées, mentions légales) et l'aide dans l'application :
+// changer le numéro de support ne demande donc plus de toucher au code ni de redéployer.
+export const platformSettings = pgTable("platform_settings", {
+  id: id(),
+  nomApplication: text("nom_application").notNull().default("NzilaBiz"),
+  slogan: text("slogan").notNull().default("Gérez votre boutique, simplement, au quotidien"),
+
+  supportTelephone: text("support_telephone"),
+  supportWhatsapp: text("support_whatsapp"),
+  supportEmail: text("support_email"),
+  supportHoraires: text("support_horaires"),
+
+  // Message affiché en bandeau dans l'application (maintenance, nouveauté, rappel d'échéance).
+  annonce: text("annonce"),
+  annonceActive: boolean("annonce_active").notNull().default(false),
+
+  // Mentions légales — remplacent les « [à compléter] » des pages publiques.
+  editeurRaisonSociale: text("editeur_raison_sociale"),
+  editeurFormeJuridique: text("editeur_forme_juridique"),
+  editeurAdresse: text("editeur_adresse"),
+  editeurImmatriculation: text("editeur_immatriculation"),
+  editeurDirecteurPublication: text("editeur_directeur_publication"),
+  hebergeurNom: text("hebergeur_nom"),
+  hebergeurAdresse: text("hebergeur_adresse"),
+  hebergeurPays: text("hebergeur_pays"),
+  droitApplicable: text("droit_applicable"),
+  juridictionCompetente: text("juridiction_competente"),
+  autoriteProtectionDonnees: text("autorite_protection_donnees"),
+
+  facebookUrl: text("facebook_url"),
+  instagramUrl: text("instagram_url"),
+  tiktokUrl: text("tiktok_url"),
+
+  misAJourLe: timestamp("mis_a_jour_le").notNull().defaultNow(),
+});
+
+// Demandes d'assistance envoyées depuis l'application par les commerçants.
+export const supportTickets = pgTable("support_tickets", {
+  id: id(),
+  storeId: text("store_id").notNull().references(() => stores.id, { onDelete: "cascade" }),
+  userId: text("user_id").references(() => users.id, { onDelete: "set null" }),
+  // Recopiés à la création : le ticket doit rester lisible même si le compte est supprimé.
+  auteurNom: text("auteur_nom").notNull(),
+  auteurEmail: text("auteur_email").notNull(),
+  sujet: text("sujet").notNull(),
+  message: text("message").notNull(),
+  statut: supportStatusEnum("statut").notNull().default("OUVERT"),
+  reponse: text("reponse"),
+  reponduParEmail: text("repondu_par_email"),
+  reponduLe: timestamp("repondu_le"),
+  creeLe: timestamp("cree_le").notNull().defaultNow(),
+});
+
+// Invitation d'un employé : le patron génère un lien (affiché en QR code), l'employé le scanne et
+// crée son propre mot de passe. Remplace le mot de passe temporaire dicté de vive voix.
+export const invitations = pgTable("invitations", {
+  id: id(),
+  storeId: text("store_id").notNull().references(() => stores.id, { onDelete: "cascade" }),
+  token: text("token").notNull().unique(),
+  role: roleEnum("role").notNull().default("VENDEUR"),
+  nomPrevu: text("nom_prevu"),
+  emailPrevu: text("email_prevu"),
+  creeParId: text("cree_par_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  expireLe: timestamp("expire_le").notNull(),
+  utiliseLe: timestamp("utilise_le"),
+  utiliseParId: text("utilise_par_id").references((): any => users.id, { onDelete: "set null" }),
+  revoqueLe: timestamp("revoque_le"),
+  creeLe: timestamp("cree_le").notNull().defaultNow(),
+});
+
 export const approvalRequests = pgTable("approval_requests", {
   id: id(),
   storeId: text("store_id").notNull().references(() => stores.id, { onDelete: "cascade" }),
@@ -355,6 +463,22 @@ export const syncLogs = pgTable("sync_logs", {
   horodatage: timestamp("horodatage").notNull().defaultNow(),
 });
 
+// Compteurs de limitation de débit (connexion, inscription, support…).
+//
+// En base et non en mémoire : sur un hébergement sans serveur, chaque requête peut atterrir sur
+// une instance différente, chacune avec sa propre mémoire. Un compteur local laisserait donc
+// passer autant de tentatives qu'il y a d'instances. La table est partagée, elle ne ment pas.
+//
+// Pas de clé étrangère ni d'identifiant métier : la clé est composée par l'appelant
+// (« login:ip:41.x.x.x », « support:<user>:<ip> ») et sert directement de clé primaire.
+export const rateLimits = pgTable("rate_limits", {
+  cle: text("cle").primaryKey(),
+  fenetreDebut: timestamp("fenetre_debut", { withTimezone: true }).notNull().defaultNow(),
+  compteur: integer("compteur").notNull().default(0),
+  /** Renseigné quand la limite est franchie : tout est refusé jusqu'à cette date. */
+  bloqueJusqua: timestamp("bloque_jusqua", { withTimezone: true }),
+});
+
 // ---------------------------------------------------------------------------
 // Relations (pour l'API relationnelle db.query.*)
 // ---------------------------------------------------------------------------
@@ -372,6 +496,7 @@ export const storesRelations = relations(stores, ({ many, one }) => ({
   notifications: many(notifications),
   syncLogs: many(syncLogs),
   notificationSettings: one(notificationSettings),
+  mobileMoneySettings: one(mobileMoneySettings),
 }));
 
 export const usersRelations = relations(users, ({ one, many }) => ({

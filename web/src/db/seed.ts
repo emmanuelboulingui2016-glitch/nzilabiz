@@ -6,6 +6,7 @@ import postgres from "postgres";
 import * as schema from "./schema";
 import bcrypt from "bcryptjs";
 import { genProductRef } from "../lib/utils";
+import { seedClientele } from "./seed-clientele";
 
 async function main() {
   const connectionString =
@@ -107,6 +108,15 @@ async function main() {
     userId: patron.id,
     saleId: sale.id,
   });
+
+  // Clientèle de démonstration du module Clients : plusieurs profils d'achat pour que les
+  // segments de fidélité (fidèle, récurrent, inactif…) soient visibles dès la première connexion.
+  const { nbClients, nbVentes } = await seedClientele(db, {
+    storeId: store.id,
+    userId: patron.id,
+    deviceId: device.id,
+  });
+  console.log(`Clientèle de démonstration : ${nbClients} clients, ${nbVentes} ventes.`);
 
   console.log("Seed terminé.");
   console.log("Comptes de démonstration (mot de passe : password123) :");

@@ -43,7 +43,12 @@ export function NewProformaDialog({
     fetch("/api/creances/clients")
       .then((res) => res.json())
       .then((data) =>
-        setClientsList((data.clients ?? []).map((c: { id: string; nom: string }) => ({ id: c.id, nom: c.nom })))
+        setClientsList(
+          (data.clients ?? [])
+            // On n'émet pas de nouveau document au nom d'un client archivé.
+            .filter((c: { archive?: boolean }) => !c.archive)
+            .map((c: { id: string; nom: string }) => ({ id: c.id, nom: c.nom }))
+        )
       )
       .catch(() => {});
   }, [open]);

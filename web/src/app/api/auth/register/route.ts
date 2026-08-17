@@ -6,8 +6,21 @@ import { hashPassword } from "@/lib/auth/password";
 import { createSessionToken, setSessionCookie } from "@/lib/auth/session";
 import { registerSchema } from "@/lib/validation/auth";
 import { deviceNameFromUserAgent } from "@/lib/device-name";
+import { clientIp, rateLimit, tooManyRequests } from "@/lib/rate-limit";
+
+// L'inscription crée une boutique complète : sans limite, un script pourrait en créer des
+// milliers. 5 par adresse et par heure laisse largement de quoi corriger une erreur de saisie.
+const LIMITE_INSCRIPTION = { limite: 5, fenetreMs: 60 * 60_000, blocageMs: 60 * 60_000 };
 
 export async function POST(request: Request) {
+  const limite = await rateLimit(`register:ip:${clientIp(request)}`, LIMITE_INSCRIPTION);
+  if (!limite.ok) {
+    return tooManyRequests(
+      limite.retryAfter,
+      "Trop de créations de compte depuis cet appareil. Réessayez dans une heure."
+    );
+  }
+
   const body = await request.json().catch(() => null);
   const parsed = registerSchema.safeParse(body);
   if (!parsed.success) {

@@ -65,6 +65,17 @@ export default function InscriptionPage() {
         <Button type="submit" className="w-full" disabled={loading}>
           {loading ? t("common.loading") : t("auth.signup")}
         </Button>
+        <p className="text-center text-xs text-muted-foreground">
+          En créant votre boutique, vous acceptez les{" "}
+          <Link href="/conditions" className="font-semibold text-primary hover:underline">
+            conditions d&apos;utilisation
+          </Link>{" "}
+          et la{" "}
+          <Link href="/confidentialite" className="font-semibold text-primary hover:underline">
+            politique de confidentialité
+          </Link>
+          .
+        </p>
       </form>
 
       <a href="/api/auth/google" className="mt-3 block">

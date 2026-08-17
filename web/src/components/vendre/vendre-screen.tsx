@@ -504,6 +504,14 @@ export function VendreScreen({
     clients,
     clientId,
     onClientChange: setClientId,
+    // Un client créé au comptoir rejoint la liste sans recharger le catalogue : la vente en
+    // cours ne doit pas être interrompue.
+    onClientCreated: (client: VendreClient) =>
+      setClients((prev) =>
+        prev.some((c) => c.id === client.id)
+          ? prev
+          : [...prev, client].sort((a, b) => a.nom.localeCompare(b.nom, "fr"))
+      ),
     onSubmit: handleSubmit,
     submitting,
     error,

@@ -33,7 +33,11 @@ export async function setSessionCookie(token: string) {
   const store = await cookies();
   store.set(COOKIE_NAME, token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    // Réservé au HTTPS en production. Exception assumée : le mode présentation, où l'application
+    // tourne sur un ordinateur du réseau local en http://192.168.x.x. Sans cette exception le
+    // navigateur du téléphone refuse silencieusement le cookie et la connexion échoue sans
+    // message. MODE_PRESENTATION doit rester absent de toute vraie mise en ligne.
+    secure: process.env.NODE_ENV === "production" && process.env.MODE_PRESENTATION !== "1",
     sameSite: "lax",
     path: "/",
     maxAge: SESSION_DURATION_SECONDS,

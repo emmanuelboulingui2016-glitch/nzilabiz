@@ -40,7 +40,12 @@ export async function GET(request: Request) {
       .orderBy(asc(products.nom))
       .limit(300),
     db.query.categories.findMany({ where: eq(categories.storeId, session.storeId), orderBy: asc(categories.nom) }),
-    db.query.clients.findMany({ where: eq(clients.storeId, session.storeId), orderBy: asc(clients.nom) }),
+    // Les clients archivés (module Clients) restent hors du sélecteur de caisse : on n'ouvre plus
+    // de nouvelle vente à leur nom. Leur historique et leurs créances restent intacts.
+    db.query.clients.findMany({
+      where: and(eq(clients.storeId, session.storeId), eq(clients.archive, false)),
+      orderBy: asc(clients.nom),
+    }),
   ]);
 
   return NextResponse.json({

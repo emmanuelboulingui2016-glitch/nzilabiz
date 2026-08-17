@@ -36,18 +36,22 @@
   "nav": {
     "sectionVente": "SALES",
     "sectionBoutique": "SHOP",
+    "sectionClients": "CUSTOMERS",
     "sectionAnalyse": "ANALYTICS",
     "dashboard": "Dashboard",
     "vendre": "Sell",
     "ventes": "Sales",
     "stock": "Inventory",
+    "clients": "Customers",
     "creances": "Credit",
     "depenses": "Expenses",
     "synchronisation": "Sync",
     "documents": "Documents",
     "rapports": "Reports",
     "parametres": "Settings",
-    "logout": "Log out"
+    "logout": "Log out",
+    "collapseMenu": "Collapse menu",
+    "expandMenu": "Expand menu"
   },
   "auth": {
     "loginTitle": "Sign in",

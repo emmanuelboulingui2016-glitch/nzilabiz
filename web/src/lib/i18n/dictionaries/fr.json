@@ -36,18 +36,22 @@
   "nav": {
     "sectionVente": "VENTE",
     "sectionBoutique": "BOUTIQUE",
+    "sectionClients": "CLIENTS",
     "sectionAnalyse": "ANALYSE",
     "dashboard": "Tableau de bord",
     "vendre": "Vendre",
     "ventes": "Ventes",
     "stock": "Stock",
+    "clients": "Clients",
     "creances": "Créances",
     "depenses": "Dépenses",
     "synchronisation": "Synchronisation",
     "documents": "Documents",
     "rapports": "Rapports",
     "parametres": "Paramètres",
-    "logout": "Déconnexion"
+    "logout": "Déconnexion",
+    "collapseMenu": "Replier le menu",
+    "expandMenu": "Déplier le menu"
   },
   "auth": {
     "loginTitle": "Se connecter",

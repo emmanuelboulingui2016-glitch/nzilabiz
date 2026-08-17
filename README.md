@@ -83,13 +83,9 @@ liste complète, honnête.
   réelle — aucun faux succès n'est simulé nulle part.
 - **Invitation d'employé** : crée directement le compte avec un mot de passe temporaire affiché
   une fois à l'écran (pas d'envoi d'e-mail réel, aucun service mail configuré).
-- **2FA** : un vrai TOTP (RFC 6238) est implémenté et persisté, mais **pas encore appliqué au
-  moment de la connexion** — activer le bouton enregistre juste le réglage. Ne pas présenter cette
-  fonctionnalité comme un vrai second facteur tant que ce n'est pas câblé dans `/api/auth/login`.
-- **Configuration Mobile Money (Paramètres) et taux de change manuel (Devise)** : persistés dans
-  le navigateur (`localStorage`) plutôt qu'en base, faute de table dédiée dans le schéma partagé
-  (que les agents n'avaient pas le droit de modifier en parallèle cette nuit, pour éviter les
-  collisions). Il manque une petite migration pour les faire persister côté serveur.
+- **2FA** : retiré le 14 août 2026 (voir §8) — le TOTP n'était jamais vérifié à la connexion.
+- **Configuration Mobile Money et taux de change manuel** : migrés du `localStorage` vers la base
+  le 14 août 2026 (voir §8).
 - **Dépenses récurrentes** : générées à l'ouverture de la page (vérifie si une occurrence est due
   et l'insère) plutôt que par une vraie tâche planifiée — il n'y a pas d'infrastructure de cron
   dans ce build. Fonctionne, mais seulement si quelqu'un ouvre l'écran Dépenses.
@@ -186,16 +182,20 @@ stubs décrits en §2).
 
 Par ordre d'impact probable :
 
-1. Brancher une vraie table de config Mobile Money côté serveur (actuellement en localStorage) et
-   un vrai agrégateur (CinetPay ou équivalent) quand tu auras des clés — c'est le plus gros
-   morceau fonctionnel manquant, mais tu l'avais toi-même classé non bloquant.
-2. Appliquer réellement le 2FA au moment de la connexion (le TOTP existe déjà, juste pas branché).
+1. Brancher un vrai agrégateur de paiement (CinetPay ou équivalent) quand tu auras des clés :
+   la configuration est en place côté serveur depuis le 14 août (§8), il reste l'appel à l'API de
+   l'agrégateur — c'est le plus gros morceau fonctionnel manquant, mais tu l'avais toi-même classé
+   non bloquant.
+2. Compléter les informations d'éditeur dans les pages légales (`[à compléter : …]`) avant toute
+   mise en ligne.
 3. Migrer les photos/logos/pièces jointes de base64-en-base vers un vrai stockage d'objets.
 4. Traduire les écrans métier (Vendre, Stock, etc.) dans les dictionnaires EN/AR partagés.
 5. Détection réelle des écarts de stock en cas de conflit de synchronisation hors-ligne.
 6. Étendre le workflow d'approbation aux remises/modifications de prix (actuellement limité aux
    annulations de vente).
 7. Ajouter une suite de tests automatisés.
+8. Si tu déploies sur Vercel ou en autoscaling, remplacer le compteur mémoire de
+   `web/src/lib/rate-limit.ts` par un compteur Redis/Upstash (voir §8).
 
 ## 7. Structure du dépôt
 
@@ -213,6 +213,220 @@ nzilabiz/
     ├── src/app/api/                 ← toutes les routes API
     ├── src/lib/offline/             ← couche IndexedDB/Dexie + moteur de synchronisation
     └── public/                      ← icônes PWA, manifest, service worker, assets de marque
+```
+
+## 8. Ajouts postérieurs à la livraison de la nuit
+
+### Module Clients (13 août 2026)
+
+Un 11ᵉ écran applicatif, `/clients`, pour les boutiques qui ont une clientèle fidèle et
+récurrente. Il partage la table `clients` avec le module Créances : un client créé d'un côté est
+immédiatement disponible de l'autre, et en caisse.
+
+- **Segmentation automatique** : chaque client est classé Fidèle / Récurrent / Nouveau /
+  Occasionnel / Inactif / Sans achat à partir de son historique de ventes. Le segment n'est jamais
+  stocké, il est recalculé à chaque lecture — un client change donc de catégorie tout seul quand il
+  revient (ou cesse de venir). Seuils dans `web/src/lib/clients/loyalty.ts`.
+- **Fiche client** : coordonnées, notes libres, chiffre d'affaires, panier moyen, fréquence de
+  passage, produits préférés, historique complet des achats, solde de créance, relance WhatsApp.
+- **Recherche, filtre par segment, tri, export CSV**, et archivage (pas de suppression : un client
+  est référencé par ses ventes passées).
+- **Permissions** : Patron et Gérant ont accès en lecture et écriture ; le Vendeur n'a pas accès au
+  module (il y verrait le chiffre d'affaires par client).
+- Migration `drizzle/0003_faithful_bloodscream.sql` : ajoute `email`, `adresse`, `notes` et
+  `archive` à la table `clients`. À appliquer avec `npm run db:migrate`.
+- Le jeu de démonstration comprend maintenant 7 clients couvrant tous les segments
+  (`web/src/db/seed-clientele.ts`, rejouable seul avec `npx tsx src/db/seed-clientele.ts` sur une
+  base déjà seedée).
+
+### Navigation
+
+Les entrées du menu latéral ont désormais une icône, les libellés sont en gras, et le menu se
+replie en une barre d'icônes (bouton en haut de la barre latérale). Le choix plié/déplié est
+mémorisé dans le navigateur. La navigation est regroupée en quatre sections : VENTE, CLIENTS
+(Clients + Créances), BOUTIQUE, ANALYSE.
+
+### Site public, sécurité et comptes (14 août 2026)
+
+**Vitrine et pages légales.** La racine `/` n'est plus une redirection vers la connexion : elle
+porte une page de présentation publique (proposition de valeur, 8 modules, rôles, tarifs repris de
+l'écran Abonnement, FAQ). Quatre documents l'accompagnent : `/conditions`, `/confidentialite`,
+`/cookies`, `/mentions-legales`, liés depuis le pied de page, l'inscription et Paramètres. Ils sont
+rédigés en entier, **sauf les informations que seul l'éditeur connaît** (raison sociale,
+immatriculation, hébergeur, juridiction) : celles-ci apparaissent en surbrillance
+« [à compléter : …] » plutôt qu'inventées. Renseignez-les avant toute mise en ligne. Un utilisateur
+connecté peut consulter ces pages sans être renvoyé vers son tableau de bord.
+
+**2FA supprimé.** Le TOTP était persisté mais jamais vérifié à la connexion : l'écran affichait une
+protection qui n'existait pas. Retiré de l'interface, de l'API, du schéma (migration `0005`) et le
+module `totp.ts` est supprimé.
+
+**Suppression de compte** — nouvel onglet Paramètres > Mon compte, visible par tous les rôles :
+- **Patron** : supprime la boutique et toutes ses données (cascade), après saisie du mot de passe
+  et du nom exact de la boutique. Irréversible.
+- **Gérant / Vendeur** : le compte est anonymisé et désactivé plutôt que supprimé — ses ventes
+  restent dans l'historique et les rapports de la boutique, sans son nom. Un compte désactivé ne
+  peut plus se connecter (`users.desactive_le`).
+
+**Sécurité.**
+- Limitation des tentatives (`web/src/lib/rate-limit.ts`) sur la connexion (10/IP/5 min et
+  5/e-mail/10 min), l'inscription (5/IP/heure) et la suppression de compte. Compteur en mémoire du
+  processus : correct pour un déploiement mono-instance (VPS), à remplacer par Redis/Upstash si vous
+  passez sur Vercel ou en autoscaling — la signature de `rateLimit()` est prévue pour ça.
+- En-têtes de sécurité dans `next.config.ts` : CSP, X-Frame-Options, X-Content-Type-Options,
+  Referrer-Policy, Permissions-Policy, et HSTS hors développement.
+
+**Configuration migrée du navigateur vers la base.** La config Mobile Money (nouvelle table
+`mobile_money_settings`) et le taux de change manuel (`stores.taux_change_manuel`) vivaient dans le
+`localStorage` : perdus au changement d'appareil, différents pour chaque utilisateur. Ils sont
+désormais partagés par toute la boutique. La clé API de l'agrégateur n'est jamais renvoyée en clair
+par l'API — seuls sa présence et ses 4 derniers caractères remontent.
+
+**Caisse : sélecteur de client repensé.** Le menu déroulant listait tous les clients sans recherche
+et ne permettait pas d'en créer un. Il est remplacé par une recherche instantanée (nom ou
+téléphone, filtrée localement, donc utilisable hors connexion) avec création à la volée sans quitter
+la vente — via `POST /api/vendre/clients`, ouvert à quiconque tient la caisse (le vendeur inclus,
+qui n'a pas `clients.edit`), limité au nom et au téléphone, et qui renvoie la fiche existante
+plutôt que de créer un doublon.
+
+**Recherche globale et notifications branchées.** Les deux éléments de la barre du haut étaient
+décoratifs. La recherche (`/api/recherche`) balaie produits, clients et ventes en respectant les
+permissions du rôle. La cloche (`/api/notifications`) affiche des alertes **calculées** — stock bas,
+péremption proche, créances en retard, dépassements de limite de crédit, approbations en attente —
+selon les seuils de Paramètres > Notifications. Le calcul des créances est factorisé dans
+`web/src/lib/creances/solde.ts`, partagé avec l'écran Créances pour que les deux ne divergent pas.
+
+**Archivage client rendu effectif** : un client archivé ne peut plus être choisi en caisse ni sur
+une nouvelle proforma, mais reste suivi dans les créances tant qu'il doit de l'argent.
+
+### Administration de la plateforme et vitrine animée (14 août 2026, suite)
+
+**Correction d'affichage.** Les écrans de connexion et d'inscription forçaient un fond crème par un
+style en ligne, quel que soit le thème : en mode sombre (celui que suit Windows par défaut chez
+beaucoup d'utilisateurs), le titre « NzilaBiz » et son sous-titre devenaient illisibles — texte
+clair sur fond clair. Le fond suit désormais le thème.
+
+**Vitrine interactive.** Révélation des blocs au défilement (IntersectionObserver, aucune
+bibliothèque), compteurs qui défilent, aperçu de l'application en trois onglets qui tournent
+automatiquement (caisse, clients, rapports — dessinés en HTML, donc nets et sans image à charger),
+sélecteur de période sur les tarifs qui recalcule le prix mensuel équivalent et l'économie réalisée,
+FAQ en accordéon, barre de progression de lecture, bouton de retour en haut, en-tête qui se densifie
+au défilement et menu mobile. **Tout est désactivé** si le visiteur a demandé « moins d'animations »
+dans son système (`prefers-reduced-motion`).
+
+**Tableau de bord superadmin** — `/superadmin`, hors de l'application boutique (pas de sidebar
+métier, pas de `storeId`) :
+- **Vue d'ensemble** : parc de boutiques, taux d'activité à 30 jours, utilisateurs, volume encaissé,
+  répartition par formule, courbe des inscriptions sur 12 semaines, alerte sur les essais qui
+  expirent sous 7 jours.
+- **Boutiques** : liste complète avec recherche, filtre par formule et tri (volume, activité,
+  inscription). La fiche donne l'activité, l'équipe, les dernières ventes, et trois actions :
+  changer la formule, prolonger l'échéance, supprimer la boutique (saisie du nom exigée ; supprimer
+  sa propre boutique depuis l'administration est refusé).
+- **Utilisateurs** : annuaire transverse en lecture seule — qui s'est connecté, quand, avec quel
+  rôle et dans quelle boutique. La gestion des rôles reste au Patron de chaque boutique : cet écran
+  sert à diagnostiquer, pas à prendre la main sur les équipes de vos clients.
+
+### Reprise des données de démonstration et outils de plateforme (14 août 2026, suite)
+
+**Les données de démonstration ont été transférées dans la boutique réelle** (`Virtushop 241`) et la
+boutique de démo — ainsi que ses trois comptes `@nzilabiz.demo` — a été supprimée. Le script
+`web/src/db/transfer-store.ts` fait ce travail de façon réutilisable : il déplace le contenu,
+réattribue les lignes qui portaient un auteur (ventes, mouvements de stock…) au Patron de la
+boutique cible, renumérote les ventes en cas de collision, puis supprime la boutique source.
+
+```bash
+npx tsx src/db/transfer-store.ts "<boutique source>" "<boutique cible>"
+```
+
+⚠️ `npm run db:seed` recrée une boutique de démonstration complète. Ne le relancez pas sur cette
+base, sauf à vouloir repartir d'un jeu de démo à côté de vos vraies données.
+
+**Réglages de plateforme** — Administration → Réglages. Nom de l'application, coordonnées du
+support, mentions légales (éditeur, hébergeur, droit applicable, autorité de contrôle), réseaux
+sociaux, et une annonce diffusable en bandeau à tous les commerçants connectés. Ces valeurs
+alimentent directement le site public : les `[à compléter]` des pages légales disparaissent au fur
+et à mesure du remplissage, **sans toucher au code ni redéployer**. Tant qu'un champ est vide, la
+page affiche le repère orange plutôt qu'une mention inventée.
+
+**Espace support.** Côté commerçant : Paramètres → Aide & support, ouvert à tous les rôles —
+coordonnées du support, formulaire de demande, et suivi des réponses. Côté plateforme :
+Administration → Support, une boîte de réception filtrable par statut (ouverte, en cours, résolue)
+où l'on répond et suit chaque demande. Limite de 5 demandes par heure et par compte.
+
+**Administration repensée** : barre latérale repliable (choix mémorisé) au lieu des onglets, cinq
+entrées réparties en Pilotage / Plateforme / Exploitation, et des graphiques Recharts — volume
+encaissé par mois, répartition par formule en anneau, inscriptions hebdomadaires en aire, classement
+des boutiques les plus actives.
+
+**Invitation d'employé par QR code** — Paramètres → Utilisateurs. Le patron génère une invitation
+(rôle, nom, e-mail réservé facultatif), l'employé scanne le QR avec son téléphone, choisit son mot
+de passe et entre directement dans la boutique. Le lien est à usage unique, expire au bout de 7
+jours, se révoque d'un clic et se partage aussi par WhatsApp. Il remplace le mot de passe temporaire
+dicté de vive voix.
+
+**Installation sur téléphone** — Paramètres → Aide & support affiche un QR code vers l'adresse
+courante de l'application, avec la marche à suivre pour l'ajouter à l'écran d'accueil (Android et
+iPhone). Le QR est généré dans le navigateur en SVG (bibliothèque `qrcode`), donc net à
+l'impression et sans appel réseau.
+
+**Comment devenir superadmin.** La liste des superadmins est la variable d'environnement
+`SUPERADMIN_EMAILS` (adresses séparées par des virgules) — délibérément **pas** un champ en base :
+aucune faille applicative, aucun compte compromis ne peut promouvoir quelqu'un, il faut un accès au
+serveur. Renseignez-la dans `web/.env` puis redémarrez. Un lien « Administration » apparaît alors en
+bas de la barre latérale, et l'accès est revérifié côté serveur à chaque page et chaque route d'API.
+En local, elle contient déjà `emmanuelboulingui2016@gmail.com`.
+
+### Mode présentation — démonstration sur téléphone sans mise en ligne (14 août 2026, suite)
+
+Pour montrer l'application à un client sur son téléphone alors que rien n'est déployé.
+
+```bash
+cd web
+npm run build            # une seule fois, après chaque modification du code
+npm run presentation     # démarre et affiche le QR code dans le terminal
+```
+
+Le script `web/scripts/presentation.ts` écoute sur toutes les cartes réseau, attend que le serveur
+réponde, puis affiche l'adresse (`http://192.168.x.x:3000`) et son QR code. Le téléphone doit être
+sur le même réseau que l'ordinateur ; à défaut de Wi-Fi commun, le partage de connexion du téléphone
+fait l'affaire — l'ordinateur s'y connecte, et le téléphone joint l'ordinateur. Aucune donnée ne sort
+du réseau local et Internet n'est pas nécessaire.
+
+Options : `--dev` (sans compilation préalable), `--port=3001`, et `--tunnel` qui ouvre en plus une
+adresse HTTPS publique via ngrok — nécessaire pour démontrer l'installation en vraie application et
+le mode hors ligne, mais l'application devient alors joignable depuis Internet par qui connaît
+l'adresse.
+
+**Deux réglages devaient céder pour que le HTTP fonctionne**, tous deux traités à l'exécution et non
+à la compilation :
+
+- Le cookie de session est marqué `Secure` en production ; un navigateur le refuse alors
+  silencieusement en HTTP et la connexion échoue sans message. `MODE_PRESENTATION=1`, posé par le
+  script, lève cette contrainte — et uniquement celle-là : le cookie reste `HttpOnly` et
+  `SameSite=lax`.
+- HSTS a quitté `next.config.ts` pour `src/proxy.ts` : les en-têtes de la configuration sont figés au
+  moment du `build`, alors qu'une même version compilée sert en ligne (HTTPS) et en présentation
+  (HTTP). Il est désormais émis seulement si la requête est réellement arrivée en HTTPS, ce
+  qu'indique `x-forwarded-proto`.
+
+**Le QR d'installation ne montre plus jamais « localhost »** : `src/lib/reseau/adresse-locale.ts`
+détecte l'adresse de l'ordinateur sur le réseau, en écartant les cartes virtuelles (VMware, Hyper-V,
+Docker, WSL) auxquelles aucun téléphone n'est connecté. L'écran Paramètres → Aide & support permet
+aussi de saisir une adresse à la main — utile pour coller l'adresse du tunnel — et prévient quand
+l'adresse affichée n'est joignable que depuis cet ordinateur.
+
+**Ce qui ne marche pas en HTTP**, et qu'il faut savoir avant une démonstration : l'ajout à l'écran
+d'accueil et le fonctionnement hors connexion reposent sur le *service worker*, que les navigateurs
+n'autorisent qu'en HTTPS ou sur `localhost`. Sur le réseau local, l'application est parfaitement
+utilisable dans le navigateur, mais ces deux points-là exigent `--tunnel`.
+
+**Pare-feu Windows** : Node.js est déjà autorisé en entrée sur le profil « Public », celui que
+Windows attribue par défaut aux nouveaux réseaux Wi-Fi. Si un réseau est classé « Privé » et que le
+téléphone n'obtient rien, ouvrir le port dans un PowerShell administrateur :
+
+```powershell
+New-NetFirewallRule -DisplayName "NzilaBiz presentation" -Direction Inbound -Protocol TCP -LocalPort 3000 -Action Allow
 ```
 
 ---
