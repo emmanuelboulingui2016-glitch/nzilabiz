@@ -17,7 +17,9 @@
     "db:check:prod": "tsx scripts/verifier-base.ts --env=.env.deploy",
     "db:seed": "tsx src/db/seed.ts",
     "db:reset-demo": "tsx src/db/reset-et-demo.ts",
-    "db:reset-demo:prod": "tsx src/db/reset-et-demo.ts --env=.env.deploy"
+    "db:reset-demo:prod": "tsx src/db/reset-et-demo.ts --env=.env.deploy",
+    "mdp": "tsx scripts/definir-mot-de-passe.ts",
+    "mdp:prod": "tsx scripts/definir-mot-de-passe.ts --env=.env.deploy"
   },
   "dependencies": {
     "@fontsource/manrope": "^5.3.0",
