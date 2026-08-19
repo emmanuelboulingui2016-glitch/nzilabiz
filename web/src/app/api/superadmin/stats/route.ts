@@ -81,10 +81,14 @@ async function calculer() {
 
   const s = (brut ?? {}) as Record<string, unknown>;
 
-  // Trois regroupements, qui ne peuvent pas tenir sur une ligne unique. Trois requêtes simultanées
-  // restent sous la taille du pool : pas d'empilement sur une même connexion.
-  const [parPlan, volumeMensuel, topBoutiques, inscriptions] = await etape("regroupements", () => Promise.all([
-    db.select({ plan: stores.plan, nb: sql<number>`count(*)::int` }).from(stores).groupBy(stores.plan),
+  // Quatre regroupements, qui ne peuvent pas tenir sur une ligne unique. Enchaînés et non lancés
+  // en parallèle : à travers le pooler en mode transaction, plusieurs requêtes émises en même
+  // temps depuis une même requête HTTP ne reviennent jamais — la fonction expire au bout de cinq
+  // minutes sans erreur. Quatre allers-retours de 200 ms restent imperceptibles.
+  const parPlan = await etape("parPlan", () =>
+    db.select({ plan: stores.plan, nb: sql<number>`count(*)::int` }).from(stores).groupBy(stores.plan));
+
+  const volumeMensuel = await etape("volumeMensuel", () =>
     db
       .select({
         mois: sql<string>`to_char(date_trunc('month', ${sales.dateHeure}), 'YYYY-MM')`,
@@ -94,7 +98,9 @@ async function calculer() {
       .from(sales)
       .where(and(eq(sales.statut, "VALIDEE"), sql`${sales.dateHeure} >= now() - interval '6 months'`))
       .groupBy(sql`date_trunc('month', ${sales.dateHeure})`)
-      .orderBy(sql`date_trunc('month', ${sales.dateHeure})`),
+      .orderBy(sql`date_trunc('month', ${sales.dateHeure})`));
+
+  const topBoutiques = await etape("topBoutiques", () =>
     db
       .select({ nom: stores.nom, volume: sql<string>`coalesce(sum(${sales.total}), 0)` })
       .from(sales)
@@ -102,7 +108,9 @@ async function calculer() {
       .where(eq(sales.statut, "VALIDEE"))
       .groupBy(stores.id, stores.nom)
       .orderBy(sql`sum(${sales.total}) desc`)
-      .limit(5),
+      .limit(5));
+
+  const inscriptions = await etape("inscriptions", () =>
     db
       .select({
         semaine: sql<string>`to_char(date_trunc('week', ${stores.creeLe}), 'YYYY-MM-DD')`,
@@ -111,8 +119,7 @@ async function calculer() {
       .from(stores)
       .where(gte(stores.creeLe, sql`now() - interval '12 weeks'`))
       .groupBy(sql`date_trunc('week', ${stores.creeLe})`)
-      .orderBy(sql`date_trunc('week', ${stores.creeLe})`),
-  ]));
+      .orderBy(sql`date_trunc('week', ${stores.creeLe})`));
 
   return NextResponse.json({
     boutiques: n(s.boutiques),

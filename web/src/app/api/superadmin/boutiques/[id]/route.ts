@@ -28,8 +28,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const boutique = await db.query.stores.findFirst({ where: eq(stores.id, id) });
   if (!boutique) return NextResponse.json({ error: "Boutique introuvable" }, { status: 404 });
 
-  const [equipe, dernieresVentes] = await Promise.all([
-    db
+  // Enchaînées et non lancées en parallèle : à travers le pooler en mode transaction, plusieurs
+  // requêtes émises en même temps depuis une même requête HTTP ne reviennent jamais, et la
+  // fonction expire au bout de cinq minutes sans erreur exploitable.
+  const equipe = await db
       .select({
         id: users.id,
         nom: users.nom,
@@ -41,14 +43,14 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       })
       .from(users)
       .where(eq(users.storeId, id))
-      .orderBy(users.role),
-    db
+      .orderBy(users.role);
+
+  const dernieresVentes = await db
       .select({ id: sales.id, numero: sales.numero, total: sales.total, dateHeure: sales.dateHeure, statut: sales.statut })
       .from(sales)
       .where(eq(sales.storeId, id))
       .orderBy(desc(sales.dateHeure))
-      .limit(10),
-  ]);
+      .limit(10);
 
   // Usage réel des modules. Une seule requête : chaque aller-retour vers la base coûte ~200 ms
   // depuis l'hébergeur, et il y a douze compteurs. Les noms de tables sont écrits en clair plutôt
