@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input, Label, Select } from "@/components/ui/input";
 import { formatFcfa } from "@/lib/currency";
+import { cn } from "@/lib/utils";
 
 type Detail = {
   boutique: {
@@ -29,7 +30,15 @@ type Detail = {
     creeLe: string;
     essaiExpireLe: string | null;
     abonnementExpireLe: string | null;
+    programmeTest: boolean;
   };
+  modules: {
+    cle: string;
+    libelle: string;
+    volume: number;
+    detail: string | null;
+    dernier: string | null;
+  }[];
   equipe: {
     id: string;
     nom: string;
@@ -189,6 +198,39 @@ export function StoreDetailDialog({
               </div>
             ))}
           </dl>
+
+          {/* Usage des modules : ce que la boutique fait vraiment de l'application. Un compte créé
+              qui n'a jamais ouvert la caisse ne se distingue autrement pas d'un client actif. */}
+          <div>
+            <p className="mb-2 text-sm font-bold">Usage des modules</p>
+            <ul className="grid gap-1 sm:grid-cols-2">
+              {detail.modules.map((m) => {
+                const jamais = m.volume === 0 && !m.dernier;
+                return (
+                  <li
+                    key={m.cle}
+                    className={cn(
+                      "flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm",
+                      jamais ? "border-dashed border-border opacity-60" : "border-border",
+                    )}
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate font-semibold">{m.libelle}</span>
+                      <span className="block truncate text-[11px] text-muted-foreground">
+                        {jamais
+                          ? "jamais utilisé"
+                          : m.dernier
+                            ? `dernier : ${format(parseISO(m.dernier), "d MMM yyyy", { locale: fr })}`
+                            : "aucune date"}
+                        {m.detail ? ` · ${m.detail}` : ""}
+                      </span>
+                    </span>
+                    <span className="shrink-0 text-base font-bold tabular-nums">{m.volume}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
 
           <div>
             <p className="mb-2 text-sm font-bold">Équipe ({detail.equipe.length})</p>

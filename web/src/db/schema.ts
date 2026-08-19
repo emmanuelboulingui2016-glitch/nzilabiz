@@ -66,6 +66,10 @@ export const stores = pgTable("stores", {
   langueDefaut: text("langue_defaut").notNull().default("fr"),
   plan: subscriptionPlanEnum("plan").notNull().default("ESSAI"),
   essaiExpireLe: timestamp("essai_expire_le"),
+  // Boutique entrée par le lien testeur : accès complet et gratuit jusqu'à la fin de la période
+  // de test. Le marqueur sert à les distinguer des vrais clients dans l'administration, et à
+  // savoir qui prévenir quand le programme se termine.
+  programmeTest: boolean("programme_test").notNull().default(false),
   abonnementExpireLe: timestamp("abonnement_expire_le"),
   noteBasFacture: text("note_bas_facture"),
   creeLe: timestamp("cree_le").notNull().defaultNow(),
@@ -366,6 +370,13 @@ export const platformSettings = pgTable("platform_settings", {
   droitApplicable: text("droit_applicable"),
   juridictionCompetente: text("juridiction_competente"),
   autoriteProtectionDonnees: text("autorite_protection_donnees"),
+
+  // Lien testeur : une seule adresse partagée à tous les testeurs de la période d'essai. Le code
+  // vit ici plutôt qu'en variable d'environnement pour être révocable et prolongeable depuis
+  // l'administration, sans redéploiement.
+  testLienCode: text("test_lien_code"),
+  testLienActif: boolean("test_lien_actif").notNull().default(false),
+  testLienExpireLe: timestamp("test_lien_expire_le"),
 
   facebookUrl: text("facebook_url"),
   instagramUrl: text("instagram_url"),

@@ -15,7 +15,9 @@
     "db:migrate:prod": "tsx src/db/migrate.ts --env=.env.deploy",
     "db:check": "tsx scripts/verifier-base.ts",
     "db:check:prod": "tsx scripts/verifier-base.ts --env=.env.deploy",
-    "db:seed": "tsx src/db/seed.ts"
+    "db:seed": "tsx src/db/seed.ts",
+    "db:reset-demo": "tsx src/db/reset-et-demo.ts",
+    "db:reset-demo:prod": "tsx src/db/reset-et-demo.ts --env=.env.deploy"
   },
   "dependencies": {
     "@fontsource/manrope": "^5.3.0",

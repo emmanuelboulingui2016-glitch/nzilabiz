@@ -65,6 +65,73 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       .limit(10),
   ]);
 
+  // Usage réel des modules. Une seule requête : chaque aller-retour vers la base coûte ~200 ms
+  // depuis l'hébergeur, et il y a douze compteurs. Les noms de tables sont écrits en clair plutôt
+  // qu'interpolés depuis le schéma — une interpolation de colonne dans une sous-requête corrélée
+  // se résout silencieusement sur la mauvaise table et renvoie zéro sans la moindre erreur.
+  const [usage] = await db.execute<Record<string, unknown>>(sql`
+    select
+      (select count(*) from sales where store_id = ${id})                                    as ventes_nb,
+      (select max(date_heure) from sales where store_id = ${id})                             as ventes_dernier,
+      (select count(*) from sales where store_id = ${id} and statut = 'ANNULEE')              as ventes_annulees,
+      (select count(*) from products where store_id = ${id})                                 as produits_nb,
+      (select count(*) from products where store_id = ${id}
+         and quantite_stock <= seuil_alerte)                                                 as produits_alerte,
+      (select max(m.date) from stock_movements m
+         join products p on p.id = m.product_id where p.store_id = ${id})                     as stock_dernier,
+      (select count(*) from clients where store_id = ${id})                                  as clients_nb,
+      (select max(cree_le) from clients where store_id = ${id})                              as clients_dernier,
+      (select count(*) from payments pa join sales sa on sa.id = pa.sale_id
+         where sa.store_id = ${id} and pa.mode = 'CREDIT')                                   as credits_nb,
+      (select count(*) from debt_repayments r join clients c on c.id = r.client_id
+         where c.store_id = ${id})                                                            as remboursements_nb,
+      (select max(r.date) from debt_repayments r join clients c on c.id = r.client_id
+         where c.store_id = ${id})                                                            as creances_dernier,
+      (select count(*) from expenses where store_id = ${id})                                 as depenses_nb,
+      (select max(date) from expenses where store_id = ${id})                                as depenses_dernier,
+      (select count(*) from documents where store_id = ${id})                                as documents_nb,
+      (select max(date) from documents where store_id = ${id})                               as documents_dernier,
+      (select count(*) from cash_counts where store_id = ${id})                              as caisse_nb,
+      (select max(date) from cash_counts where store_id = ${id})                             as caisse_dernier,
+      (select count(*) from devices where store_id = ${id} and not revoque)                  as appareils_nb,
+      (select max(derniere_activite) from devices where store_id = ${id})                    as appareils_dernier,
+      (select count(*) from invitations where store_id = ${id})                              as invitations_nb,
+      (select count(*) from invitations where store_id = ${id} and utilise_le is not null)   as invitations_utilisees,
+      (select count(*) from support_tickets where store_id = ${id})                          as support_nb,
+      (select max(cree_le) from support_tickets where store_id = ${id})                      as support_dernier,
+      (select count(*) from sync_logs where store_id = ${id})                                as sync_nb,
+      (select count(*) from sync_logs where store_id = ${id} and statut = 'ECHEC')           as sync_echecs,
+      (select max(horodatage) from sync_logs where store_id = ${id})                         as sync_dernier
+  `);
+
+  const u = (usage ?? {}) as Record<string, unknown>;
+  const nb = (k: string) => Number(u[k] ?? 0);
+  const quand = (k: string) => (u[k] ? new Date(u[k] as string).toISOString() : null);
+
+  const modules = [
+    { cle: "vente", libelle: "Caisse et ventes", volume: nb("ventes_nb"),
+      detail: `${nb("ventes_annulees")} annulée(s)`, dernier: quand("ventes_dernier") },
+    { cle: "stock", libelle: "Stock", volume: nb("produits_nb"),
+      detail: `${nb("produits_alerte")} sous le seuil`, dernier: quand("stock_dernier") },
+    { cle: "clients", libelle: "Clients", volume: nb("clients_nb"),
+      detail: null, dernier: quand("clients_dernier") },
+    { cle: "creances", libelle: "Créances", volume: nb("credits_nb"),
+      detail: `${nb("remboursements_nb")} remboursement(s)`, dernier: quand("creances_dernier") },
+    { cle: "depenses", libelle: "Dépenses", volume: nb("depenses_nb"),
+      detail: null, dernier: quand("depenses_dernier") },
+    { cle: "documents", libelle: "Factures et proformas", volume: nb("documents_nb"),
+      detail: null, dernier: quand("documents_dernier") },
+    { cle: "caisse", libelle: "Comptages de caisse", volume: nb("caisse_nb"),
+      detail: null, dernier: quand("caisse_dernier") },
+    { cle: "employes", libelle: "Employés et appareils", volume: nb("appareils_nb"),
+      detail: `${nb("invitations_utilisees")}/${nb("invitations_nb")} invitation(s) acceptée(s)`,
+      dernier: quand("appareils_dernier") },
+    { cle: "support", libelle: "Support", volume: nb("support_nb"),
+      detail: null, dernier: quand("support_dernier") },
+    { cle: "sync", libelle: "Synchronisation", volume: nb("sync_nb"),
+      detail: `${nb("sync_echecs")} échec(s)`, dernier: quand("sync_dernier") },
+  ];
+
   return NextResponse.json({
     boutique: {
       id: boutique.id,
@@ -80,7 +147,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       creeLe: boutique.creeLe.toISOString(),
       essaiExpireLe: boutique.essaiExpireLe?.toISOString() ?? null,
       abonnementExpireLe: boutique.abonnementExpireLe?.toISOString() ?? null,
+      programmeTest: boutique.programmeTest,
     },
+    modules,
     equipe: equipe.map((u) => ({
       id: u.id,
       nom: u.nom,

@@ -19,6 +19,7 @@ export type BoutiqueLigne = {
   quartier: string | null;
   typeCommerce: string | null;
   plan: "ESSAI" | "PREMIUM" | "ENTREPRISE";
+  programmeTest: boolean;
   devise: string;
   creeLe: string;
   essaiExpireLe: string | null;
@@ -172,6 +173,7 @@ export function StoresTable({ planInitial = "TOUS" }: { planInitial?: string }) 
                       </td>
                       <td className="px-4 py-3">
                         <Badge tone={TON_PLAN[b.plan]}>{b.plan}</Badge>
+                        {b.programmeTest ? <Badge tone="info">testeur</Badge> : null}
                       </td>
                       <td className={`px-4 py-3 text-xs ${ech.alerte ? "font-bold text-danger" : "text-muted-foreground"}`}>
                         {ech.texte}

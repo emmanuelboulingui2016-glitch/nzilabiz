@@ -5,6 +5,9 @@ export const registerSchema = z.object({
   email: z.string().email("Adresse e-mail invalide"),
   password: z.string().min(6, "6 caractères minimum"),
   storeName: z.string().min(2, "Le nom de la boutique est requis"),
+  // Code du programme de test, transmis par le lien testeur. Facultatif : l'inscription publique
+  // reste ouverte, un code absent donne simplement l'essai standard.
+  codeTest: z.string().trim().optional(),
 });
 
 export const loginSchema = z.object({

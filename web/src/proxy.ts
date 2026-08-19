@@ -12,7 +12,7 @@ const AUTH_PATHS = ["/connexion", "/inscription"];
 // depuis ses paramètres.
 // L'invitation d'un employé fait partie des pages ouvertes : celui qui scanne le QR code n'a pas
 // encore de compte, et un patron déjà connecté doit pouvoir vérifier le lien qu'il vient de créer.
-const OPEN_PATHS = ["/conditions", "/confidentialite", "/cookies", "/mentions-legales", "/invitation/"];
+const OPEN_PATHS = ["/conditions", "/confidentialite", "/cookies", "/mentions-legales", "/invitation/", "/testeur/"];
 
 // HSTS ne peut pas être déclaré dans `next.config.ts` : les en-têtes y sont figés au moment de la
 // compilation, alors que le protocole réellement utilisé se décide au démarrage — une même version

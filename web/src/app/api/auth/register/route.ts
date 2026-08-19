@@ -8,6 +8,7 @@ import { registerSchema } from "@/lib/validation/auth";
 import { deviceNameFromUserAgent } from "@/lib/device-name";
 import { clientIp, rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { isSuperAdminEmail } from "@/lib/auth/superadmin";
+import { verifierCodeTest, messageRefus } from "@/lib/test-access";
 
 // L'inscription crée une boutique complète : sans limite, un script pourrait en créer des
 // milliers. 5 par adresse et par heure laisse largement de quoi corriger une erreur de saisie.
@@ -27,7 +28,7 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Requête invalide" }, { status: 400 });
   }
-  const { nom, email, password, storeName } = parsed.data;
+  const { nom, email, password, storeName, codeTest } = parsed.data;
 
   // Une adresse inscrite dans SUPERADMIN_EMAILS ne doit jamais pouvoir être revendiquée par
   // l'inscription publique : rien ne vérifie qu'un candidat possède réellement l'adresse qu'il
@@ -46,12 +47,27 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Un compte existe déjà avec cet e-mail." }, { status: 409 });
   }
 
+  // Programme de test : le code ouvre l'accès complet jusqu'à la fin de la période annoncée, au
+  // lieu des 15 jours d'essai standard. Un code fourni mais invalide arrête l'inscription plutôt
+  // que de créer silencieusement une boutique en essai court : le testeur croirait être entré
+  // dans le programme et découvrirait l'inverse au pire moment.
+  let essaiExpireLe = new Date(Date.now() + 15 * 24 * 60 * 60 * 1000); // 15 jours d'essai (§16)
+  let programmeTest = false;
+
+  if (codeTest) {
+    const acces = await verifierCodeTest(codeTest);
+    if (!acces.valide) {
+      return NextResponse.json({ error: messageRefus(acces.raison) }, { status: 403 });
+    }
+    essaiExpireLe = acces.expireLe;
+    programmeTest = true;
+  }
+
   const motDePasseHash = await hashPassword(password);
-  const essaiExpireLe = new Date(Date.now() + 15 * 24 * 60 * 60 * 1000); // 15 jours d'essai gratuit (§16)
 
   const [store] = await db
     .insert(stores)
-    .values({ nom: storeName, plan: "ESSAI", essaiExpireLe })
+    .values({ nom: storeName, plan: "ESSAI", essaiExpireLe, programmeTest })
     .returning();
 
   const [user] = await db
