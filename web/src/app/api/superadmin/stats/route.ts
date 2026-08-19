@@ -2,14 +2,19 @@
 //
 // Toutes les agrégations sont faites en SQL : le nombre de boutiques peut grandir, la page ne doit
 // pas charger toutes les ventes en mémoire pour compter.
+//
+// Les onze compteurs tiennent en une seule instruction. La version précédente les lançait en
+// parallèle depuis le code : à travers le pooler en mode transaction, cet empilement de requêtes
+// sur une même connexion produisait une fonction qui expirait au bout de cinq minutes, sans
+// message d'erreur. Une instruction, un aller-retour, aucune ambiguïté.
 
 import { NextResponse } from "next/server";
-import { and, eq, gte, isNotNull, lte, sql } from "drizzle-orm";
+import { and, eq, gte, sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { clients, products, sales, stores, users } from "@/db/schema";
+import { sales, stores } from "@/db/schema";
 import { getSuperAdminSession } from "@/lib/auth/superadmin";
 
-function n(v: string | number | null | undefined): number {
+function n(v: unknown): number {
   if (v === null || v === undefined) return 0;
   const x = typeof v === "number" ? v : Number(v);
   return Number.isNaN(x) ? 0 : x;
@@ -19,115 +24,78 @@ export async function GET() {
   const session = await getSuperAdminSession();
   if (!session) return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
 
-  const maintenant = new Date();
-  const il30j = new Date(maintenant.getTime() - 30 * 86_400_000);
-  const il7j = new Date(maintenant.getTime() - 7 * 86_400_000);
-  const dans7j = new Date(maintenant.getTime() + 7 * 86_400_000);
+  // Les bornes de date sont calculées en SQL (`now() - interval`) plutôt que passées depuis le
+  // code : interpolé dans un template `sql` brut, un objet Date n'est pas converti par le pilote
+  // et fait échouer la requête.
+  const [brut] = await db.execute<Record<string, unknown>>(sql`
+    select
+      (select count(*)::int from stores)                                                as boutiques,
+      (select count(*)::int from stores where cree_le >= now() - interval '7 days')     as nouvelles7j,
+      (select count(*)::int from stores where programme_test)                           as testeurs,
+      (select count(*)::int from stores
+         where plan = 'ESSAI' and essai_expire_le between now() and now() + interval '7 days')
+                                                                                        as essais_bientot,
+      (select count(*)::int from users)                                                 as utilisateurs,
+      (select count(*)::int from products)                                              as produits,
+      (select count(*)::int from clients)                                               as clients,
+      (select count(*)::int from sales where statut = 'VALIDEE')                        as ventes,
+      (select coalesce(sum(total), 0) from sales where statut = 'VALIDEE')              as volume_total,
+      (select count(*)::int from sales
+         where statut = 'VALIDEE' and date_heure >= now() - interval '30 days')          as ventes30j,
+      (select coalesce(sum(total), 0) from sales
+         where statut = 'VALIDEE' and date_heure >= now() - interval '30 days')          as volume30j,
+      (select count(distinct store_id)::int from sales
+         where statut = 'VALIDEE' and date_heure >= now() - interval '30 days')          as actives30j
+  `);
 
-  const [
-    boutiques,
-    parPlan,
-    utilisateurs,
-    ventes,
-    ventes30j,
-    boutiquesActives,
-    nouvelles7j,
-    essaisBientotExpires,
-    catalogue,
-  ] = await Promise.all([
-    db.select({ nb: sql<number>`count(*)::int` }).from(stores),
-    db
-      .select({ plan: stores.plan, nb: sql<number>`count(*)::int` })
-      .from(stores)
-      .groupBy(stores.plan),
-    db.select({ nb: sql<number>`count(*)::int` }).from(users),
+  const s = (brut ?? {}) as Record<string, unknown>;
+
+  // Trois regroupements, qui ne peuvent pas tenir sur une ligne unique. Trois requêtes simultanées
+  // restent sous la taille du pool : pas d'empilement sur une même connexion.
+  const [parPlan, volumeMensuel, topBoutiques, inscriptions] = await Promise.all([
+    db.select({ plan: stores.plan, nb: sql<number>`count(*)::int` }).from(stores).groupBy(stores.plan),
     db
       .select({
-        nb: sql<number>`count(*)::int`,
-        montant: sql<string>`coalesce(sum(${sales.total}), 0)`,
+        mois: sql<string>`to_char(date_trunc('month', ${sales.dateHeure}), 'YYYY-MM')`,
+        volume: sql<string>`coalesce(sum(${sales.total}), 0)`,
+        ventes: sql<number>`count(*)::int`,
       })
       .from(sales)
-      .where(eq(sales.statut, "VALIDEE")),
+      .where(and(eq(sales.statut, "VALIDEE"), sql`${sales.dateHeure} >= now() - interval '6 months'`))
+      .groupBy(sql`date_trunc('month', ${sales.dateHeure})`)
+      .orderBy(sql`date_trunc('month', ${sales.dateHeure})`),
+    db
+      .select({ nom: stores.nom, volume: sql<string>`coalesce(sum(${sales.total}), 0)` })
+      .from(sales)
+      .innerJoin(stores, eq(stores.id, sales.storeId))
+      .where(eq(sales.statut, "VALIDEE"))
+      .groupBy(stores.id, stores.nom)
+      .orderBy(sql`sum(${sales.total}) desc`)
+      .limit(5),
     db
       .select({
+        semaine: sql<string>`to_char(date_trunc('week', ${stores.creeLe}), 'YYYY-MM-DD')`,
         nb: sql<number>`count(*)::int`,
-        montant: sql<string>`coalesce(sum(${sales.total}), 0)`,
       })
-      .from(sales)
-      .where(and(eq(sales.statut, "VALIDEE"), gte(sales.dateHeure, il30j))),
-    db
-      .select({ nb: sql<number>`count(distinct ${sales.storeId})::int` })
-      .from(sales)
-      .where(and(eq(sales.statut, "VALIDEE"), gte(sales.dateHeure, il30j))),
-    db.select({ nb: sql<number>`count(*)::int` }).from(stores).where(gte(stores.creeLe, il7j)),
-    // Les bornes de date passent par les helpers Drizzle (lte/gte) et non par un template `sql` :
-    // interpolé dans du SQL brut, un objet Date n'est pas converti par le pilote et fait échouer
-    // la requête.
-    db
-      .select({ nb: sql<number>`count(*)::int` })
       .from(stores)
-      .where(
-        and(
-          eq(stores.plan, "ESSAI"),
-          isNotNull(stores.essaiExpireLe),
-          lte(stores.essaiExpireLe, dans7j),
-          gte(stores.essaiExpireLe, maintenant)
-        )
-      ),
-    Promise.all([
-      db.select({ nb: sql<number>`count(*)::int` }).from(products),
-      db.select({ nb: sql<number>`count(*)::int` }).from(clients),
-    ]),
+      .where(gte(stores.creeLe, sql`now() - interval '12 weeks'`))
+      .groupBy(sql`date_trunc('week', ${stores.creeLe})`)
+      .orderBy(sql`date_trunc('week', ${stores.creeLe})`),
   ]);
 
-  // Volume encaissé par mois sur 6 mois et classement des boutiques : les deux graphiques qui
-  // disent le plus vite si la plateforme progresse et qui la fait vivre.
-  const volumeMensuel = await db
-    .select({
-      mois: sql<string>`to_char(date_trunc('month', ${sales.dateHeure}), 'YYYY-MM')`,
-      volume: sql<string>`coalesce(sum(${sales.total}), 0)`,
-      ventes: sql<number>`count(*)::int`,
-    })
-    .from(sales)
-    .where(and(eq(sales.statut, "VALIDEE"), gte(sales.dateHeure, new Date(maintenant.getTime() - 183 * 86_400_000))))
-    .groupBy(sql`date_trunc('month', ${sales.dateHeure})`)
-    .orderBy(sql`date_trunc('month', ${sales.dateHeure})`);
-
-  const topBoutiques = await db
-    .select({
-      nom: stores.nom,
-      volume: sql<string>`coalesce(sum(${sales.total}), 0)`,
-    })
-    .from(sales)
-    .innerJoin(stores, eq(stores.id, sales.storeId))
-    .where(eq(sales.statut, "VALIDEE"))
-    .groupBy(stores.id, stores.nom)
-    .orderBy(sql`sum(${sales.total}) desc`)
-    .limit(5);
-
-  // Courbe des inscriptions sur 12 semaines, pour voir la tendance d'un coup d'œil.
-  const inscriptions = await db
-    .select({
-      semaine: sql<string>`to_char(date_trunc('week', ${stores.creeLe}), 'YYYY-MM-DD')`,
-      nb: sql<number>`count(*)::int`,
-    })
-    .from(stores)
-    .where(gte(stores.creeLe, new Date(maintenant.getTime() - 84 * 86_400_000)))
-    .groupBy(sql`date_trunc('week', ${stores.creeLe})`)
-    .orderBy(sql`date_trunc('week', ${stores.creeLe})`);
-
   return NextResponse.json({
-    boutiques: boutiques[0]?.nb ?? 0,
-    boutiquesActives30j: boutiquesActives[0]?.nb ?? 0,
-    nouvellesBoutiques7j: nouvelles7j[0]?.nb ?? 0,
-    essaisExpirantSous7j: essaisBientotExpires[0]?.nb ?? 0,
-    utilisateurs: utilisateurs[0]?.nb ?? 0,
-    produits: catalogue[0][0]?.nb ?? 0,
-    clients: catalogue[1][0]?.nb ?? 0,
-    ventes: ventes[0]?.nb ?? 0,
-    volumeTotal: n(ventes[0]?.montant),
-    ventes30j: ventes30j[0]?.nb ?? 0,
-    volume30j: n(ventes30j[0]?.montant),
+    boutiques: n(s.boutiques),
+    boutiquesActives30j: n(s.actives30j),
+    nouvellesBoutiques7j: n(s.nouvelles7j),
+    essaisExpirantSous7j: n(s.essais_bientot),
+    boutiquesTesteuses: n(s.testeurs),
+    utilisateurs: n(s.utilisateurs),
+    produits: n(s.produits),
+    clients: n(s.clients),
+    ventes: n(s.ventes),
+    volumeTotal: n(s.volume_total),
+    ventes30j: n(s.ventes30j),
+    volume30j: n(s.volume30j),
     parPlan: Object.fromEntries(parPlan.map((p) => [p.plan, p.nb])),
     inscriptions: inscriptions.map((i) => ({ semaine: i.semaine, nb: i.nb })),
     volumeMensuel: volumeMensuel.map((v) => ({ mois: v.mois, volume: n(v.volume), ventes: v.ventes })),

@@ -26,9 +26,15 @@ const connectionString =
 const modeTransaction = /:6543(?:[/?]|$)|pgbouncer=true/.test(connectionString);
 
 // Réutilise la connexion entre rechargements à chaud en dev (évite d'épuiser le pool Postgres).
+// Trois connexions et non une seule en mode transaction. Avec une connexion unique, postgres.js
+// empile les requêtes simultanées d'une même requête HTTP sur le même canal ; à travers le pooler,
+// cet empilement se traduit par des réponses qui n'arrivent jamais et une fonction qui expire au
+// bout de cinq minutes, sans erreur exploitable. Trois reste très en dessous de ce qu'un pooler en
+// mode transaction est fait pour absorber, tout en couvrant les écrans qui agrègent plusieurs
+// compteurs à la fois.
 const client =
   global.__nzilabiz_pg__ ??
-  postgres(connectionString, modeTransaction ? { max: 1, prepare: false } : { max: 10 });
+  postgres(connectionString, modeTransaction ? { max: 3, prepare: false } : { max: 10 });
 
 if (process.env.NODE_ENV !== "production") {
   global.__nzilabiz_pg__ = client;

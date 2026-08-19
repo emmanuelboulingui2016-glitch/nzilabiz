@@ -7,10 +7,10 @@
 //          de quelqu'un.
 
 import { NextResponse } from "next/server";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
-import { clients, expenses, products, sales, stores, users } from "@/db/schema";
+import { sales, stores, users } from "@/db/schema";
 import { getSuperAdminSession } from "@/lib/auth/superadmin";
 import { isSuperAdminEmail } from "@/lib/auth/superadmin";
 
@@ -28,7 +28,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const boutique = await db.query.stores.findFirst({ where: eq(stores.id, id) });
   if (!boutique) return NextResponse.json({ error: "Boutique introuvable" }, { status: 404 });
 
-  const [equipe, compteurs, dernieresVentes] = await Promise.all([
+  const [equipe, dernieresVentes] = await Promise.all([
     db
       .select({
         id: users.id,
@@ -42,21 +42,6 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       .from(users)
       .where(eq(users.storeId, id))
       .orderBy(users.role),
-    Promise.all([
-      db.select({ nb: sql<number>`count(*)::int` }).from(products).where(eq(products.storeId, id)),
-      db.select({ nb: sql<number>`count(*)::int` }).from(clients).where(eq(clients.storeId, id)),
-      db
-        .select({
-          nb: sql<number>`count(*)::int`,
-          volume: sql<string>`coalesce(sum(${sales.total}), 0)`,
-        })
-        .from(sales)
-        .where(and(eq(sales.storeId, id), eq(sales.statut, "VALIDEE"))),
-      db
-        .select({ montant: sql<string>`coalesce(sum(${expenses.montant}), 0)` })
-        .from(expenses)
-        .where(eq(expenses.storeId, id)),
-    ]),
     db
       .select({ id: sales.id, numero: sales.numero, total: sales.total, dateHeure: sales.dateHeure, statut: sales.statut })
       .from(sales)
@@ -72,6 +57,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const [usage] = await db.execute<Record<string, unknown>>(sql`
     select
       (select count(*) from sales where store_id = ${id})                                    as ventes_nb,
+      (select count(*) from sales where store_id = ${id} and statut = 'VALIDEE')              as ventes_validees,
+      (select coalesce(sum(total), 0) from sales
+         where store_id = ${id} and statut = 'VALIDEE')                                       as volume_total,
+      (select coalesce(sum(montant), 0) from expenses where store_id = ${id})                 as depenses_total,
       (select max(date_heure) from sales where store_id = ${id})                             as ventes_dernier,
       (select count(*) from sales where store_id = ${id} and statut = 'ANNULEE')              as ventes_annulees,
       (select count(*) from products where store_id = ${id})                                 as produits_nb,
@@ -161,11 +150,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       creeLe: u.creeLe.toISOString(),
     })),
     compteurs: {
-      produits: compteurs[0][0]?.nb ?? 0,
-      clients: compteurs[1][0]?.nb ?? 0,
-      ventes: compteurs[2][0]?.nb ?? 0,
-      volume: n(compteurs[2][0]?.volume),
-      depenses: n(compteurs[3][0]?.montant),
+      produits: nb("produits_nb"),
+      clients: nb("clients_nb"),
+      ventes: nb("ventes_validees"),
+      volume: n(u.volume_total as string),
+      depenses: n(u.depenses_total as string),
     },
     dernieresVentes: dernieresVentes.map((v) => ({
       id: v.id,
