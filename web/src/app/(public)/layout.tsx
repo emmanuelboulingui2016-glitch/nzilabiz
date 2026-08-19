@@ -4,7 +4,12 @@ import { PublicHeader } from "@/components/public/public-header";
 import { getPlatformSettings } from "@/lib/platform-settings";
 
 // Layout des pages publiques (vitrine et pages légales) : accessibles sans compte, donc sans
-// aucun appel à la base ni à la session.
+// aucun appel à la session.
+//
+// Ces pages sont pré-générées pour rester rapides, mais elles affichent des réglages modifiables
+// depuis l'administration. L'enregistrement des réglages purge leur cache ; ce rafraîchissement
+// horaire n'est qu'un filet de sécurité, au cas où une modification passerait par un autre chemin.
+export const revalidate = 3600;
 export default async function PublicLayout({ children }: { children: React.ReactNode }) {
   const r = await getPlatformSettings();
   return (

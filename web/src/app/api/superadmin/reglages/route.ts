@@ -4,6 +4,7 @@
 // support, mentions légales) et dans l'aide de l'application. Aucun déploiement nécessaire.
 
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
@@ -82,6 +83,13 @@ export async function PUT(request: Request) {
   const [ligne] = existant
     ? await db.update(platformSettings).set(valeurs).where(eq(platformSettings.id, existant.id)).returning()
     : await db.insert(platformSettings).values(valeurs).returning();
+
+  // Les pages publiques sont pré-générées : sans cette invalidation, elles continueraient
+  // d'afficher les anciennes mentions légales jusqu'au prochain déploiement — exactement ce que
+  // cet écran promet d'éviter. On purge celles qui lisent ces réglages.
+  for (const chemin of ["/", "/mentions-legales", "/conditions", "/confidentialite", "/cookies"]) {
+    revalidatePath(chemin);
+  }
 
   return NextResponse.json({ ok: true, reglages: ligne });
 }
