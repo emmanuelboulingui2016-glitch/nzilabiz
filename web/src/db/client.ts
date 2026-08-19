@@ -32,9 +32,27 @@ const modeTransaction = /:6543(?:[/?]|$)|pgbouncer=true/.test(connectionString);
 // bout de cinq minutes, sans erreur exploitable. Trois reste très en dessous de ce qu'un pooler en
 // mode transaction est fait pour absorber, tout en couvrant les écrans qui agrègent plusieurs
 // compteurs à la fois.
+//
+// `connect_timeout` et `idle_timeout` sont explicites : sans eux, une connexion qui n'aboutit pas
+// laisse la fonction tourner jusqu'à l'expiration de la plateforme, cinq minutes plus tard, sans
+// message. Mieux vaut échouer en quinze secondes avec une erreur lisible.
 const client =
   global.__nzilabiz_pg__ ??
-  postgres(connectionString, modeTransaction ? { max: 3, prepare: false } : { max: 10 });
+  postgres(
+    connectionString,
+    modeTransaction
+      ? { max: 3, prepare: false, connect_timeout: 15, idle_timeout: 20 }
+      : { max: 10 },
+  );
+
+// postgres.js rejette les requêtes encore en vol quand une connexion tombe. Si elles appartiennent
+// à un `Promise.all` dont une autre a déjà échoué, ces rejets n'ont plus personne pour les
+// attraper : Node considère le rejet non géré comme fatal et termine le processus, ce que la
+// plateforme rapporte en 504 après cinq minutes plutôt qu'en erreur immédiate. On les journalise
+// et on laisse le processus vivre.
+process.on("unhandledRejection", (raison) => {
+  console.error("Rejet non géré (probablement une requête interrompue) :", raison);
+});
 
 if (process.env.NODE_ENV !== "production") {
   global.__nzilabiz_pg__ = client;

@@ -20,14 +20,45 @@ function n(v: unknown): number {
   return Number.isNaN(x) ? 0 : x;
 }
 
+/**
+ * Chronomètre une étape et la journalise. Une fonction sans serveur qui expire au bout de cinq
+ * minutes ne dit rien de ce qu'elle attendait : ces repères transforment un 504 muet en une ligne
+ * exploitable dans les journaux.
+ */
+async function etape<T>(nom: string, f: () => Promise<T>): Promise<T> {
+  const t = Date.now();
+  try {
+    const r = await f();
+    console.log(`stats: ${nom} en ${Date.now() - t} ms`);
+    return r;
+  } catch (e) {
+    console.error(`stats: ${nom} ÉCHEC après ${Date.now() - t} ms —`, e instanceof Error ? e.message : e);
+    throw e;
+  }
+}
+
 export async function GET() {
   const session = await getSuperAdminSession();
   if (!session) return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
 
+  try {
+    return await calculer();
+  } catch (e) {
+    // Une erreur de base doit se voir tout de suite dans l'écran, pas au bout de cinq minutes.
+    console.error("stats: abandon —", e);
+    return NextResponse.json(
+      { error: "Statistiques indisponibles pour le moment.", detail: e instanceof Error ? e.message : String(e) },
+      { status: 503 },
+    );
+  }
+}
+
+async function calculer() {
+
   // Les bornes de date sont calculées en SQL (`now() - interval`) plutôt que passées depuis le
   // code : interpolé dans un template `sql` brut, un objet Date n'est pas converti par le pilote
   // et fait échouer la requête.
-  const [brut] = await db.execute<Record<string, unknown>>(sql`
+  const [brut] = await etape("compteurs", () => db.execute<Record<string, unknown>>(sql`
     select
       (select count(*)::int from stores)                                                as boutiques,
       (select count(*)::int from stores where cree_le >= now() - interval '7 days')     as nouvelles7j,
@@ -46,13 +77,13 @@ export async function GET() {
          where statut = 'VALIDEE' and date_heure >= now() - interval '30 days')          as volume30j,
       (select count(distinct store_id)::int from sales
          where statut = 'VALIDEE' and date_heure >= now() - interval '30 days')          as actives30j
-  `);
+  `));
 
   const s = (brut ?? {}) as Record<string, unknown>;
 
   // Trois regroupements, qui ne peuvent pas tenir sur une ligne unique. Trois requêtes simultanées
   // restent sous la taille du pool : pas d'empilement sur une même connexion.
-  const [parPlan, volumeMensuel, topBoutiques, inscriptions] = await Promise.all([
+  const [parPlan, volumeMensuel, topBoutiques, inscriptions] = await etape("regroupements", () => Promise.all([
     db.select({ plan: stores.plan, nb: sql<number>`count(*)::int` }).from(stores).groupBy(stores.plan),
     db
       .select({
@@ -81,7 +112,7 @@ export async function GET() {
       .where(gte(stores.creeLe, sql`now() - interval '12 weeks'`))
       .groupBy(sql`date_trunc('week', ${stores.creeLe})`)
       .orderBy(sql`date_trunc('week', ${stores.creeLe})`),
-  ]);
+  ]));
 
   return NextResponse.json({
     boutiques: n(s.boutiques),
