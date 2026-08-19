@@ -10,7 +10,14 @@ import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { useTranslations } from "@/lib/i18n/provider";
 
-export function RegisterForm({ codeTest = null }: { codeTest?: string | null }) {
+export function RegisterForm({
+  codeTest = null,
+  googleActif = false,
+}: {
+  codeTest?: string | null;
+  /** La connexion Google n'est proposée que si elle est réellement configurée côté serveur. */
+  googleActif?: boolean;
+}) {
   const { t } = useTranslations();
   const router = useRouter();
 
@@ -92,8 +99,9 @@ export function RegisterForm({ codeTest = null }: { codeTest?: string | null }) 
       </form>
 
       {/* La connexion Google ne transporte pas le code testeur : proposer ce raccourci sur le lien
-          testeur ferait sortir du programme sans prévenir. */}
-      {codeTest ? null : (
+          testeur ferait sortir du programme sans prévenir. Elle n'apparaît par ailleurs que si elle
+          est configurée — un bouton qui renvoie une erreur vaut moins que pas de bouton. */}
+      {codeTest || !googleActif ? null : (
         <a href="/api/auth/google" className="mt-3 block">
           <Button type="button" variant="outline" className="w-full">
             {t("auth.continueWithGoogle")}
