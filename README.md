@@ -435,3 +435,64 @@ New-NetFirewallRule -DisplayName "NzilaBiz presentation" -Direction Inbound -Pro
 séquentiellement, puis 11 modules fonctionnels construits en parallèle par des sous-agents suivant
 un même socle et des conventions communes, puis intégration, vérification de bout en bout, et ce
 document. Rien n'a été déployé — c'est à toi de jouer.*
+
+---
+
+## 9. Mise en ligne et période de test (19 août 2026)
+
+**Adresse : https://nzilabiz.store** — hébergement Vercel, base PostgreSQL Supabase
+(`eu-west-1`), dépôt privé `emmanuelboulingui2016-glitch/nzilabiz`.
+
+### Connexion à la base
+
+Le port 5432 est bloqué en sortie sur le réseau de développement : la connexion directe et le
+pooler « session » sont injoignables, seul le **pooler en mode transaction (6543)** répond. C'est
+aussi ce qu'exige un hébergement sans serveur. `src/db/client.ts` le détecte sur le port, et non
+sur le nom d'hôte — le pooler « session » partage le même hôte mais accepte les instructions
+préparées.
+
+**Règle à respecter dans tout le code serveur : ne jamais lancer plusieurs requêtes de base en
+parallèle dans une même requête HTTP.** À travers ce pooler, un `Promise.all` de requêtes Drizzle
+ne revient jamais : la fonction expire au bout de cinq minutes sans erreur exploitable, et le rejet
+non géré qui suit termine le processus Node. Les écrans d'administration ont été réécrits en
+requêtes enchaînées ; quatre allers-retours de 200 ms sont imperceptibles.
+
+Migrations : `npm run db:migrate:prod`, qui lit `web/.env.deploy` — un nom volontairement hors de
+ceux que Next.js charge tout seul, pour qu'une exécution locale ne se branche jamais sur la base
+en ligne par accident.
+
+### Remise à zéro et démonstration
+
+```bash
+npm run db:reset-demo:prod     # ⚠️ efface tout, après sauvegarde dans sauvegardes/
+```
+
+Sauvegarde complète, purge des 24 tables, puis compte administrateur `nzilabiz@gmail.com` et
+boutique de démonstration : 381 ventes sur 75 jours, 16 produits dont 3 sous le seuil, 8 clients,
+crédits partiellement remboursés, 10 dépenses, 14 comptages de caisse, 2 proformas, 3 rôles.
+Le mot de passe est tiré au hasard et écrit dans `sauvegardes/compte-administrateur.txt`, jamais
+affiché. `SUPERADMIN_EMAILS` doit correspondre à un compte qui existe.
+
+### Programme de test
+
+Lien unique `/testeur/<code>` : le visiteur crée sa boutique avec accès complet jusqu'à la date de
+fin, au lieu des 15 jours d'essai standard, et la boutique est marquée `programme_test`. Code,
+activation et échéance vivent en base — révocables et prolongeables depuis Administration →
+Réglages, sans redéploiement.
+
+⚠️ **Aucun blocage n'est appliqué aujourd'hui à l'expiration d'un essai** : le plan et la date sont
+affichés, jamais vérifiés. Le lien testeur pose donc le bon marqueur et la bonne échéance, mais ne
+distingue pas encore ces boutiques en matière d'accès. La mécanique est prête pour le jour où un
+paiement sera branché.
+
+### Sécurité
+
+Une adresse listée dans `SUPERADMIN_EMAILS` sans compte associé était une place d'administrateur de
+plateforme libre : l'inscription ne vérifie pas qu'un candidat possède l'adresse qu'il saisit.
+L'inscription publique et l'acceptation d'invitation refusent désormais ces adresses.
+
+### Git et Vercel
+
+Le dépôt commitait sous `build@nzilabiz.local`. Depuis que GitHub est relié au projet, Vercel
+rejette les déploiements dont l'auteur du commit n'a pas une adresse valide — état `BLOCKED`, sans
+journal de compilation. L'identité git doit rester celle du compte GitHub.
