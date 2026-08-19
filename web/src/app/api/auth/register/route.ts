@@ -7,6 +7,7 @@ import { createSessionToken, setSessionCookie } from "@/lib/auth/session";
 import { registerSchema } from "@/lib/validation/auth";
 import { deviceNameFromUserAgent } from "@/lib/device-name";
 import { clientIp, rateLimit, tooManyRequests } from "@/lib/rate-limit";
+import { isSuperAdminEmail } from "@/lib/auth/superadmin";
 
 // L'inscription crée une boutique complète : sans limite, un script pourrait en créer des
 // milliers. 5 par adresse et par heure laisse largement de quoi corriger une erreur de saisie.
@@ -27,6 +28,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Requête invalide" }, { status: 400 });
   }
   const { nom, email, password, storeName } = parsed.data;
+
+  // Une adresse inscrite dans SUPERADMIN_EMAILS ne doit jamais pouvoir être revendiquée par
+  // l'inscription publique : rien ne vérifie qu'un candidat possède réellement l'adresse qu'il
+  // saisit, et le premier arrivé hériterait de l'administration de toute la plateforme. Les comptes
+  // superadmin se créent délibérément, jamais par ce formulaire. Message volontairement neutre :
+  // il n'apprend pas au visiteur quelles adresses sont privilégiées.
+  if (isSuperAdminEmail(email)) {
+    return NextResponse.json(
+      { error: "Cette adresse ne peut pas être utilisée pour créer une boutique." },
+      { status: 403 }
+    );
+  }
 
   const existing = await db.query.users.findFirst({ where: eq(users.email, email) });
   if (existing) {

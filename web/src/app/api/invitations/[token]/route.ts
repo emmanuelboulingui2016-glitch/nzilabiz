@@ -14,6 +14,7 @@ import { hashPassword } from "@/lib/auth/password";
 import { createSessionToken, setSessionCookie } from "@/lib/auth/session";
 import { deviceNameFromUserAgent } from "@/lib/device-name";
 import { clientIp, rateLimit, tooManyRequests } from "@/lib/rate-limit";
+import { isSuperAdminEmail } from "@/lib/auth/superadmin";
 
 async function chargerInvitation(token: string) {
   const invitation = await db.query.invitations.findFirst({ where: eq(invitations.token, token) });
@@ -73,6 +74,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
     return NextResponse.json(
       { error: `Cette invitation est réservée à ${res.invitation.emailPrevu}.` },
       { status: 400 }
+    );
+  }
+
+  // Même garde-fou qu'à l'inscription publique : l'invité choisit librement son adresse quand
+  // l'invitation n'en impose pas une. Sans ce contrôle, un employé invité comme simple vendeur
+  // pourrait saisir une adresse de superadmin et ressortir administrateur de toute la plateforme.
+  if (isSuperAdminEmail(email)) {
+    return NextResponse.json(
+      { error: "Cette adresse ne peut pas être utilisée." },
+      { status: 403 }
     );
   }
 
