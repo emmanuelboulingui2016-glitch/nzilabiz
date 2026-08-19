@@ -5,7 +5,7 @@ const COOKIE_NAME = "nzilabiz_session";
 
 // Pages d'authentification : accessibles sans compte, mais un utilisateur déjà connecté n'a rien à
 // y faire — on le renvoie vers son tableau de bord.
-const AUTH_PATHS = ["/connexion", "/inscription"];
+const AUTH_PATHS = ["/connexion", "/inscription", "/mot-de-passe-oublie"];
 
 // Pages ouvertes à tout le monde, connecté ou non : la vitrine et les documents légaux. Elles ne
 // doivent jamais rediriger, sinon un utilisateur connecté ne pourrait pas relire les conditions

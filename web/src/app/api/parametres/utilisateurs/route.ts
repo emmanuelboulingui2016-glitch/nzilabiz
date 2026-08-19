@@ -1,4 +1,3 @@
-import { randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
@@ -7,6 +6,7 @@ import { users } from "@/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { can } from "@/lib/auth/rbac";
 import { hashPassword } from "@/lib/auth/password";
+import { generateTempPassword } from "@/lib/auth/temp-password";
 
 // Onglet Utilisateurs — §14 du cahier des charges.
 // 🔧 Simplification documentée (voir résumé de tâche / README) : il n'y a pas de service d'envoi
@@ -14,11 +14,6 @@ import { hashPassword } from "@/lib/auth/password";
 // avec un mot de passe temporaire généré côté serveur, renvoyé UNE SEULE FOIS dans la réponse pour
 // que le Patron le relaie manuellement (SMS/WhatsApp/oral) à l'employé. Un vrai flux d'invitation
 // par e-mail est hors périmètre de ce soir.
-
-function generateTempPassword(): string {
-  // 10 caractères alphanumériques lisibles, dérivés d'octets aléatoires cryptographiques.
-  return randomBytes(8).toString("base64url").slice(0, 10);
-}
 
 const inviteSchema = z.object({
   nom: z.string().trim().min(1, "Le nom est requis.").max(120),

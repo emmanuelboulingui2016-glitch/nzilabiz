@@ -4,7 +4,7 @@ import { useState, type FormEvent } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { fr } from "date-fns/locale";
 import { toast } from "sonner";
-import { Copy, Trash2, UserPlus } from "lucide-react";
+import { Copy, KeyRound, Trash2, UserPlus } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -47,7 +47,28 @@ export function UsersManager({
   const [inviteOpen, setInviteOpen] = useState(false);
   const [savingRole, setSavingRole] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const [resetId, setResetId] = useState<string | null>(null);
   const [tempCred, setTempCred] = useState<{ email: string; password: string } | null>(null);
+
+  // Réinitialisation du mot de passe d'un employé. Sans envoi d'e-mail dans le service, c'est le
+  // seul recours quand un vendeur oublie le sien : le Patron lui remet le nouveau de vive voix.
+  async function reinitialiserMotDePasse(user: StoreUser) {
+    if (!confirm(`Générer un nouveau mot de passe pour ${user.nom} ? L'ancien cessera aussitôt de fonctionner.`)) return;
+    setResetId(user.id);
+    try {
+      const res = await fetch(`/api/parametres/utilisateurs/${user.id}/mot-de-passe`, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error ?? "Réinitialisation impossible.");
+        return;
+      }
+      setTempCred({ email: user.email, password: data.tempPassword });
+    } catch {
+      toast.error("Erreur réseau — réessayez.");
+    } finally {
+      setResetId(null);
+    }
+  }
 
   // -- Invitation --------------------------------------------------------
   const [nom, setNom] = useState("");
@@ -187,6 +208,15 @@ export function UsersManager({
                     <option value="GERANT">Gérant</option>
                     <option value="VENDEUR">Vendeur</option>
                   </Select>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={resetId === user.id}
+                    onClick={() => reinitialiserMotDePasse(user)}
+                    title="Générer un nouveau mot de passe et le remettre à l'employé"
+                  >
+                    <KeyRound size={14} />
+                  </Button>
                   <Button
                     variant="danger"
                     size="sm"

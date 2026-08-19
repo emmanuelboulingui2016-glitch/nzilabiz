@@ -87,7 +87,7 @@ export async function PUT(request: Request) {
   // Les pages publiques sont pré-générées : sans cette invalidation, elles continueraient
   // d'afficher les anciennes mentions légales jusqu'au prochain déploiement — exactement ce que
   // cet écran promet d'éviter. On purge celles qui lisent ces réglages.
-  for (const chemin of ["/", "/mentions-legales", "/conditions", "/confidentialite", "/cookies"]) {
+  for (const chemin of ["/", "/mentions-legales", "/conditions", "/confidentialite", "/cookies", "/mot-de-passe-oublie"]) {
     revalidatePath(chemin);
   }
 

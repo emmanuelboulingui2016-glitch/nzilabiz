@@ -74,7 +74,7 @@ function ConnexionForm() {
             <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
             {t("auth.rememberMe")}
           </label>
-          <Link href="#" className="text-primary hover:underline">
+          <Link href="/mot-de-passe-oublie" className="text-primary hover:underline">
             {t("auth.forgotPassword")}
           </Link>
         </div>
