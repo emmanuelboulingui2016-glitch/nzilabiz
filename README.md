@@ -552,6 +552,31 @@ Après ces trois corrections, les pages répondent en 700 à 900 ms depuis une c
 dont environ 700 ms de latence réseau et d'établissement TLS — autrement dit le serveur n'est plus
 distinguable du temps de téléchargement d'une image statique.
 
-**Reste à faire :** les photos de produits sont stockées en base64 dans la base. C'est tenable
-aujourd'hui, mais la page Stock renvoie toutes les images du catalogue à chaque affichage. À
-déplacer vers un stockage d'objets quand les catalogues grossiront.
+4. **Un aller-retour de trop par écran.** Sept écrans — Vendre, Stock, Ventes, Clients, Créances,
+   Dépenses, Documents — envoyaient au navigateur une page vide, qui rappelait aussitôt l'API pour
+   obtenir ce que le serveur avait déjà sous la main. Mesuré depuis une connexion gabonaise, chaque
+   aller-retour coûte environ 330 ms une fois la liaison établie : c'était donc une demi-seconde
+   ajoutée à chaque ouverture d'écran, pour rien. La caisse était la pire, avec en plus un
+   anti-rebond de 250 ms destiné à la frappe qui s'appliquait au premier affichage.
+
+   Chaque écran a maintenant une fonction de chargement unique (`get-*-data.ts`), partagée par la
+   page serveur et par la route API — sans quoi les deux chemins auraient divergé. L'appel à l'API
+   subsiste pour les changements de filtre et les rafraîchissements après modification.
+
+   Exception assumée : **Dépenses**. Lire cet écran génère aussi les dépenses récurrentes échues, ce
+   qui est une écriture. Elle reste dans la route API et n'est pas appelée pendant le rendu —
+   Next.js pré-rend les pages au survol des liens de navigation, et passer la souris sur « Dépenses »
+   aurait suffi à créer des lignes en base.
+
+Après ces quatre corrections, les écrans répondent en 700 à 870 ms depuis une connexion gabonaise,
+contre 364 ms pour une simple image statique servie par le CDN : le serveur n'est plus qu'une
+fraction de l'attente, le reste est la latence de la liaison.
+
+**Reste à faire :**
+
+- Les photos de produits sont stockées en base64 dans la base. C'est tenable aujourd'hui, mais la
+  page Stock renvoie toutes les images du catalogue à chaque affichage. À déplacer vers un stockage
+  d'objets quand les catalogues grossiront.
+- La recherche produit est sensible aux accents : taper « biere » ne trouve pas « Bière ». Sur un
+  téléphone, personne ne met les accents.
+- Environ 340 Ko de JavaScript compressé au premier chargement, mis en cache un an ensuite.
