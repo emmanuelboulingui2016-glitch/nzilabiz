@@ -496,3 +496,62 @@ L'inscription publique et l'acceptation d'invitation refusent désormais ces adr
 Le dépôt commitait sous `build@nzilabiz.local`. Depuis que GitHub est relié au projet, Vercel
 rejette les déploiements dont l'auteur du commit n'a pas une adresse valide — état `BLOCKED`, sans
 journal de compilation. L'identité git doit rester celle du compte GitHub.
+
+## 10. Connexion Google, réinitialisation de mot de passe et performances (20 août 2026)
+
+### Connexion Google
+
+Activée. Les trois variables `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` et `GOOGLE_REDIRECT_URI`
+vont ensemble : si l'une manque, le bouton « Continuer avec Google » n'est pas affiché du tout,
+plutôt que de renvoyer une erreur au clic (`src/lib/auth/google.ts`).
+
+Le retour OAuth (`/api/auth/google/callback`) n'avait jamais été exécuté avant cette activation.
+Quatre manques y ont été corrigés, dont un sérieux : `email_verified` n'était pas vérifié. Google
+peut délivrer un jeton portant une adresse qu'il n'a pas confirmée ; comme la route rattache
+l'identité Google au compte existant qui porte la même adresse, c'était la prise de contrôle de la
+boutique d'autrui.
+
+### Réinitialisation de mot de passe par e-mail
+
+Jeton de 32 octets aléatoires, stocké uniquement sous forme d'empreinte SHA-256, valable une heure,
+à usage unique, périmé dès qu'une nouvelle demande est faite (`src/lib/auth/reset-token.ts`). La
+réponse du formulaire est identique que l'adresse existe ou non : sinon il deviendrait un annuaire
+des commerçants inscrits.
+
+L'envoi accepte deux fournisseurs, aucun n'étant obligatoire (`src/lib/email/envoyer.ts`) : SMTP
+(un mot de passe d'application Gmail suffit, sans DNS) ou Resend. Sans configuration, la page
+« Mot de passe oublié » garde son texte manuel.
+
+### Révocation de session
+
+`devices.revoque` était écrit par trois écrans et affiché par l'interface, mais **aucun code ne le
+relisait** au moment de valider une session. « Déconnecter » un appareil, « Révoquer » un téléphone
+volé : rien ne se passait, l'accès durait les trente jours du jeton. La vérification est désormais
+faite dans `getSession()`, en une lecture indexée dédupliquée par requête via `cache()` de React.
+
+### Performances
+
+Trois causes, dans l'ordre d'importance.
+
+1. **Région d'exécution.** Les fonctions tournaient à Washington (`iad1`, la valeur par défaut)
+   alors que la base est à Dublin (`eu-west-1`). Chaque requête SQL traversait l'Atlantique deux
+   fois, et une page en enchaîne facilement une dizaine. `vercel.json` fixe désormais `dub1`.
+   Le tableau de bord est passé de 4 à 8 secondes à 1,2 seconde.
+
+2. **Agrégats calculés en mémoire.** Le tableau de bord chargeait toutes les ventes du jour avec
+   leurs lignes et le produit complet de chaque ligne — donc, les photos étant stockées en base64
+   dans la base, une image entière par ligne de vente pour n'afficher qu'un nom — puis tous les
+   paiements à crédit et tous les remboursements depuis l'ouverture de la boutique, pour n'en faire
+   que des sommes. Tout est maintenant compté par PostgreSQL. Même correction pour les créances.
+
+3. **Requêtes parallèles.** Onze `Promise.all` de requêtes subsistaient — le motif qui avait fait
+   expirer l'écran d'administration. Tous enchaînés. Avec la base dans la même région, un
+   aller-retour coûte quelques millisecondes.
+
+Après ces trois corrections, les pages répondent en 700 à 900 ms depuis une connexion gabonaise,
+dont environ 700 ms de latence réseau et d'établissement TLS — autrement dit le serveur n'est plus
+distinguable du temps de téléchargement d'une image statique.
+
+**Reste à faire :** les photos de produits sont stockées en base64 dans la base. C'est tenable
+aujourd'hui, mais la page Stock renvoie toutes les images du catalogue à chaque affichage. À
+déplacer vers un stockage d'objets quand les catalogues grossiront.
