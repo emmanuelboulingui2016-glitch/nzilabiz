@@ -45,7 +45,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tok
 
 const schema = z.object({
   nom: z.string().trim().min(2, "Indiquez votre nom.").max(120),
-  email: z.string().trim().email("E-mail invalide."),
+  email: z.string().trim().email("E-mail invalide.").toLowerCase(),
   password: z.string().min(6, "Le mot de passe doit contenir au moins 6 caractères."),
 });
 

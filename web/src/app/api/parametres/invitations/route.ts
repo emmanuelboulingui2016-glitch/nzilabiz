@@ -18,7 +18,7 @@ const DUREE_JOURS = 7;
 const schema = z.object({
   role: z.enum(["GERANT", "VENDEUR"]),
   nomPrevu: z.string().trim().max(120).nullable().optional(),
-  emailPrevu: z.string().trim().email("E-mail invalide.").nullable().optional().or(z.literal("")),
+  emailPrevu: z.string().trim().email("E-mail invalide.").toLowerCase().nullable().optional().or(z.literal("")),
   dureeJours: z.number().int().min(1).max(30).optional(),
 });
 

@@ -11,6 +11,22 @@ import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { useTranslations } from "@/lib/i18n/provider";
 
+/** Traduit le motif renvoyé par /api/auth/google/callback en une phrase utile au visiteur. */
+function messageGoogle(raison: string): string {
+  switch (raison) {
+    case "google_email_non_verifie":
+      return "Google n'a pas confirmé cette adresse e-mail. Vérifiez-la dans votre compte Google, ou connectez-vous avec votre mot de passe.";
+    case "google_compte_ferme":
+      return "Ce compte a été supprimé et ne permet plus de se connecter.";
+    case "google_adresse_reservee":
+      return "Cette adresse ne peut pas servir à créer une boutique.";
+    case "google_trop_de_tentatives":
+      return "Trop de tentatives de connexion Google. Réessayez dans quelques minutes.";
+    default:
+      return "La connexion Google n'a pas abouti. Utilisez votre e-mail et votre mot de passe.";
+  }
+}
+
 export function LoginForm({ googleActif = false }: { googleActif?: boolean }) {
   return (
     <Suspense fallback={null}>
@@ -59,12 +75,11 @@ function Formulaire({ googleActif }: { googleActif: boolean }) {
     <div>
       <h2 className="mb-4 text-lg font-semibold">{t("auth.loginTitle")}</h2>
 
-      {/* Ne subsiste que pour les retours d'un aller-retour OAuth qui a échoué en cours de route :
-          le cas « non configuré » ne peut plus se produire, le bouton n'étant plus affiché. */}
+      {/* Retour d'un aller-retour OAuth qui n'a pas abouti. Le message dit ce qui s'est passé quand
+          la personne peut y faire quelque chose ; sinon il reste général plutôt que d'afficher un
+          code technique que personne ne peut interpréter. */}
       {erreurExterne && (
-        <p className="mb-3 rounded-lg bg-warning/10 p-2 text-xs text-warning">
-          La connexion Google n&apos;a pas abouti. Utilisez votre e-mail et votre mot de passe.
-        </p>
+        <p className="mb-3 rounded-lg bg-warning/10 p-2 text-xs text-warning">{messageGoogle(erreurExterne)}</p>
       )}
       {error && <p className="mb-3 rounded-lg bg-danger/10 p-2 text-xs text-danger">{error}</p>}
 
