@@ -1,34 +1,16 @@
 import { NextResponse } from "next/server";
-import { and, desc, eq, gte, ilike, or } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { expenses } from "@/db/schema";
 import { getSession } from "@/lib/auth/session";
+import { chargerDepenses } from "@/components/depenses/get-depenses-data";
 import { can } from "@/lib/auth/rbac";
 
 // Catégories suggérées pour la saisie manuelle (§10 du cahier des charges). "Rachats de stock"
 // n'apparaît pas ici : cette catégorie est réservée aux dépenses générées automatiquement par le
 // module Stock (flux « Réceptionner une livraison »), reconnues via stockReceiptId non nul.
-export const SUGGESTED_CATEGORIES = ["Loyer", "Salaires", "Internet", "Transport", "Électricité"];
-
-function startOfDay(d: Date) {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
-}
-
-function startOfWeek(d: Date) {
-  // Semaine calendaire démarrant le lundi.
-  const day = d.getDay(); // 0 = dimanche
-  const diff = (day === 0 ? -6 : 1) - day;
-  const monday = new Date(d.getFullYear(), d.getMonth(), d.getDate() + diff);
-  return monday;
-}
-
-function startOfMonth(d: Date) {
-  return new Date(d.getFullYear(), d.getMonth(), 1);
-}
-
-function startOfYear(d: Date) {
-  return new Date(d.getFullYear(), 0, 1);
-}
+// Conservé ici pour les importateurs existants ; la définition vit avec la lecture.
+export { SUGGESTED_CATEGORIES } from "@/components/depenses/get-depenses-data";
 
 /**
  * 🔧 Dépenses récurrentes — génération pragmatique sans scheduler.
@@ -97,96 +79,14 @@ export async function GET(request: Request) {
   const generatedRecurringCount = await genererDepensesRecurrentesDues(session.storeId, session.userId);
 
   const { searchParams } = new URL(request.url);
-  const periode = searchParams.get("periode") ?? "mois";
-  const categorie = searchParams.get("categorie") ?? "";
-  const q = searchParams.get("q") ?? "";
-
-  const now = new Date();
-  const todayStart = startOfDay(now);
-  const monthStart = startOfMonth(now);
-
-  let periodStart: Date | null = monthStart;
-  switch (periode) {
-    case "aujourdhui":
-      periodStart = todayStart;
-      break;
-    case "semaine":
-      periodStart = startOfWeek(now);
-      break;
-    case "mois":
-      periodStart = monthStart;
-      break;
-    case "annee":
-      periodStart = startOfYear(now);
-      break;
-    case "tout":
-      periodStart = null;
-      break;
-    default:
-      periodStart = monthStart;
-  }
-
-  const conditions = [eq(expenses.storeId, session.storeId)];
-  if (periodStart) conditions.push(gte(expenses.date, periodStart));
-  if (categorie) conditions.push(eq(expenses.categorie, categorie));
-  if (q.trim()) {
-    const like = `%${q.trim()}%`;
-    conditions.push(or(ilike(expenses.description, like), ilike(expenses.categorie, like))!);
-  }
-
-  const list = await db.query.expenses.findMany({
-    where: and(...conditions),
-    orderBy: [desc(expenses.date)],
-  });
-
-  // KPI toujours calculés sur le mois en cours / aujourd'hui, indépendamment des filtres du tableau.
-  const monthExpenses = await db.query.expenses.findMany({
-    where: and(eq(expenses.storeId, session.storeId), gte(expenses.date, monthStart)),
-  });
-
-  let totalMois = 0;
-  let rachatsStockMois = 0;
-  let autresDepensesMois = 0;
-  let aujourdHui = 0;
-  let plusGrosseChargeMois = 0;
-
-  for (const e of monthExpenses) {
-    const montant = Number(e.montant);
-    totalMois += montant;
-    if (e.stockReceiptId) {
-      rachatsStockMois += montant;
-    } else {
-      autresDepensesMois += montant;
-    }
-    if (new Date(e.date) >= todayStart) {
-      aujourdHui += montant;
-    }
-    if (montant > plusGrosseChargeMois) {
-      plusGrosseChargeMois = montant;
-    }
-  }
-
-  const allCategories = await db.query.expenses.findMany({
-    where: eq(expenses.storeId, session.storeId),
-    columns: { categorie: true },
-  });
-  const categories = Array.from(
-    new Set([...SUGGESTED_CATEGORIES, ...allCategories.map((c) => c.categorie)])
-  ).sort((a, b) => a.localeCompare(b, "fr"));
 
   return NextResponse.json({
-    expenses: list,
-    kpis: {
-      totalMois,
-      rachatsStockMois,
-      autresDepensesMois,
-      aujourdHui,
-      transactionsMois: monthExpenses.length,
-      plusGrosseChargeMois,
-    },
-    categories,
-    suggestedCategories: SUGGESTED_CATEGORIES,
     generatedRecurringCount,
+    ...(await chargerDepenses(session.storeId, {
+      periode: searchParams.get("periode"),
+      categorie: searchParams.get("categorie"),
+      q: searchParams.get("q"),
+    })),
   });
 }
 

@@ -2,6 +2,7 @@
 
 import { getSession } from "@/lib/auth/session";
 import { can } from "@/lib/auth/rbac";
+import { chargerDocuments } from "@/components/documents/get-documents-data";
 import { DocumentsClient } from "@/components/documents/documents-client";
 
 export default async function DocumentsPage() {
@@ -16,6 +17,9 @@ export default async function DocumentsPage() {
 
   const canEdit = can(session.role, "documents.edit");
 
+  // L'écran s'ouvre sur l'onglet Factures : le serveur le charge avec la page.
+  const initial = await chargerDocuments(session.storeId, { type: "FACTURE" });
+
   return (
     <div className="space-y-4 p-4 pb-20 md:p-6 md:pb-6">
       <div>
@@ -25,7 +29,7 @@ export default async function DocumentsPage() {
           proforma pour un client professionnel qui n&apos;a pas encore payé.
         </p>
       </div>
-      <DocumentsClient canEdit={canEdit} />
+      <DocumentsClient initial={initial} canEdit={canEdit} />
     </div>
   );
 }

@@ -5,11 +5,10 @@ import { NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
-import { categories, expenses, products, stockMovements } from "@/db/schema";
+import { categories, products, stockMovements } from "@/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { can } from "@/lib/auth/rbac";
 import { genProductRef } from "@/lib/utils";
-import { computeStatut, toNumber } from "@/components/stock/stock-utils";
 import { chargerStock } from "@/components/stock/get-stock-data";
 
 export async function GET(request: Request) {

@@ -22,8 +22,10 @@ function formatDate(iso: string) {
   return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
-export function DepensesClient({ canEdit }: { canEdit: boolean }) {
-  const [data, setData] = useState<ExpensesResponse | null>(null);
+export function DepensesClient({ initial, canEdit }: { initial: ExpensesResponse; canEdit: boolean }) {
+  // Rendu par le serveur avec la page : le tableau est visible tout de suite. Le chargement qui suit
+  // le remplace par une version identique, et déclenche au passage la génération des récurrentes.
+  const [data, setData] = useState<ExpensesResponse | null>(initial);
   const [loading, setLoading] = useState(true);
   const [periode, setPeriode] = useState("mois");
   const [categorie, setCategorie] = useState("");

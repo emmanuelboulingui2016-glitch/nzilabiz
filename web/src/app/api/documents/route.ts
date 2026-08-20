@@ -10,15 +10,15 @@
 //        connexion avec DebtRepayment du module Créances).
 
 import { NextResponse } from "next/server";
-import { and, desc, eq, gte, ilike, lte, or, type SQL } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { clients, documents, sales } from "@/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { can } from "@/lib/auth/rbac";
-import { nextDocumentNumero, type DocumentType } from "@/components/documents/numero";
+import { nextDocumentNumero } from "@/components/documents/numero";
+import { chargerDocuments } from "@/components/documents/get-documents-data";
 
-const DOCUMENT_TYPES: readonly DocumentType[] = ["FACTURE", "PROFORMA", "REMBOURSEMENT"];
 
 export async function GET(request: Request) {
   const session = await getSession();
@@ -28,65 +28,15 @@ export async function GET(request: Request) {
   }
 
   const { searchParams } = new URL(request.url);
-  const type = searchParams.get("type");
-  const q = (searchParams.get("q") ?? "").trim();
-  const from = searchParams.get("from");
-  const to = searchParams.get("to");
 
-  const conditions: SQL[] = [eq(documents.storeId, session.storeId)];
-  if (type && (DOCUMENT_TYPES as readonly string[]).includes(type)) {
-    conditions.push(eq(documents.type, type as DocumentType));
-  }
-  if (from) {
-    const d = new Date(from);
-    if (!Number.isNaN(d.getTime())) conditions.push(gte(documents.date, d));
-  }
-  if (to) {
-    const d = new Date(to);
-    if (!Number.isNaN(d.getTime())) {
-      d.setHours(23, 59, 59, 999);
-      conditions.push(lte(documents.date, d));
-    }
-  }
-  if (q) {
-    const like = `%${q}%`;
-    const searchOr = or(ilike(documents.numero, like), ilike(documents.clientNomLibre, like), ilike(clients.nom, like));
-    if (searchOr) conditions.push(searchOr);
-  }
-
-  const rows = await db
-    .select({
-      id: documents.id,
-      type: documents.type,
-      numero: documents.numero,
-      statut: documents.statut,
-      date: documents.date,
-      montantTotal: documents.montantTotal,
-      clientNomLibre: documents.clientNomLibre,
-      clientNom: clients.nom,
-      saleNumero: sales.numero,
-      convertieEnVenteId: documents.convertieEnVenteId,
-    })
-    .from(documents)
-    .leftJoin(clients, eq(documents.clientId, clients.id))
-    .leftJoin(sales, eq(documents.saleId, sales.id))
-    .where(and(...conditions))
-    .orderBy(desc(documents.date))
-    .limit(300);
-
-  const result = rows.map((r) => ({
-    id: r.id,
-    type: r.type,
-    numero: r.numero,
-    statut: r.statut,
-    date: r.date.toISOString(),
-    montantTotal: Number(r.montantTotal),
-    clientNomAffiche: r.clientNom ?? r.clientNomLibre ?? null,
-    saleNumero: r.saleNumero ?? null,
-    convertieEnVenteId: r.convertieEnVenteId,
-  }));
-
-  return NextResponse.json({ documents: result });
+  return NextResponse.json({
+    documents: await chargerDocuments(session.storeId, {
+      type: searchParams.get("type"),
+      q: searchParams.get("q"),
+      from: searchParams.get("from"),
+      to: searchParams.get("to"),
+    }),
+  });
 }
 
 const factureSchema = z.object({

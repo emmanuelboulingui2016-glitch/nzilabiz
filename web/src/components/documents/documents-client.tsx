@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FileText, Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,10 +21,11 @@ const TABS: { value: DocumentType; label: string }[] = [
   { value: "REMBOURSEMENT", label: "Remboursements" },
 ];
 
-export function DocumentsClient({ canEdit }: { canEdit: boolean }) {
+export function DocumentsClient({ initial, canEdit }: { initial: DocumentRow[]; canEdit: boolean }) {
   const [tab, setTab] = useState<DocumentType>("FACTURE");
-  const [rows, setRows] = useState<DocumentRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Onglet Factures rendu par le serveur avec la page : rien à recharger à l'affichage.
+  const [rows, setRows] = useState<DocumentRow[]>(initial);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState("");
 
@@ -50,7 +51,14 @@ export function DocumentsClient({ canEdit }: { canEdit: boolean }) {
     }
   }, [tab, q]);
 
+  // Le premier passage est ignoré : l'onglet Factures est déjà rendu. Les suivants correspondent à
+  // un changement d'onglet ou à une recherche.
+  const premierRendu = useRef(true);
   useEffect(() => {
+    if (premierRendu.current) {
+      premierRendu.current = false;
+      return;
+    }
     const timeout = setTimeout(load, 250); // debounce recherche
     return () => clearTimeout(timeout);
   }, [load]);

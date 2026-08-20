@@ -9,19 +9,11 @@
 // immédiatement sélectionnable en caisse et dans les créances, et inversement.
 
 import { NextResponse } from "next/server";
-import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
-import { differenceInCalendarDays } from "date-fns";
 import { db } from "@/db/client";
-import { clients, sales, payments, debtRepayments } from "@/db/schema";
+import { clients } from "@/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { can } from "@/lib/auth/rbac";
 import { chargerClients } from "@/components/clients/get-clients-data";
-
-function n(value: string | number | null | undefined): number {
-  if (value === null || value === undefined) return 0;
-  const num = typeof value === "number" ? value : Number(value);
-  return Number.isNaN(num) ? 0 : num;
-}
 
 export async function GET() {
   const session = await getSession();
