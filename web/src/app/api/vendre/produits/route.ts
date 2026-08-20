@@ -5,11 +5,9 @@
 // périmètre (§ voir résumé final).
 
 import { NextResponse } from "next/server";
-import { and, asc, eq, ilike, or } from "drizzle-orm";
 import { getSession } from "@/lib/auth/session";
 import { can } from "@/lib/auth/rbac";
-import { db } from "@/db/client";
-import { categories, clients, products } from "@/db/schema";
+import { chargerVendre } from "@/components/vendre/get-vendre-data";
 
 export async function GET(request: Request) {
   const session = await getSession();
@@ -19,38 +17,12 @@ export async function GET(request: Request) {
   }
 
   const { searchParams } = new URL(request.url);
-  const q = searchParams.get("q")?.trim() ?? "";
-  const categoryId = searchParams.get("categoryId")?.trim();
-  const codeBarres = searchParams.get("codeBarres")?.trim();
 
-  const conditions = [eq(products.storeId, session.storeId)];
-  if (categoryId) conditions.push(eq(products.categoryId, categoryId));
-  if (codeBarres) {
-    conditions.push(eq(products.codeBarres, codeBarres));
-  } else if (q) {
-    const like = `%${q}%`;
-    conditions.push(or(ilike(products.nom, like), ilike(products.reference, like), ilike(products.codeBarres, like))!);
-  }
-
-  const [productRows, categoryRows, clientRows] = await Promise.all([
-    db
-      .select()
-      .from(products)
-      .where(and(...conditions))
-      .orderBy(asc(products.nom))
-      .limit(300),
-    db.query.categories.findMany({ where: eq(categories.storeId, session.storeId), orderBy: asc(categories.nom) }),
-    // Les clients archivés (module Clients) restent hors du sélecteur de caisse : on n'ouvre plus
-    // de nouvelle vente à leur nom. Leur historique et leurs créances restent intacts.
-    db.query.clients.findMany({
-      where: and(eq(clients.storeId, session.storeId), eq(clients.archive, false)),
-      orderBy: asc(clients.nom),
-    }),
-  ]);
-
-  return NextResponse.json({
-    products: productRows,
-    categories: categoryRows,
-    clients: clientRows,
-  });
+  return NextResponse.json(
+    await chargerVendre(session.storeId, {
+      q: searchParams.get("q"),
+      categoryId: searchParams.get("categoryId"),
+      codeBarres: searchParams.get("codeBarres"),
+    })
+  );
 }

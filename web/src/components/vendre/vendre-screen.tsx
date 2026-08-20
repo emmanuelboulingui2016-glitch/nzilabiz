@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createId } from "@paralleldrive/cuid2";
+import type { DonneesVendre } from "@/components/vendre/get-vendre-data";
 import { toast } from "sonner";
 import { WifiOff } from "lucide-react";
 import { Dialog } from "@/components/ui/dialog";
@@ -27,6 +28,29 @@ import type {
   VendreClient,
   VendreProduct,
 } from "./types";
+
+/**
+ * Recopie le catalogue dans le cache local, pour que la caisse continue de fonctionner sans réseau.
+ * Appelé aussi bien après un chargement en ligne qu'au premier affichage, à partir des données
+ * rendues par le serveur — sans quoi ouvrir la caisse puis perdre le réseau laisserait un cache vide.
+ */
+async function amorcerCacheLocal(liste: VendreProduct[]) {
+  await offlineDb.products.bulkPut(
+    liste.map((p) => ({
+      id: p.id,
+      storeId: p.storeId,
+      reference: p.reference,
+      nom: p.nom,
+      categoryId: p.categoryId,
+      codeBarres: p.codeBarres,
+      prixAchat: Number(p.prixAchat),
+      prixVente: Number(p.prixVente),
+      quantiteStock: Number(p.quantiteStock),
+      seuilAlerte: Number(p.seuilAlerte),
+      misAJourLe: new Date().toISOString(),
+    }))
+  );
+}
 
 function toVendreProduct(p: {
   id: string;
@@ -58,18 +82,21 @@ function toVendreProduct(p: {
 }
 
 export function VendreScreen({
+  initial,
   storeId,
   userId,
   storeName,
 }: {
+  /** Catalogue, catégories et clients rendus par le serveur avec la page. */
+  initial: DonneesVendre;
   storeId: string;
   userId: string;
   storeName: string;
 }) {
   // Catalogue
-  const [products, setProducts] = useState<VendreProduct[]>([]);
-  const [categories, setCategories] = useState<VendreCategory[]>([]);
-  const [clients, setClients] = useState<VendreClient[]>([]);
+  const [products, setProducts] = useState<VendreProduct[]>(initial.products as VendreProduct[]);
+  const [categories, setCategories] = useState<VendreCategory[]>(initial.categories as VendreCategory[]);
+  const [clients, setClients] = useState<VendreClient[]>(initial.clients as VendreClient[]);
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [search, setSearch] = useState("");
   const [categoryId, setCategoryId] = useState("TOUS");
@@ -148,21 +175,7 @@ export function VendreScreen({
         setProducts(data.products);
         setCategories(data.categories);
         setClients(data.clients);
-        await offlineDb.products.bulkPut(
-          (data.products as VendreProduct[]).map((p) => ({
-            id: p.id,
-            storeId: p.storeId,
-            reference: p.reference,
-            nom: p.nom,
-            categoryId: p.categoryId,
-            codeBarres: p.codeBarres,
-            prixAchat: Number(p.prixAchat),
-            prixVente: Number(p.prixVente),
-            quantiteStock: Number(p.quantiteStock),
-            seuilAlerte: Number(p.seuilAlerte),
-            misAJourLe: new Date().toISOString(),
-          }))
-        );
+        await amorcerCacheLocal(data.products as VendreProduct[]);
       } catch {
         // Hors-ligne ou erreur réseau : repli sur le cache local IndexedDB (best effort).
         const cached = await offlineDb.products.where("storeId").equals(storeId).toArray();
@@ -184,9 +197,21 @@ export function VendreScreen({
     [storeId]
   );
 
+  // Le premier passage est ignoré : la grille est déjà celle rendue par le serveur. Le cache
+  // hors-ligne est tout de même amorcé à partir de ces mêmes données, sans appel réseau — sans quoi
+  // un vendeur qui ouvre la caisse puis perd le réseau se retrouverait devant un cache vide.
+  // Les passages suivants correspondent à une recherche ou à un changement de catégorie ; le délai
+  // de 250 ms n'a de sens que pour la frappe.
+  const premierRendu = useRef(true);
   useEffect(() => {
+    if (premierRendu.current) {
+      premierRendu.current = false;
+      void amorcerCacheLocal(initial.products as VendreProduct[]);
+      return;
+    }
     const timeout = window.setTimeout(() => void loadProducts({ q: search, categoryId }), 250);
     return () => window.clearTimeout(timeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search, categoryId, loadProducts]);
 
   // --- Panier ---------------------------------------------------------------

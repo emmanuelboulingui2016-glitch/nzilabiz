@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth/session";
 import { can } from "@/lib/auth/rbac";
 import { db } from "@/db/client";
 import { stores } from "@/db/schema";
+import { chargerVendre } from "@/components/vendre/get-vendre-data";
 import { VendreScreen } from "@/components/vendre/vendre-screen";
 
 export default async function VendrePage() {
@@ -18,7 +19,20 @@ export default async function VendrePage() {
     );
   }
 
-  const store = await db.query.stores.findFirst({ where: eq(stores.id, session.storeId) });
+  const store = await db.query.stores.findFirst({
+    where: eq(stores.id, session.storeId),
+    columns: { nom: true },
+  });
 
-  return <VendreScreen storeId={session.storeId} userId={session.userId} storeName={store?.nom ?? "NzilaBiz"} />;
+  // La grille part remplie avec la page : c'est l'écran le plus utilisé, il ne doit rien attendre.
+  const initial = await chargerVendre(session.storeId);
+
+  return (
+    <VendreScreen
+      initial={initial}
+      storeId={session.storeId}
+      userId={session.userId}
+      storeName={store?.nom ?? "NzilaBiz"}
+    />
+  );
 }
