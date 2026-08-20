@@ -1,5 +1,8 @@
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
+import { cache } from "react";
+import { sql } from "drizzle-orm";
+import { db } from "@/db/client";
 
 const COOKIE_NAME = "nzilabiz_session";
 const SESSION_DURATION_SECONDS = 60 * 60 * 24 * 30; // 30 jours
@@ -49,16 +52,75 @@ export async function clearSessionCookie() {
   store.delete(COOKIE_NAME);
 }
 
+/**
+ * Vérifie que l'accès porté par ce jeton est toujours ouvert, côté base.
+ *
+ * Un jeton JWT est autonome : une fois signé, il reste valable jusqu'à son échéance, trente jours
+ * plus tard. Rien dans le jeton ne peut donc traduire une révocation décidée après coup. Or
+ * l'application en propose trois : « Déconnecter » un appareil dans Paramètres → Sécurité,
+ * « Révoquer » un appareil perdu ou volé dans Synchronisation, et la fermeture d'un compte. Les
+ * trois écrivent bien en base et l'interface affiche « Déconnecté » — mais tant que personne ne
+ * relit cette information au moment de valider la session, l'appareil révoqué continue d'entrer.
+ * Un téléphone volé gardait ainsi l'accès à la boutique pendant un mois, avec un écran affirmant
+ * le contraire.
+ *
+ * Coût : une lecture indexée par requête HTTP, dédupliquée par `cache()` — les composants serveur
+ * appellent `getSession()` plusieurs fois par page, la base n'est interrogée qu'une.
+ *
+ * En cas de panne de base, on laisse passer plutôt que de déconnecter tout le monde : c'est le
+ * choix déjà retenu pour la limitation de débit. Une base indisponible ne permet de toute façon
+ * aucune action dans l'application.
+ */
+async function accesRevoque(p: SessionPayload): Promise<boolean> {
+  try {
+    const [ligne] = await db.execute<Record<string, unknown>>(
+      p.deviceId
+        ? sql`
+            select
+              (u.desactive_le is not null) as compte_ferme,
+              not exists (
+                select 1 from devices d
+                where d.id = ${p.deviceId} and d.user_id = u.id and d.revoque = false
+              ) as appareil_hors_service
+            from users u
+            where u.id = ${p.userId}
+          `
+        : sql`
+            select (u.desactive_le is not null) as compte_ferme, false as appareil_hors_service
+            from users u
+            where u.id = ${p.userId}
+          `
+    );
+    // Aucune ligne : le compte a été supprimé avec sa boutique (suppression en cascade).
+    if (!ligne) return true;
+    return Boolean(ligne.compte_ferme) || Boolean(ligne.appareil_hors_service);
+  } catch (e) {
+    console.error("session : vérification de révocation impossible —", e instanceof Error ? e.message : e);
+    return false;
+  }
+}
+
+/**
+ * Décode et valide un jeton. Mémorisé pour la durée de la requête : `getSession()` est appelé par
+ * la mise en page, la page, puis chaque route qu'elle déclenche.
+ */
+const sessionDepuisJeton = cache(async (token: string): Promise<SessionPayload | null> => {
+  let payload: SessionPayload;
+  try {
+    const resultat = await jwtVerify(token, getSecretKey());
+    payload = resultat.payload as unknown as SessionPayload;
+  } catch {
+    return null;
+  }
+  if (!payload?.userId) return null;
+  return (await accesRevoque(payload)) ? null : payload;
+});
+
 export async function getSession(): Promise<SessionPayload | null> {
   const store = await cookies();
   const token = store.get(COOKIE_NAME)?.value;
   if (!token) return null;
-  try {
-    const { payload } = await jwtVerify(token, getSecretKey());
-    return payload as unknown as SessionPayload;
-  } catch {
-    return null;
-  }
+  return sessionDepuisJeton(token);
 }
 
 export async function requireSession(): Promise<SessionPayload> {

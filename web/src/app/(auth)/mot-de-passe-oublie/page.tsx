@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { KeyRound, LifeBuoy, Store } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ForgotPasswordForm } from "@/components/auth/forgot-password-form";
+import { emailConfigure } from "@/lib/email/envoyer";
 import { getPlatformSettings } from "@/lib/platform-settings";
 
 // Les coordonnées du support viennent des réglages : cette page est pré-générée, elle doit donc
@@ -10,15 +12,16 @@ export const revalidate = 3600;
 
 export const metadata: Metadata = {
   title: "Mot de passe oublié — NzilaBiz",
-  description: "Comment retrouver l'accès à votre compte NzilaBiz.",
+  description: "Retrouvez l'accès à votre compte NzilaBiz.",
 };
 
-// Cette page dit la vérité sur ce que le service sait faire aujourd'hui : il n'envoie pas
-// d'e-mail, donc il n'y a pas de réinitialisation automatique. Le recours réel passe par le
-// Patron, qui est physiquement présent dans la boutique, ou par le support. Un lien mort
-// promettant une réinitialisation qui n'existe pas serait pire que cette explication.
+// Cette page dit la vérité sur ce que le service sait faire. Quand un envoi d'e-mail est configuré,
+// elle propose le lien automatique ; sinon elle explique les recours réels — le Patron, qui est
+// physiquement présent dans la boutique, ou le support. Dans les deux cas, rien n'est promis qui ne
+// puisse être tenu.
 export default async function MotDePasseOubliePage() {
   const r = await getPlatformSettings();
+  const parEmail = emailConfigure();
   const whatsapp = r.supportWhatsapp ? `https://wa.me/${r.supportWhatsapp.replace(/[^\d]/g, "")}` : null;
 
   return (
@@ -27,9 +30,18 @@ export default async function MotDePasseOubliePage() {
         <KeyRound size={18} /> Mot de passe oublié
       </h2>
       <p className="mb-5 text-sm text-muted-foreground">
-        NzilaBiz n&apos;envoie pas d&apos;e-mail de réinitialisation. Voici les deux façons de
-        retrouver votre accès.
+        {parEmail
+          ? "Indiquez l'adresse e-mail de votre compte : nous vous enverrons un lien pour choisir un nouveau mot de passe."
+          : "NzilaBiz n'envoie pas d'e-mail de réinitialisation. Voici les deux façons de retrouver votre accès."}
       </p>
+
+      {parEmail ? <ForgotPasswordForm /> : null}
+
+      {parEmail ? (
+        <p className="mt-5 mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Vous n&apos;avez plus accès à cette adresse ?
+        </p>
+      ) : null}
 
       <div className="space-y-3">
         <section className="rounded-xl border border-border p-4">

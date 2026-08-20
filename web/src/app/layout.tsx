@@ -15,9 +15,19 @@ export const metadata: Metadata = {
   description:
     "NzilaBiz est une application de gestion de boutique (caisse, stock, créances, dépenses) pensée pour les commerçants d'Afrique centrale, 100% utilisable hors connexion.",
   manifest: "/manifest.json",
+  // Toutes les tailles sont déclarées, de 16 à 512 : c'est le navigateur qui choisit la plus
+  // adaptée à l'endroit où il l'affiche — onglet, favori, raccourci de bureau, barre des tâches.
+  // Sans les petites tailles, il réduit la grande et le dessin devient flou.
+  //
+  // Attention : un fichier `favicon.ico` placé dans `src/app/` prendrait le pas sur celui de
+  // `public/`, par convention de Next.js. Le gabarit de départ en installe un — celui de Vercel —
+  // qui masquait silencieusement le nôtre.
   icons: {
     icon: [
-      { url: "/favicon.ico" },
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icons/icon-16.png", sizes: "16x16", type: "image/png" },
+      { url: "/icons/icon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/icons/icon-48.png", sizes: "48x48", type: "image/png" },
       { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
       { url: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
     ],

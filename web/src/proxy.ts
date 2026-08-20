@@ -12,7 +12,19 @@ const AUTH_PATHS = ["/connexion", "/inscription", "/mot-de-passe-oublie"];
 // depuis ses paramètres.
 // L'invitation d'un employé fait partie des pages ouvertes : celui qui scanne le QR code n'a pas
 // encore de compte, et un patron déjà connecté doit pouvoir vérifier le lien qu'il vient de créer.
-const OPEN_PATHS = ["/conditions", "/confidentialite", "/cookies", "/mentions-legales", "/invitation/", "/testeur/"];
+// La réinitialisation de mot de passe est ouverte à tous, y compris à quelqu'un déjà connecté :
+// c'est précisément le cas de la personne qui découvre une session ouverte sur un appareil qu'elle
+// ne reconnaît pas et veut reprendre la main. La classer parmi les pages d'authentification la
+// renverrait vers le tableau de bord, et le lien reçu par e-mail resterait sans effet.
+const OPEN_PATHS = [
+  "/conditions",
+  "/confidentialite",
+  "/cookies",
+  "/mentions-legales",
+  "/invitation/",
+  "/testeur/",
+  "/reinitialiser/",
+];
 
 // HSTS ne peut pas être déclaré dans `next.config.ts` : les en-têtes y sont figés au moment de la
 // compilation, alors que le protocole réellement utilisé se décide au démarrage — une même version

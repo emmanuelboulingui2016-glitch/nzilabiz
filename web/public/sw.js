@@ -9,10 +9,17 @@
 // (ventes, stock, dépenses saisis sans réseau) est assurée séparément par la couche IndexedDB/Dexie
 // (voir src/lib/offline/db.ts), pas par ce service worker.
 
-const CACHE_NAME = "nzilabiz-shell-v1";
+// Le numéro de version fait partie du nom du cache : le changer est le seul moyen de forcer le
+// renouvellement. L'activation supprime tout cache portant un autre nom, et les fichiers ci-dessous
+// sont retéléchargés. Sans cela, un fichier corrigé sur le serveur continue d'être servi depuis le
+// cache — c'est ce qui est arrivé au favicon, resté celui du gabarit de départ.
+//
+// v2 : correction du favicon (le gabarit Next.js en imposait un autre) et ajout des petites tailles.
+const CACHE_NAME = "nzilabiz-shell-v2";
 const APP_SHELL = [
   "/manifest.json",
   "/favicon.ico",
+  "/icons/icon-32.png",
   "/icons/icon-192.png",
   "/icons/icon-512.png",
   "/offline.html",

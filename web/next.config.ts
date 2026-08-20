@@ -39,6 +39,9 @@ const nextConfig: NextConfig = {
   // Sans cette liste, une démonstration sur téléphone via l'IP de l'ordinateur perd les styles et
   // le rafraîchissement à chaud. Les adresses sont détectées au démarrage et restent privées.
   allowedDevOrigins: adressesLocales().map((a) => a.adresse),
+  // Nodemailer ouvre lui-même une connexion TCP et charge ses modules à l'exécution : empaqueté
+  // par le compilateur, il perd cette capacité. On le laisse être chargé normalement par Node.
+  serverExternalPackages: ["nodemailer"],
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

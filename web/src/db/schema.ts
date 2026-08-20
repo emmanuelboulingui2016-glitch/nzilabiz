@@ -490,6 +490,33 @@ export const rateLimits = pgTable("rate_limits", {
   bloqueJusqua: timestamp("bloque_jusqua", { withTimezone: true }),
 });
 
+// Jetons de réinitialisation de mot de passe, envoyés par e-mail.
+//
+// C'est la seule empreinte du jeton qui est stockée, jamais le jeton lui-même — exactement comme
+// pour un mot de passe. Quelqu'un qui lirait cette table ne pourrait pas en déduire un lien
+// valide. SHA-256 suffit ici, là où un mot de passe exige bcrypt : le jeton fait 32 octets tirés
+// au hasard, il n'y a rien à deviner par force brute.
+//
+// Usage unique et durée courte : un lien de réinitialisation qui traîne dans une boîte mail est
+// une clé de la boutique. Il devient inerte dès qu'il a servi, et au bout d'une heure de toute
+// façon.
+export const passwordResetTokens = pgTable(
+  "password_reset_tokens",
+  {
+    id: id(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    jetonHash: text("jeton_hash").notNull().unique(),
+    expireLe: timestamp("expire_le", { withTimezone: true }).notNull(),
+    utiliseLe: timestamp("utilise_le", { withTimezone: true }),
+    /** Trace de la demande : permet de repérer une campagne d'envois depuis une même origine. */
+    demandeIp: text("demande_ip"),
+    creeLe: timestamp("cree_le", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("password_reset_tokens_user_idx").on(t.userId)]
+);
+
 // ---------------------------------------------------------------------------
 // Relations (pour l'API relationnelle db.query.*)
 // ---------------------------------------------------------------------------
