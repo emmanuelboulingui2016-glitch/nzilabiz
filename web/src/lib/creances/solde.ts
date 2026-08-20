@@ -9,10 +9,10 @@
 // FIFO sur les ventes les plus anciennes ; la première vente encore impayée détermine l'échéance
 // et donc les jours de retard.
 
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import { differenceInCalendarDays } from "date-fns";
 import { db } from "@/db/client";
-import { clients, sales, debtRepayments, notificationSettings } from "@/db/schema";
+import { clients, sales, payments, debtRepayments, notificationSettings } from "@/db/schema";
 
 export const DEFAULT_ECHEANCE_JOURS = 30;
 
@@ -40,22 +40,35 @@ function n(value: string | number | null | undefined): number {
 }
 
 export async function chargerCreances(storeId: string): Promise<CreanceClient[]> {
-  const [allClients, creditSalesRows, settings] = await Promise.all([
-    db.query.clients.findMany({
-      where: eq(clients.storeId, storeId),
-      orderBy: (c, { asc }) => [asc(c.nom)],
-    }),
-    db.query.sales.findMany({
-      where: and(eq(sales.storeId, storeId), eq(sales.statut, "VALIDEE")),
-      columns: { id: true, numero: true, clientId: true, total: true, dateHeure: true },
-      with: { payments: { columns: { mode: true } } },
-      orderBy: (s, { asc }) => [asc(s.dateHeure)],
-    }),
-    db.query.notificationSettings.findFirst({
-      where: eq(notificationSettings.storeId, storeId),
-      columns: { creanceRetardJours: true },
-    }),
-  ]);
+  // Requêtes enchaînées, jamais lancées ensemble : le pooler en mode transaction ne rend pas la
+  // main quand plusieurs partent en parallèle depuis une même requête HTTP (voir README).
+  const allClients = await db.query.clients.findMany({
+    where: eq(clients.storeId, storeId),
+    orderBy: (c, { asc }) => [asc(c.nom)],
+  });
+
+  // Le tri des ventes à crédit se fait en base. La version précédente rapatriait TOUTES les ventes
+  // validées de la boutique depuis son ouverture, avec leurs règlements, pour ne garder ensuite que
+  // celles à crédit — un coût qui grandissait indéfiniment avec l'historique, sur un écran consulté
+  // tous les jours.
+  const storeCreditSales = await db.query.sales.findMany({
+    where: and(
+      eq(sales.storeId, storeId),
+      eq(sales.statut, "VALIDEE"),
+      isNotNull(sales.clientId),
+      inArray(
+        sales.id,
+        db.select({ saleId: payments.saleId }).from(payments).where(eq(payments.mode, "CREDIT"))
+      )
+    ),
+    columns: { id: true, numero: true, clientId: true, total: true, dateHeure: true },
+    orderBy: (s, { asc }) => [asc(s.dateHeure)],
+  });
+
+  const settings = await db.query.notificationSettings.findFirst({
+    where: eq(notificationSettings.storeId, storeId),
+    columns: { creanceRetardJours: true },
+  });
 
   const clientIds = allClients.map((c) => c.id);
   const storeRepayments = clientIds.length
@@ -64,10 +77,6 @@ export async function chargerCreances(storeId: string): Promise<CreanceClient[]>
         columns: { id: true, clientId: true, montant: true, date: true },
       })
     : [];
-
-  const storeCreditSales = creditSalesRows.filter(
-    (s) => s.clientId && s.payments.some((p) => p.mode === "CREDIT")
-  );
 
   const today = new Date();
   const fallbackEcheance = settings?.creanceRetardJours ?? DEFAULT_ECHEANCE_JOURS;

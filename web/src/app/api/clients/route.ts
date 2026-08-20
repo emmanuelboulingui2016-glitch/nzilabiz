@@ -44,40 +44,41 @@ export async function GET() {
     .from(payments)
     .where(eq(payments.mode, "CREDIT"));
 
-  const [allClients, achatsStats, creditStats, remboursementsStats] = await Promise.all([
-    db.query.clients.findMany({
-      where: eq(clients.storeId, session.storeId),
-      orderBy: (c, { asc }) => [asc(c.nom)],
-    }),
-    db
-      .select({
-        clientId: sales.clientId,
-        nbAchats: sql<number>`count(*)::int`,
-        totalAchats: sql<string>`coalesce(sum(${sales.total}), 0)`,
-        premierAchat: sql<Date>`min(${sales.dateHeure})`,
-        dernierAchat: sql<Date>`max(${sales.dateHeure})`,
-      })
-      .from(sales)
-      .where(storeSalesFilter)
-      .groupBy(sales.clientId),
-    db
-      .select({
-        clientId: sales.clientId,
-        totalCredit: sql<string>`coalesce(sum(${sales.total}), 0)`,
-      })
-      .from(sales)
-      .where(and(storeSalesFilter, inArray(sales.id, creditSaleIds)))
-      .groupBy(sales.clientId),
-    db
-      .select({
-        clientId: debtRepayments.clientId,
-        totalRembourse: sql<string>`coalesce(sum(${debtRepayments.montant}), 0)`,
-      })
-      .from(debtRepayments)
-      .innerJoin(clients, eq(clients.id, debtRepayments.clientId))
-      .where(eq(clients.storeId, session.storeId))
-      .groupBy(debtRepayments.clientId),
-  ]);
+  // Enchaînées et non lancées ensemble : voir README, le pooler en mode transaction ne rend pas
+  // la main quand plusieurs requêtes partent en parallèle depuis une même requête HTTP.
+  const allClients = await db.query.clients.findMany({
+    where: eq(clients.storeId, session.storeId),
+    orderBy: (c, { asc }) => [asc(c.nom)],
+  });
+  const achatsStats = await db
+    .select({
+      clientId: sales.clientId,
+      nbAchats: sql<number>`count(*)::int`,
+      totalAchats: sql<string>`coalesce(sum(${sales.total}), 0)`,
+      premierAchat: sql<Date>`min(${sales.dateHeure})`,
+      dernierAchat: sql<Date>`max(${sales.dateHeure})`,
+    })
+    .from(sales)
+    .where(storeSalesFilter)
+    .groupBy(sales.clientId);
+  const creditStats = await db
+    .select({
+      clientId: sales.clientId,
+      totalCredit: sql<string>`coalesce(sum(${sales.total}), 0)`,
+    })
+    .from(sales)
+    .where(and(storeSalesFilter, inArray(sales.id, creditSaleIds)))
+    .groupBy(sales.clientId);
+  const remboursementsStats = await db
+    .select({
+      clientId: debtRepayments.clientId,
+      totalRembourse: sql<string>`coalesce(sum(${debtRepayments.montant}), 0)`,
+    })
+    .from(debtRepayments)
+    .innerJoin(clients, eq(clients.id, debtRepayments.clientId))
+    .where(eq(clients.storeId, session.storeId))
+    .groupBy(debtRepayments.clientId);
+
 
   const achatsById = new Map(achatsStats.map((r) => [r.clientId, r]));
   const creditById = new Map(creditStats.map((r) => [r.clientId, n(r.totalCredit)]));

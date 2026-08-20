@@ -18,10 +18,11 @@ export default async function RapportsPage() {
     );
   }
 
-  const [store, initialData] = await Promise.all([
-    db.query.stores.findFirst({ where: eq(stores.id, session.storeId), columns: { nom: true } }),
-    getRapportsData(session.storeId, "month"),
-  ]);
+  const store = await db.query.stores.findFirst({
+    where: eq(stores.id, session.storeId),
+    columns: { nom: true },
+  });
+  const initialData = await getRapportsData(session.storeId, "month");
 
   return <RapportsClient storeName={store?.nom ?? "NzilaBiz"} initialData={initialData} />;
 }

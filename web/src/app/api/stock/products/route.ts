@@ -23,25 +23,26 @@ export async function GET(request: Request) {
   const categoryId = searchParams.get("categoryId") ?? "";
   const status = searchParams.get("status") ?? "";
 
-  const [allProducts, categoriesList, aPayerRows] = await Promise.all([
-    db.query.products.findMany({
-      where: eq(products.storeId, session.storeId),
-      with: { category: true },
-      orderBy: (p, { asc }) => [asc(p.nom)],
-    }),
-    db.query.categories.findMany({
-      where: eq(categories.storeId, session.storeId),
-      orderBy: (c, { asc }) => [asc(c.nom)],
-    }),
-    db.query.expenses.findMany({
-      where: and(
-        eq(expenses.storeId, session.storeId),
-        eq(expenses.categorie, "Rachats de stock"),
-        eq(expenses.modeReglement, "CREDIT")
-      ),
-      columns: { montant: true },
-    }),
-  ]);
+  // Enchaînées et non lancées ensemble : voir README, le pooler en mode transaction ne rend pas
+  // la main quand plusieurs requêtes partent en parallèle depuis une même requête HTTP.
+  const allProducts = await db.query.products.findMany({
+    where: eq(products.storeId, session.storeId),
+    with: { category: true },
+    orderBy: (p, { asc }) => [asc(p.nom)],
+  });
+  const categoriesList = await db.query.categories.findMany({
+    where: eq(categories.storeId, session.storeId),
+    orderBy: (c, { asc }) => [asc(c.nom)],
+  });
+  const aPayerRows = await db.query.expenses.findMany({
+    where: and(
+      eq(expenses.storeId, session.storeId),
+      eq(expenses.categorie, "Rachats de stock"),
+      eq(expenses.modeReglement, "CREDIT")
+    ),
+    columns: { montant: true },
+  });
+
 
   const rows: ProductRow[] = allProducts.map((p) => ({
     id: p.id,

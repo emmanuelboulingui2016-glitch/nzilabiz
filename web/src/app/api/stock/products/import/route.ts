@@ -54,10 +54,11 @@ export async function POST(request: Request) {
   }
   const { rows } = parsed.data;
 
-  const [existingProducts, existingCategories] = await Promise.all([
-    db.query.products.findMany({ where: eq(products.storeId, session.storeId) }),
-    db.query.categories.findMany({ where: eq(categories.storeId, session.storeId) }),
-  ]);
+  // Enchaînées et non lancées ensemble : voir README, le pooler en mode transaction ne rend pas
+  // la main quand plusieurs requêtes partent en parallèle depuis une même requête HTTP.
+  const existingProducts = await db.query.products.findMany({ where: eq(products.storeId, session.storeId) });
+  const existingCategories = await db.query.categories.findMany({ where: eq(categories.storeId, session.storeId) });
+
 
   const byBarcode = new Map(existingProducts.filter((p) => p.codeBarres).map((p) => [p.codeBarres as string, p]));
   const categoryCache = new Map(existingCategories.map((c) => [c.nom.toLowerCase(), c.id]));

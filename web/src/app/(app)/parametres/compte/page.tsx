@@ -13,10 +13,11 @@ export default async function ComptePage() {
   const session = await getSession();
   if (!session) redirect("/connexion");
 
-  const [user, store] = await Promise.all([
-    db.query.users.findFirst({ where: eq(users.id, session.userId) }),
-    db.query.stores.findFirst({ where: eq(stores.id, session.storeId) }),
-  ]);
+  const user = await db.query.users.findFirst({ where: eq(users.id, session.userId) });
+  const store = await db.query.stores.findFirst({
+    where: eq(stores.id, session.storeId),
+    columns: { nom: true },
+  });
   if (!user) redirect("/connexion");
 
   const ROLE_LABELS: Record<string, string> = {

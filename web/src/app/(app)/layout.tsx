@@ -11,10 +11,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const session = await getSession();
   if (!session) redirect("/connexion");
 
-  const [store, reglages] = await Promise.all([
-    db.query.stores.findFirst({ where: eq(stores.id, session.storeId) }),
-    getPlatformSettings(),
-  ]);
+  // Enchaînées, jamais en parallèle : le pooler en mode transaction ne rend pas la main quand
+  // plusieurs requêtes partent ensemble depuis une même requête HTTP (voir README).
+  // Seul le nom est lu : la ligne complète embarque `logo_url`, une image entière en base64, et
+  // ce calque s'exécute au-dessus de chaque page de l'application.
+  const store = await db.query.stores.findFirst({
+    where: eq(stores.id, session.storeId),
+    columns: { nom: true },
+  });
+  const reglages = await getPlatformSettings();
 
   return (
     <AppShell

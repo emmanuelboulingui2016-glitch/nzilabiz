@@ -110,24 +110,25 @@ export function getPreviousPeriodRange(type: PeriodType, current: Range): Range 
 }
 
 async function computeKpis(storeId: string, range: Range): Promise<RapportsKpis> {
-  const [salesRows, expenseRows] = await Promise.all([
-    db.query.sales.findMany({
-      where: and(
-        eq(sales.storeId, storeId),
-        eq(sales.statut, "VALIDEE"),
-        gte(sales.dateHeure, range.start),
-        lte(sales.dateHeure, range.end)
-      ),
-      columns: { id: true, total: true },
-      with: {
-        items: { columns: { prixUnitaire: true, prixAchatUnitaire: true, quantite: true } },
-      },
-    }),
-    db.query.expenses.findMany({
-      where: and(eq(expenses.storeId, storeId), gte(expenses.date, range.start), lte(expenses.date, range.end)),
-      columns: { categorie: true, montant: true },
-    }),
-  ]);
+  // Enchaînées et non lancées ensemble : voir README, le pooler en mode transaction ne rend pas
+  // la main quand plusieurs requêtes partent en parallèle depuis une même requête HTTP.
+  const salesRows = await db.query.sales.findMany({
+    where: and(
+      eq(sales.storeId, storeId),
+      eq(sales.statut, "VALIDEE"),
+      gte(sales.dateHeure, range.start),
+      lte(sales.dateHeure, range.end)
+    ),
+    columns: { id: true, total: true },
+    with: {
+      items: { columns: { prixUnitaire: true, prixAchatUnitaire: true, quantite: true } },
+    },
+  });
+  const expenseRows = await db.query.expenses.findMany({
+    where: and(eq(expenses.storeId, storeId), gte(expenses.date, range.start), lte(expenses.date, range.end)),
+    columns: { categorie: true, montant: true },
+  });
+
 
   const chiffreAffaires = salesRows.reduce((sum, s) => sum + n(s.total), 0);
   const ventes = salesRows.length;

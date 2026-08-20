@@ -30,22 +30,23 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   });
   if (!client) return NextResponse.json({ error: "Client introuvable" }, { status: 404 });
 
-  const [clientSalesRaw, clientRepayments, settings] = await Promise.all([
-    db.query.sales.findMany({
-      where: and(eq(sales.storeId, session.storeId), eq(sales.statut, "VALIDEE"), eq(sales.clientId, id)),
-      columns: { id: true, numero: true, total: true, dateHeure: true },
-      with: { payments: { columns: { mode: true } } },
-      orderBy: (s, { asc }) => [asc(s.dateHeure)],
-    }),
-    db.query.debtRepayments.findMany({
-      where: eq(debtRepayments.clientId, id),
-      orderBy: (r, { desc }) => [desc(r.date)],
-    }),
-    db.query.notificationSettings.findFirst({
-      where: eq(notificationSettings.storeId, session.storeId),
-      columns: { creanceRetardJours: true },
-    }),
-  ]);
+  // Enchaînées et non lancées ensemble : voir README, le pooler en mode transaction ne rend pas
+  // la main quand plusieurs requêtes partent en parallèle depuis une même requête HTTP.
+  const clientSalesRaw = await db.query.sales.findMany({
+    where: and(eq(sales.storeId, session.storeId), eq(sales.statut, "VALIDEE"), eq(sales.clientId, id)),
+    columns: { id: true, numero: true, total: true, dateHeure: true },
+    with: { payments: { columns: { mode: true } } },
+    orderBy: (s, { asc }) => [asc(s.dateHeure)],
+  });
+  const clientRepayments = await db.query.debtRepayments.findMany({
+    where: eq(debtRepayments.clientId, id),
+    orderBy: (r, { desc }) => [desc(r.date)],
+  });
+  const settings = await db.query.notificationSettings.findFirst({
+    where: eq(notificationSettings.storeId, session.storeId),
+    columns: { creanceRetardJours: true },
+  });
+
 
   const clientCreditSales = clientSalesRaw.filter((s) => s.payments.some((p) => p.mode === "CREDIT"));
   const totalCredit = clientCreditSales.reduce((sum, s) => sum + n(s.total), 0);

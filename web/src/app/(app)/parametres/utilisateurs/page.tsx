@@ -21,13 +21,14 @@ export default async function UtilisateursPage() {
     );
   }
 
-  const [list, boutique] = await Promise.all([
-    db.query.users.findMany({
-      where: eq(users.storeId, session.storeId),
-      orderBy: (u, { asc }) => [asc(u.creeLe)],
-    }),
-    db.query.stores.findFirst({ where: eq(stores.id, session.storeId) }),
-  ]);
+  const list = await db.query.users.findMany({
+    where: eq(users.storeId, session.storeId),
+    orderBy: (u, { asc }) => [asc(u.creeLe)],
+  });
+  const boutique = await db.query.stores.findFirst({
+    where: eq(stores.id, session.storeId),
+    columns: { nom: true },
+  });
 
   return (
     <div className="space-y-4 pb-20 md:pb-0">

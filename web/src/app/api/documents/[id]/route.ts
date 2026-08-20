@@ -25,10 +25,13 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   });
   if (!doc) return NextResponse.json({ error: "Document introuvable" }, { status: 404 });
 
-  const [client, seller] = await Promise.all([
-    doc.clientId ? db.query.clients.findFirst({ where: eq(clients.id, doc.clientId) }) : null,
-    db.query.users.findFirst({ where: eq(users.id, doc.userId) }),
-  ]);
+  // Enchaînées et non lancées ensemble : voir README, le pooler en mode transaction ne rend pas
+  // la main quand plusieurs requêtes partent en parallèle depuis une même requête HTTP.
+  const client = doc.clientId
+    ? await db.query.clients.findFirst({ where: eq(clients.id, doc.clientId) })
+    : null;
+  const seller = await db.query.users.findFirst({ where: eq(users.id, doc.userId) });
+
 
   let sale: { id: string; numero: string; dateHeure: string; total: number; items: unknown[] } | null = null;
   if (doc.saleId) {
