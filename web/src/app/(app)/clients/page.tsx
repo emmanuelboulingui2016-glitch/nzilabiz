@@ -1,5 +1,6 @@
 import { getSession } from "@/lib/auth/session";
 import { can } from "@/lib/auth/rbac";
+import { chargerClients } from "@/components/clients/get-clients-data";
 import { ClientsView } from "@/components/clients/clients-view";
 
 export default async function ClientsPage() {
@@ -14,6 +15,9 @@ export default async function ClientsPage() {
 
   const canEdit = can(session.role, "clients.edit");
 
+  // Les fiches partent avec la page : voir get-clients-data.ts.
+  const initial = await chargerClients(session.storeId);
+
   return (
     <div className="space-y-4 p-4 pb-20 md:p-6 md:pb-6">
       <div>
@@ -22,7 +26,7 @@ export default async function ClientsPage() {
           Vos clients fidèles et récurrents : historique d&apos;achats, habitudes et relances.
         </p>
       </div>
-      <ClientsView canEdit={canEdit} />
+      <ClientsView initial={initial} canEdit={canEdit} />
     </div>
   );
 }

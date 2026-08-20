@@ -45,9 +45,10 @@ function downloadBlob(content: string, filename: string, mime: string) {
   URL.revokeObjectURL(url);
 }
 
-export function ClientsView({ canEdit }: { canEdit: boolean }) {
-  const [clients, setClients] = useState<ClientFiche[]>([]);
-  const [loading, setLoading] = useState(true);
+export function ClientsView({ initial, canEdit }: { initial: ClientFiche[]; canEdit: boolean }) {
+  // Liste rendue par le serveur avec la page : rien à recharger à l'affichage.
+  const [clients, setClients] = useState<ClientFiche[]>(initial);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [query, setQuery] = useState("");
@@ -74,9 +75,11 @@ export function ClientsView({ canEdit }: { canEdit: boolean }) {
     }
   }, []);
 
+  // Pas de chargement au montage : les fiches sont déjà là. `load()` reste appelé après chaque
+  // création, modification ou archivage pour rafraîchir la liste.
   useEffect(() => {
-    load();
-  }, [load]);
+    setClients(initial);
+  }, [initial]);
 
   const actifs = useMemo(() => clients.filter((c) => !c.archive), [clients]);
 

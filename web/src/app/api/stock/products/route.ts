@@ -9,7 +9,8 @@ import { categories, expenses, products, stockMovements } from "@/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { can } from "@/lib/auth/rbac";
 import { genProductRef } from "@/lib/utils";
-import { computeStatut, toNumber, type ProductRow, type CategoryRow, type StockKpis } from "@/components/stock/stock-utils";
+import { computeStatut, toNumber } from "@/components/stock/stock-utils";
+import { chargerStock } from "@/components/stock/get-stock-data";
 
 export async function GET(request: Request) {
   const session = await getSession();
@@ -19,73 +20,14 @@ export async function GET(request: Request) {
   }
 
   const { searchParams } = new URL(request.url);
-  const search = (searchParams.get("q") ?? "").trim().toLowerCase();
-  const categoryId = searchParams.get("categoryId") ?? "";
-  const status = searchParams.get("status") ?? "";
 
-  // Enchaînées et non lancées ensemble : voir README, le pooler en mode transaction ne rend pas
-  // la main quand plusieurs requêtes partent en parallèle depuis une même requête HTTP.
-  const allProducts = await db.query.products.findMany({
-    where: eq(products.storeId, session.storeId),
-    with: { category: true },
-    orderBy: (p, { asc }) => [asc(p.nom)],
-  });
-  const categoriesList = await db.query.categories.findMany({
-    where: eq(categories.storeId, session.storeId),
-    orderBy: (c, { asc }) => [asc(c.nom)],
-  });
-  const aPayerRows = await db.query.expenses.findMany({
-    where: and(
-      eq(expenses.storeId, session.storeId),
-      eq(expenses.categorie, "Rachats de stock"),
-      eq(expenses.modeReglement, "CREDIT")
-    ),
-    columns: { montant: true },
-  });
-
-
-  const rows: ProductRow[] = allProducts.map((p) => ({
-    id: p.id,
-    reference: p.reference,
-    nom: p.nom,
-    photoUrl: p.photoUrl,
-    categoryId: p.categoryId,
-    categoryNom: p.category?.nom ?? null,
-    codeBarres: p.codeBarres,
-    datePeremption: p.datePeremption ? p.datePeremption.toISOString() : null,
-    prixAchat: p.prixAchat,
-    prixVente: p.prixVente,
-    prixGros: p.prixGros,
-    unite: p.unite,
-    quantiteStock: p.quantiteStock,
-    seuilAlerte: p.seuilAlerte,
-    statut: computeStatut(toNumber(p.quantiteStock), toNumber(p.seuilAlerte)),
-    creeLe: p.creeLe.toISOString(),
-  }));
-
-  const kpis: StockKpis = {
-    totalProduits: rows.length,
-    valeurStock: rows.reduce((sum, p) => sum + toNumber(p.quantiteStock) * toNumber(p.prixAchat), 0),
-    stockFaible: rows.filter((p) => p.statut === "faible").length,
-    ruptureStock: rows.filter((p) => p.statut === "rupture").length,
-    aPayer: aPayerRows.reduce((sum, r) => sum + toNumber(r.montant), 0),
-  };
-
-  let filtered = rows;
-  if (categoryId) filtered = filtered.filter((p) => p.categoryId === categoryId);
-  if (status) filtered = filtered.filter((p) => p.statut === status);
-  if (search) {
-    filtered = filtered.filter(
-      (p) =>
-        p.nom.toLowerCase().includes(search) ||
-        p.reference.toLowerCase().includes(search) ||
-        (p.codeBarres ?? "").toLowerCase().includes(search)
-    );
-  }
-
-  const categoriesOut: CategoryRow[] = categoriesList.map((c) => ({ id: c.id, nom: c.nom }));
-
-  return NextResponse.json({ products: filtered, categories: categoriesOut, kpis });
+  return NextResponse.json(
+    await chargerStock(session.storeId, {
+      search: searchParams.get("q") ?? "",
+      categoryId: searchParams.get("categoryId") ?? "",
+      status: searchParams.get("status") ?? "",
+    })
+  );
 }
 
 const createProductSchema = z.object({

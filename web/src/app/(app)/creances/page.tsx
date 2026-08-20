@@ -1,5 +1,6 @@
 import { getSession } from "@/lib/auth/session";
 import { can } from "@/lib/auth/rbac";
+import { chargerCreances } from "@/lib/creances/solde";
 import { CreancesView } from "@/components/creances/creances-view";
 
 export default async function CreancesPage() {
@@ -14,6 +15,9 @@ export default async function CreancesPage() {
 
   const canEdit = can(session.role, "creances.edit");
 
+  // Les débiteurs partent avec la page : l'onglet ouvert par défaut n'a plus rien à redemander.
+  const debiteurs = await chargerCreances(session.storeId);
+
   return (
     <div className="space-y-4 p-4 pb-20 md:p-6 md:pb-6">
       <div>
@@ -22,7 +26,7 @@ export default async function CreancesPage() {
           Clients débiteurs, relances et remboursements des ventes à crédit.
         </p>
       </div>
-      <CreancesView canEdit={canEdit} />
+      <CreancesView debiteurs={debiteurs} canEdit={canEdit} />
     </div>
   );
 }

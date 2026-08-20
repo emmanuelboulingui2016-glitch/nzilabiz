@@ -4,7 +4,8 @@
 // paiement / recherche article), tableau, annulation avec motif obligatoire + workflow
 // d'approbation, panneau "Demandes en attente" (Patron/Gérant), export CSV/PDF.
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { DonneesVentes } from "@/components/ventes/get-ventes-data";
 import { CreditCard, Download, Eye, FileDown, Receipt, Search, Wallet, XCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { StatCard } from "@/components/ui/stat-card";
@@ -55,11 +56,14 @@ function computeRange(periode: Periode): { from?: string; to?: string } {
 }
 
 export function VentesClient({
+  initial,
   canAnnulerDirect,
   canAnnulerDemander,
   canDecider,
   canViewAll,
 }: {
+  /** Ventes du jour rendues par le serveur avec la page : rien à recharger à l'affichage. */
+  initial: DonneesVentes;
   canAnnulerDirect: boolean;
   canAnnulerDemander: boolean;
   canDecider: boolean;
@@ -68,8 +72,8 @@ export function VentesClient({
   const [periode, setPeriode] = useState<Periode>("today");
   const [paiement, setPaiement] = useState("");
   const [q, setQ] = useState("");
-  const [sales, setSales] = useState<SaleRow[]>([]);
-  const [kpis, setKpis] = useState<VentesKpis | null>(null);
+  const [sales, setSales] = useState<SaleRow[]>(initial.sales);
+  const [kpis, setKpis] = useState<VentesKpis | null>(initial.kpis);
   const [loading, setLoading] = useState(true);
   const [requests, setRequests] = useState<ApprovalRequestRow[]>([]);
 
@@ -104,7 +108,14 @@ export function VentesClient({
     setRequests(data.requests ?? []);
   }, [canDecider]);
 
+  // Le premier passage est ignoré : « Aujourd'hui » est déjà rendu par le serveur. Les suivants
+  // correspondent à un vrai changement de période, de mode de paiement ou de recherche.
+  const premierRendu = useRef(true);
   useEffect(() => {
+    if (premierRendu.current) {
+      premierRendu.current = false;
+      return;
+    }
     const timeout = setTimeout(() => {
       void loadSales();
     }, 250);

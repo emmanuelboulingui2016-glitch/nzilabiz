@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import { Tabs } from "@/components/ui";
+import type { CreanceClient } from "@/lib/creances/solde";
 import { DebtorsTab } from "./debtors-tab";
 import { RepaymentsTab } from "./repayments-tab";
 
-export function CreancesView({ canEdit }: { canEdit: boolean }) {
+export function CreancesView({ debiteurs, canEdit }: { debiteurs: CreanceClient[]; canEdit: boolean }) {
   const [tab, setTab] = useState<"debiteurs" | "remboursements">("debiteurs");
 
   return (
@@ -18,7 +19,7 @@ export function CreancesView({ canEdit }: { canEdit: boolean }) {
           { value: "remboursements", label: "Remboursements reçus" },
         ]}
       />
-      {tab === "debiteurs" ? <DebtorsTab canEdit={canEdit} /> : <RepaymentsTab canEdit={canEdit} />}
+      {tab === "debiteurs" ? <DebtorsTab initial={debiteurs} canEdit={canEdit} /> : <RepaymentsTab canEdit={canEdit} />}
     </div>
   );
 }

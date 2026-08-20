@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Plus, Truck, Upload } from "lucide-react";
@@ -12,13 +12,23 @@ import { ProductFormModal } from "@/components/stock/product-form-modal";
 import { ReceptionModal } from "@/components/stock/reception-modal";
 import { ImportModal } from "@/components/stock/import-modal";
 import type { CategoryRow, ProductRow, StockKpis } from "@/components/stock/stock-utils";
+import type { DonneesStock } from "@/components/stock/get-stock-data";
 
-export function StockPageClient({ canEdit, canAdjust }: { canEdit: boolean; canAdjust: boolean }) {
+export function StockPageClient({
+  initial,
+  canEdit,
+  canAdjust,
+}: {
+  /** Catalogue rendu par le serveur avec la page : évite un second aller-retour à l'affichage. */
+  initial: DonneesStock;
+  canEdit: boolean;
+  canAdjust: boolean;
+}) {
   const router = useRouter();
-  const [products, setProducts] = useState<ProductRow[]>([]);
-  const [categories, setCategories] = useState<CategoryRow[]>([]);
-  const [kpis, setKpis] = useState<StockKpis>({ totalProduits: 0, valeurStock: 0, stockFaible: 0, ruptureStock: 0, aPayer: 0 });
-  const [loading, setLoading] = useState(true);
+  const [products, setProducts] = useState<ProductRow[]>(initial.products);
+  const [categories, setCategories] = useState<CategoryRow[]>(initial.categories);
+  const [kpis, setKpis] = useState<StockKpis>(initial.kpis);
+  const [loading, setLoading] = useState(false);
 
   const [search, setSearch] = useState("");
   const [categoryId, setCategoryId] = useState("");
@@ -48,7 +58,15 @@ export function StockPageClient({ canEdit, canAdjust }: { canEdit: boolean; canA
     }
   }, [search, categoryId, status]);
 
+  // Le premier passage est ignoré : les données sont déjà celles rendues par le serveur, les
+  // redemander à l'identique ne ferait qu'ajouter une attente et faire clignoter le tableau.
+  // Les passages suivants correspondent à un vrai changement de filtre.
+  const premierRendu = useRef(true);
   useEffect(() => {
+    if (premierRendu.current) {
+      premierRendu.current = false;
+      return;
+    }
     const t = setTimeout(load, search ? 300 : 0);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -13,9 +13,10 @@ import { RelanceDialog } from "./relance-dialog";
 import { NewClientDialog } from "./new-client-dialog";
 import { ClientDetailDialog } from "./client-detail-dialog";
 
-export function DebtorsTab({ canEdit }: { canEdit: boolean }) {
-  const [clients, setClients] = useState<ClientCreance[]>([]);
-  const [loading, setLoading] = useState(true);
+export function DebtorsTab({ initial, canEdit }: { initial: ClientCreance[]; canEdit: boolean }) {
+  // Liste rendue par le serveur avec la page : rien à recharger à l'affichage.
+  const [clients, setClients] = useState<ClientCreance[]>(initial);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [editTarget, setEditTarget] = useState<ClientCreance | null>(null);
@@ -38,9 +39,11 @@ export function DebtorsTab({ canEdit }: { canEdit: boolean }) {
     }
   }, []);
 
+  // Pas de chargement au montage : la liste est déjà là. `load()` reste appelé après chaque
+  // modification, relance ou encaissement.
   useEffect(() => {
-    load();
-  }, [load]);
+    setClients(initial);
+  }, [initial]);
 
   const debtors = useMemo(() => {
     return clients
