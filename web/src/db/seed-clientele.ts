@@ -11,6 +11,8 @@
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import { eq, sql } from "drizzle-orm";
 import * as schema from "./schema";
+import { connectionStringRequise } from "./connection-string";
+import { refuserSiBaseDistante } from "./garde-base";
 
 type Db = PostgresJsDatabase<typeof schema>;
 
@@ -229,7 +231,8 @@ if (process.argv[1] && process.argv[1].replace(/\\/g, "/").endsWith("src/db/seed
     await import("dotenv/config");
 
     const connectionString =
-      process.env.DATABASE_URL || "postgresql://nzilabiz:nzilabiz_dev_password@localhost:5432/nzilabiz";
+      connectionStringRequise("le jeu de clientèle");
+    refuserSiBaseDistante(connectionString, "seed-clientele");
     const pgClient = postgres(connectionString, { max: 1 });
     const db = drizzle(pgClient, { schema });
 

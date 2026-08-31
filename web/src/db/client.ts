@@ -1,15 +1,14 @@
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "./schema";
+import { connectionStringRequise, estModeTransaction } from "./connection-string";
 
 declare global {
   // eslint-disable-next-line no-var
   var __nzilabiz_pg__: ReturnType<typeof postgres> | undefined;
 }
 
-const connectionString =
-  process.env.DATABASE_URL ||
-  "postgresql://nzilabiz:nzilabiz_dev_password@localhost:5432/nzilabiz";
+const connectionString = connectionStringRequise("l'application");
 
 // Hébergement sans serveur (Vercel, Netlify) : chaque requête peut réveiller une instance
 // différente, et 10 connexions par instance épuisent le serveur Postgres en quelques minutes. On
@@ -23,7 +22,7 @@ const connectionString =
 //
 // Passer par la chaîne de connexion plutôt que par une variable dédiée évite d'oublier de la
 // positionner, et laisse le développement local en connexion directe inchangé.
-const modeTransaction = /:6543(?:[/?]|$)|pgbouncer=true/.test(connectionString);
+const modeTransaction = estModeTransaction(connectionString);
 
 // Réutilise la connexion entre rechargements à chaud en dev (évite d'épuiser le pool Postgres).
 // Trois connexions et non une seule en mode transaction. Avec une connexion unique, postgres.js

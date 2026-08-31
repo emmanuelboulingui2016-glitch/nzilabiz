@@ -7,10 +7,13 @@ import * as schema from "./schema";
 import bcrypt from "bcryptjs";
 import { genProductRef } from "../lib/utils";
 import { seedClientele } from "./seed-clientele";
+import { connectionStringRequise } from "./connection-string";
+import { refuserSiBaseDistante } from "./garde-base";
+import { randomBytes } from "node:crypto";
 
 async function main() {
-  const connectionString =
-    process.env.DATABASE_URL || "postgresql://nzilabiz:nzilabiz_dev_password@localhost:5432/nzilabiz";
+  const connectionString = connectionStringRequise("le jeu de démonstration");
+  refuserSiBaseDistante(connectionString, "db:seed");
   const pgClient = postgres(connectionString, { max: 1 });
   const db = drizzle(pgClient, { schema });
 
@@ -29,7 +32,12 @@ async function main() {
 
   await db.insert(schema.notificationSettings).values({ storeId: store.id });
 
-  const passwordHash = await bcrypt.hash("password123", 10);
+  // Mot de passe tiré au hasard à chaque exécution, et affiché une seule fois en fin de script.
+  // La version précédente le codait en dur : trois comptes, dont un PATRON, avec un mot de passe
+  // que connaissait quiconque avait lu le dépôt. Un jeu de démonstration reste une base réelle avec
+  // de vrais comptes ; il n'y a aucune raison que son mot de passe soit devinable.
+  const motDePasseDemo = process.env.MOT_DE_PASSE_DEMO?.trim() || randomBytes(9).toString("base64url");
+  const passwordHash = await bcrypt.hash(motDePasseDemo, 10);
 
   const [patron] = await db
     .insert(schema.users)
@@ -119,7 +127,7 @@ async function main() {
   console.log(`Clientèle de démonstration : ${nbClients} clients, ${nbVentes} ventes.`);
 
   console.log("Seed terminé.");
-  console.log("Comptes de démonstration (mot de passe : password123) :");
+  console.log(`Comptes de démonstration (mot de passe : ${motDePasseDemo}) :`);
   console.log(`  Patron  : ${patron.email}`);
   console.log(`  Gérant  : ${gerant.email}`);
   console.log(`  Vendeur : ${vendeur.email}`);

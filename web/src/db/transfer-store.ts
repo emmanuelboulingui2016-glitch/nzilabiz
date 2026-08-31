@@ -17,6 +17,8 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import { eq, sql } from "drizzle-orm";
 import * as schema from "./schema";
+import { connectionStringRequise } from "./connection-string";
+import { refuserSiBaseDistante } from "./garde-base";
 
 async function main() {
   const [nomSource, nomCible] = process.argv.slice(2);
@@ -26,7 +28,8 @@ async function main() {
   }
 
   const connectionString =
-    process.env.DATABASE_URL || "postgresql://nzilabiz:nzilabiz_dev_password@localhost:5432/nzilabiz";
+    connectionStringRequise("le transfert de boutique");
+  refuserSiBaseDistante(connectionString, "transfer-store");
   const pg = postgres(connectionString, { max: 1 });
   const db = drizzle(pg, { schema });
 

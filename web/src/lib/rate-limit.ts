@@ -60,7 +60,15 @@ export async function rateLimit(
       returning compteur, bloque_jusqua
     `);
 
-    if (Math.random() < 0.002) await purgerRateLimits().catch(() => {});
+    // La purge est accessoire : son échec ne doit pas faire échouer la requête en cours. Il doit en
+    // revanche laisser une trace. Avalée en silence, elle pouvait échouer à chaque fois sans que
+    // rien ne le signale — et la table grossir jusqu'à ralentir la limitation de débit elle-même,
+    // c'est-à-dire la protection des écrans de connexion.
+    if (Math.random() < 0.002) {
+      await purgerRateLimits().catch((e) =>
+        console.error("rate-limit : purge impossible —", e instanceof Error ? e.message : e)
+      );
+    }
 
     const ligne = (lignes as unknown as Ligne[])[0];
     if (!ligne) return { ok: true, retryAfter: 0, restant: limite - 1 };
