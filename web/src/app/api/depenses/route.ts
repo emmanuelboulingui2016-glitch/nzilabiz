@@ -5,6 +5,8 @@ import { expenses } from "@/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { chargerDepenses } from "@/components/depenses/get-depenses-data";
 import { can } from "@/lib/auth/rbac";
+import { bloquerSiExpiree } from "@/lib/abonnement";
+import { refusJustificatif } from "@/lib/validation/fichier";
 
 // Catégories suggérées pour la saisie manuelle (§10 du cahier des charges). "Rachats de stock"
 // n'apparaît pas ici : cette catégorie est réservée aux dépenses générées automatiquement par le
@@ -93,6 +95,11 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+
+  // Échéance d'abonnement dépassée : l'écriture est refusée côté serveur, pas seulement
+  // masquée dans l'interface.
+  const bloque = await bloquerSiExpiree();
+  if (bloque) return bloque;
   if (!can(session.role, "depenses.edit")) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
@@ -115,6 +122,12 @@ export async function POST(request: Request) {
   if (typeof categorie !== "string" || !categorie.trim()) {
     return NextResponse.json({ error: "La catégorie est requise" }, { status: 400 });
   }
+
+  // Le justificatif est stocké en base64 dans une colonne texte : sans plafond, une seule dépense
+  // pouvait y déposer plusieurs mégaoctets. L'attribut « accept » du formulaire ne vit que dans le
+  // navigateur.
+  const refusPJ = refusJustificatif(pieceJointeUrl);
+  if (refusPJ) return NextResponse.json({ error: refusPJ }, { status: 400 });
   const isRecurrente = Boolean(recurrente);
   if (isRecurrente && frequence !== "HEBDOMADAIRE" && frequence !== "MENSUELLE") {
     return NextResponse.json(

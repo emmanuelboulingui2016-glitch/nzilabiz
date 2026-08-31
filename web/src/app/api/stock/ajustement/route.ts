@@ -9,6 +9,7 @@ import { products, stockMovements } from "@/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { can } from "@/lib/auth/rbac";
 import { MOTIF_AJUSTEMENT_OPTIONS, toNumber } from "@/components/stock/stock-utils";
+import { bloquerSiExpiree } from "@/lib/abonnement";
 
 const MOTIF_VALUES = MOTIF_AJUSTEMENT_OPTIONS.map((m) => m.value) as [string, ...string[]];
 
@@ -22,6 +23,11 @@ const ajustementSchema = z.object({
 export async function POST(request: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+
+  // Échéance d'abonnement dépassée : l'écriture est refusée côté serveur, pas seulement
+  // masquée dans l'interface.
+  const bloque = await bloquerSiExpiree();
+  if (bloque) return bloque;
   if (!can(session.role, "stock.ajustement")) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }

@@ -4,6 +4,8 @@ import { db } from "@/db/client";
 import { expenses } from "@/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { can } from "@/lib/auth/rbac";
+import { bloquerSiExpiree } from "@/lib/abonnement";
+import { refusJustificatif } from "@/lib/validation/fichier";
 
 const STOCK_RECEIPT_MESSAGE =
   "Cette dépense a été générée depuis une réception de stock (module Stock) et ne peut pas être modifiée ou supprimée ici.";
@@ -31,6 +33,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+
+  // Échéance d'abonnement dépassée : l'écriture est refusée côté serveur, pas seulement
+  // masquée dans l'interface.
+  const bloque = await bloquerSiExpiree();
+  if (bloque) return bloque;
   if (!can(session.role, "depenses.edit")) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
@@ -60,6 +67,12 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   if (typeof categorie !== "string" || !categorie.trim()) {
     return NextResponse.json({ error: "La catégorie est requise" }, { status: 400 });
   }
+
+  // Le justificatif est stocké en base64 dans une colonne texte : sans plafond, une seule dépense
+  // pouvait y déposer plusieurs mégaoctets. L'attribut « accept » du formulaire ne vit que dans le
+  // navigateur.
+  const refusPJ = refusJustificatif(pieceJointeUrl);
+  if (refusPJ) return NextResponse.json({ error: refusPJ }, { status: 400 });
   const isRecurrente = Boolean(recurrente);
   if (isRecurrente && frequence !== "HEBDOMADAIRE" && frequence !== "MENSUELLE") {
     return NextResponse.json(
@@ -101,6 +114,11 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+
+  // Échéance d'abonnement dépassée : l'écriture est refusée côté serveur, pas seulement
+  // masquée dans l'interface.
+  const bloque = await bloquerSiExpiree();
+  if (bloque) return bloque;
   if (!can(session.role, "depenses.edit")) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }

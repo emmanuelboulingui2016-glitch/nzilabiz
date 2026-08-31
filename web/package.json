@@ -13,6 +13,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate.ts",
     "db:migrate:prod": "tsx src/db/migrate.ts --env=.env.deploy",
+    "audit:corriger": "tsx scripts/correction-audit.ts",
+    "audit:corriger:prod": "tsx scripts/correction-audit.ts --env=.env.deploy",
     "db:check": "tsx scripts/verifier-base.ts",
     "db:check:prod": "tsx scripts/verifier-base.ts --env=.env.deploy",
     "db:seed": "tsx src/db/seed.ts",

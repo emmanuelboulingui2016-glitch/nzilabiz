@@ -5,6 +5,8 @@ import { db } from "@/db/client";
 import { stores } from "@/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { can } from "@/lib/auth/rbac";
+import { bloquerSiExpiree } from "@/lib/abonnement";
+import { imageEnvoyee } from "@/lib/validation/fichier";
 
 // Onglet Boutique — §14 du cahier des charges.
 // Champs éditables : logo, nom, téléphone, ville, pays (fixe l'indicatif), type de commerce,
@@ -12,7 +14,7 @@ import { can } from "@/lib/auth/rbac";
 
 const boutiqueSchema = z.object({
   nom: z.string().min(2, "Le nom de la boutique est requis"),
-  logoUrl: z.string().nullable().optional(),
+  logoUrl: imageEnvoyee.nullable().optional(),
   telephone: z.string().nullable().optional(),
   ville: z.string().nullable().optional(),
   pays: z.string().min(1, "Le pays est requis"),
@@ -50,6 +52,11 @@ export async function GET() {
 export async function PUT(request: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+
+  // Échéance d'abonnement dépassée : l'écriture est refusée côté serveur, pas seulement
+  // masquée dans l'interface.
+  const bloque = await bloquerSiExpiree();
+  if (bloque) return bloque;
   if (!can(session.role, "parametres.boutique")) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }

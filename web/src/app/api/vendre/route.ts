@@ -6,6 +6,7 @@ import { z } from "zod";
 import { getSession } from "@/lib/auth/session";
 import { can } from "@/lib/auth/rbac";
 import { createSale, CreateSaleError } from "./create-sale";
+import { bloquerSiExpiree } from "@/lib/abonnement";
 
 const saleSchema = z.object({
   id: z.string().min(1).optional(),
@@ -36,6 +37,11 @@ const saleSchema = z.object({
 export async function POST(request: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
+
+  // Échéance d'abonnement dépassée : l'écriture est refusée côté serveur, pas seulement
+  // masquée dans l'interface.
+  const bloque = await bloquerSiExpiree();
+  if (bloque) return bloque;
   if (!can(session.role, "vendre.use")) {
     return NextResponse.json({ error: "Action non autorisée." }, { status: 403 });
   }

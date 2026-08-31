@@ -5,6 +5,7 @@ import { db } from "@/db/client";
 import { mobileMoneySettings } from "@/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { can } from "@/lib/auth/rbac";
+import { bloquerSiExpiree } from "@/lib/abonnement";
 
 // Onglet Mobile Money — §14 + §16.
 //
@@ -56,6 +57,11 @@ export async function GET() {
 export async function PUT(request: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+
+  // Échéance d'abonnement dépassée : l'écriture est refusée côté serveur, pas seulement
+  // masquée dans l'interface.
+  const bloque = await bloquerSiExpiree();
+  if (bloque) return bloque;
   if (!can(session.role, "parametres.mobilemoney")) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }

@@ -8,6 +8,8 @@ import { categories, products, stockMovements, users } from "@/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { can } from "@/lib/auth/rbac";
 import { computeStatut, toNumber, type MovementRow } from "@/components/stock/stock-utils";
+import { bloquerSiExpiree } from "@/lib/abonnement";
+import { imageEnvoyee } from "@/lib/validation/fichier";
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -86,12 +88,17 @@ const updateProductSchema = z.object({
   prixGros: z.coerce.number().min(0).nullable().optional(),
   unite: z.string().min(1).optional(),
   seuilAlerte: z.coerce.number().min(0).optional(),
-  photoUrl: z.string().nullable().optional(),
+  photoUrl: imageEnvoyee.nullable().optional(),
 });
 
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+
+  // Échéance d'abonnement dépassée : l'écriture est refusée côté serveur, pas seulement
+  // masquée dans l'interface.
+  const bloque = await bloquerSiExpiree();
+  if (bloque) return bloque;
   if (!can(session.role, "stock.edit")) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
@@ -147,6 +154,11 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+
+  // Échéance d'abonnement dépassée : l'écriture est refusée côté serveur, pas seulement
+  // masquée dans l'interface.
+  const bloque = await bloquerSiExpiree();
+  if (bloque) return bloque;
   if (!can(session.role, "stock.edit")) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }

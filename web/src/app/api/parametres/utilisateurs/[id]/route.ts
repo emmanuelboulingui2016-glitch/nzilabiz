@@ -6,6 +6,7 @@ import { users } from "@/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { can } from "@/lib/auth/rbac";
 import { countPatrons } from "@/components/parametres/utilisateurs/queries";
+import { bloquerSiExpiree } from "@/lib/abonnement";
 
 const roleSchema = z.object({ role: z.enum(["PATRON", "GERANT", "VENDEUR"]) });
 
@@ -13,6 +14,11 @@ const roleSchema = z.object({ role: z.enum(["PATRON", "GERANT", "VENDEUR"]) });
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+
+  // Échéance d'abonnement dépassée : l'écriture est refusée côté serveur, pas seulement
+  // masquée dans l'interface.
+  const bloque = await bloquerSiExpiree();
+  if (bloque) return bloque;
   if (!can(session.role, "parametres.utilisateurs")) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
@@ -60,6 +66,11 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+
+  // Échéance d'abonnement dépassée : l'écriture est refusée côté serveur, pas seulement
+  // masquée dans l'interface.
+  const bloque = await bloquerSiExpiree();
+  if (bloque) return bloque;
   if (!can(session.role, "parametres.utilisateurs")) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }

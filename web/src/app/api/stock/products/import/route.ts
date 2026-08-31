@@ -14,6 +14,7 @@ import { getSession } from "@/lib/auth/session";
 import { can } from "@/lib/auth/rbac";
 import { genProductRef } from "@/lib/utils";
 import { CSV_FIELD_ALIASES, normalizeHeader } from "@/components/stock/stock-utils";
+import { bloquerSiExpiree } from "@/lib/abonnement";
 
 const importSchema = z.object({
   rows: z.array(z.record(z.string(), z.unknown())).min(1, "Le fichier ne contient aucune ligne"),
@@ -43,6 +44,11 @@ function parseNumber(value: string | undefined, fallback: number): number {
 export async function POST(request: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+
+  // Échéance d'abonnement dépassée : l'écriture est refusée côté serveur, pas seulement
+  // masquée dans l'interface.
+  const bloque = await bloquerSiExpiree();
+  if (bloque) return bloque;
   if (!can(session.role, "stock.edit")) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }

@@ -6,6 +6,8 @@ import { getPlatformSettings } from "@/lib/platform-settings";
 import { db } from "@/db/client";
 import { stores } from "@/db/schema";
 import { AppShell } from "@/components/layout/app-shell";
+import { etatBoutiqueCourante } from "@/lib/abonnement";
+import { EcranBlocage } from "@/components/abonnement/ecran-blocage";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
@@ -19,6 +21,18 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     where: eq(stores.id, session.storeId),
     columns: { nom: true },
   });
+
+  // Échéance dépassée : on rend l'écran de blocage à la place de l'application. Remplacer les
+  // enfants plutôt que rediriger — un calque ne connaît pas le chemin courant, et rediriger vers une
+  // page située sous ce même calque tournerait en boucle.
+  //
+  // Ne bloque jamais un administrateur de la plateforme ni une boutique du programme de test : la
+  // règle est dans `etatBoutiqueCourante`, pas ici, pour qu'aucun appelant ne puisse l'oublier.
+  const etat = await etatBoutiqueCourante();
+  if (etat && !etat.actif) {
+    return <EcranBlocage etat={etat} nomBoutique={store?.nom ?? "votre boutique"} />;
+  }
+
   const reglages = await getPlatformSettings();
 
   return (

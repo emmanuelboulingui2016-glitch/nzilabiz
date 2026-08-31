@@ -16,10 +16,16 @@ import { can } from "@/lib/auth/rbac";
 import { hashPassword } from "@/lib/auth/password";
 import { generateTempPassword } from "@/lib/auth/temp-password";
 import { clientIp, rateLimit, tooManyRequests } from "@/lib/rate-limit";
+import { bloquerSiExpiree } from "@/lib/abonnement";
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+
+  // Échéance d'abonnement dépassée : l'écriture est refusée côté serveur, pas seulement
+  // masquée dans l'interface.
+  const bloque = await bloquerSiExpiree();
+  if (bloque) return bloque;
   if (!can(session.role, "parametres.utilisateurs")) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }

@@ -9,6 +9,7 @@ import { db } from "@/db/client";
 import { approvalRequests, products, sales, stockMovements, users } from "@/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { can } from "@/lib/auth/rbac";
+import { bloquerSiExpiree } from "@/lib/abonnement";
 
 export async function GET() {
   const session = await getSession();
@@ -56,6 +57,11 @@ export async function GET() {
 export async function POST(request: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+
+  // Échéance d'abonnement dépassée : l'écriture est refusée côté serveur, pas seulement
+  // masquée dans l'interface.
+  const bloque = await bloquerSiExpiree();
+  if (bloque) return bloque;
   if (!can(session.role, "approbations.decider")) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
@@ -73,6 +79,17 @@ export async function POST(request: Request) {
   if (!reqRow) return NextResponse.json({ error: "Demande introuvable" }, { status: 404 });
   if (reqRow.statut !== "EN_ATTENTE") {
     return NextResponse.json({ error: "Cette demande a déjà été traitée." }, { status: 400 });
+  }
+
+  // Personne ne tranche sa propre demande, sauf le patron — qui pouvait de toute façon annuler
+  // directement, sans passer par ce circuit. Le rôle GERANT détient à la fois le droit de demander
+  // et celui de décider : sans cette règle, il lui suffisait de deux clics pour annuler une vente,
+  // et le circuit d'approbation ne contrôlait plus rien pour lui.
+  if (reqRow.demandeParId === session.userId && session.role !== "PATRON") {
+    return NextResponse.json(
+      { error: "Vous ne pouvez pas approuver votre propre demande. Le patron doit la valider." },
+      { status: 403 }
+    );
   }
 
   if (decision === "REJETER") {

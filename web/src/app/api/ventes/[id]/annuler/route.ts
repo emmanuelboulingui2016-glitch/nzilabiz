@@ -8,6 +8,7 @@ import { db } from "@/db/client";
 import { approvalRequests, products, sales, stockMovements } from "@/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { can } from "@/lib/auth/rbac";
+import { bloquerSiExpiree } from "@/lib/abonnement";
 
 const MOTIF_LABELS: Record<string, string> = {
   erreur_saisie: "Erreur de saisie",
@@ -30,6 +31,11 @@ function buildMotif(motifType: unknown, motifTexte: unknown): string | null {
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+
+  // Échéance d'abonnement dépassée : l'écriture est refusée côté serveur, pas seulement
+  // masquée dans l'interface.
+  const bloque = await bloquerSiExpiree();
+  if (bloque) return bloque;
 
   const { id } = await params;
   const body = await request.json().catch(() => ({}));

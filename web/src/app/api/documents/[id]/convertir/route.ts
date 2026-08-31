@@ -37,6 +37,7 @@ import { can } from "@/lib/auth/rbac";
 import { genSaleNumber } from "@/lib/utils";
 import { genDocumentNumero } from "@/components/documents/numero";
 import type { DraftItem } from "@/components/documents/types";
+import { bloquerSiExpiree } from "@/lib/abonnement";
 
 const ligneSchema = z.object({
   productId: z.string().min(1),
@@ -52,6 +53,11 @@ const bodySchema = z.object({
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+
+  // Échéance d'abonnement dépassée : l'écriture est refusée côté serveur, pas seulement
+  // masquée dans l'interface.
+  const bloque = await bloquerSiExpiree();
+  if (bloque) return bloque;
   if (!can(session.role, "documents.edit")) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }

@@ -5,6 +5,7 @@ import { db } from "@/db/client";
 import { notificationSettings } from "@/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { can } from "@/lib/auth/rbac";
+import { bloquerSiExpiree } from "@/lib/abonnement";
 
 // Onglet Notifications — §14 du cahier des charges : seuils d'alerte + interrupteurs par type
 // d'alerte, sur la table `notificationSettings` (une ligne par boutique, créée normalement à
@@ -57,6 +58,11 @@ export async function GET() {
 export async function PUT(request: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+
+  // Échéance d'abonnement dépassée : l'écriture est refusée côté serveur, pas seulement
+  // masquée dans l'interface.
+  const bloque = await bloquerSiExpiree();
+  if (bloque) return bloque;
   if (!can(session.role, "parametres.notifications")) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }

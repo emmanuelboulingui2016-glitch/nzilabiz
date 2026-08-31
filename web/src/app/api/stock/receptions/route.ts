@@ -12,6 +12,7 @@ import { db } from "@/db/client";
 import { expenses, products, stockMovements, stockReceiptItems, stockReceipts } from "@/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { can } from "@/lib/auth/rbac";
+import { bloquerSiExpiree } from "@/lib/abonnement";
 
 const ligneSchema = z.object({
   productId: z.string().min(1),
@@ -29,6 +30,11 @@ const receptionSchema = z.object({
 export async function POST(request: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+
+  // Échéance d'abonnement dépassée : l'écriture est refusée côté serveur, pas seulement
+  // masquée dans l'interface.
+  const bloque = await bloquerSiExpiree();
+  if (bloque) return bloque;
   if (!can(session.role, "stock.edit")) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }

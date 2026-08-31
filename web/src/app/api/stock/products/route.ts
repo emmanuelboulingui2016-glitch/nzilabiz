@@ -10,6 +10,8 @@ import { getSession } from "@/lib/auth/session";
 import { can } from "@/lib/auth/rbac";
 import { genProductRef } from "@/lib/utils";
 import { chargerStock } from "@/components/stock/get-stock-data";
+import { bloquerSiExpiree } from "@/lib/abonnement";
+import { imageEnvoyee } from "@/lib/validation/fichier";
 
 export async function GET(request: Request) {
   const session = await getSession();
@@ -41,12 +43,17 @@ const createProductSchema = z.object({
   unite: z.string().min(1).default("unité"),
   quantiteInitiale: z.coerce.number().min(0).default(0),
   seuilAlerte: z.coerce.number().min(0).default(5),
-  photoUrl: z.string().optional().nullable(),
+  photoUrl: imageEnvoyee.optional().nullable(),
 });
 
 export async function POST(request: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+
+  // Échéance d'abonnement dépassée : l'écriture est refusée côté serveur, pas seulement
+  // masquée dans l'interface.
+  const bloque = await bloquerSiExpiree();
+  if (bloque) return bloque;
   if (!can(session.role, "stock.edit")) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }

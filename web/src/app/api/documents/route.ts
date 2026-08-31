@@ -18,6 +18,7 @@ import { getSession } from "@/lib/auth/session";
 import { can } from "@/lib/auth/rbac";
 import { nextDocumentNumero } from "@/components/documents/numero";
 import { chargerDocuments } from "@/components/documents/get-documents-data";
+import { bloquerSiExpiree } from "@/lib/abonnement";
 
 
 export async function GET(request: Request) {
@@ -60,6 +61,11 @@ const proformaSchema = z.object({
 export async function POST(request: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+
+  // Échéance d'abonnement dépassée : l'écriture est refusée côté serveur, pas seulement
+  // masquée dans l'interface.
+  const bloque = await bloquerSiExpiree();
+  if (bloque) return bloque;
   if (!can(session.role, "documents.edit")) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }

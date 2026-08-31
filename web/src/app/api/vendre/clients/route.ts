@@ -13,6 +13,7 @@ import { db } from "@/db/client";
 import { clients } from "@/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { can } from "@/lib/auth/rbac";
+import { bloquerSiExpiree } from "@/lib/abonnement";
 
 const schema = z.object({
   nom: z.string().trim().min(1, "Le nom du client est requis.").max(120),
@@ -22,6 +23,11 @@ const schema = z.object({
 export async function POST(request: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
+
+  // Échéance d'abonnement dépassée : l'écriture est refusée côté serveur, pas seulement
+  // masquée dans l'interface.
+  const bloque = await bloquerSiExpiree();
+  if (bloque) return bloque;
   if (!can(session.role, "vendre.use")) {
     return NextResponse.json({ error: "Action non autorisée." }, { status: 403 });
   }

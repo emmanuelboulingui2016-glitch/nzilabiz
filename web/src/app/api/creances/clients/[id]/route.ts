@@ -8,6 +8,7 @@ import { db } from "@/db/client";
 import { clients, sales, debtRepayments, notificationSettings } from "@/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { can } from "@/lib/auth/rbac";
+import { bloquerSiExpiree } from "@/lib/abonnement";
 
 const DEFAULT_ECHEANCE_JOURS = 30;
 
@@ -106,6 +107,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+
+  // Échéance d'abonnement dépassée : l'écriture est refusée côté serveur, pas seulement
+  // masquée dans l'interface.
+  const bloque = await bloquerSiExpiree();
+  if (bloque) return bloque;
   if (!can(session.role, "creances.edit")) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }

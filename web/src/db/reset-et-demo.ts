@@ -75,8 +75,16 @@ async function main() {
   console.log(`Base vidée : ${TABLES_A_VIDER.length} tables.`);
 
   // ------------------------------------------------------------------ comptes
-  const motDePasse = randomBytes(9).toString("base64").replace(/[^A-Za-z0-9]/g, "") + "9!";
+  // Un mot de passe par compte, et non un seul partagé. La version précédente réutilisait le même
+  // haché pour l'administrateur, la gérante et le vendeur : connaître celui du vendeur de
+  // démonstration, c'était connaître celui de l'administrateur de toute la plateforme.
+  const nouveauMotDePasse = () => randomBytes(9).toString("base64").replace(/[^A-Za-z0-9]/g, "") + "9!";
+  const motDePasse = nouveauMotDePasse();
+  const motDePasseGerante = nouveauMotDePasse();
+  const motDePasseVendeur = nouveauMotDePasse();
   const hash = await bcrypt.hash(motDePasse, 10);
+  const hashGerante = await bcrypt.hash(motDePasseGerante, 10);
+  const hashVendeur = await bcrypt.hash(motDePasseVendeur, 10);
   const finPeriodeTest = new Date(Date.now() + 30 * 86_400_000);
 
   const [boutique] = await db
@@ -115,7 +123,7 @@ async function main() {
       storeId: boutique.id,
       nom: "Sylvie NDONG",
       email: "gerante.demo@nzilabiz.store",
-      motDePasseHash: hash,
+      motDePasseHash: hashGerante,
       role: "GERANT",
       creeLe: jours(60),
       derniereConnexion: jours(1),
@@ -128,7 +136,7 @@ async function main() {
       storeId: boutique.id,
       nom: "Patrick OYANE",
       email: "vendeur.demo@nzilabiz.store",
-      motDePasseHash: hash,
+      motDePasseHash: hashVendeur,
       role: "VENDEUR",
       creeLe: jours(45),
       derniereConnexion: jours(2),
@@ -474,9 +482,9 @@ async function main() {
       "",
       "À changer dès la première connexion (Paramètres → Sécurité), puis supprimer ce fichier.",
       "",
-      "Comptes employés de démonstration (même mot de passe) :",
-      `  ${gerante.email}   — Gérante`,
-      `  ${vendeur.email}  — Vendeur`,
+      "Comptes employés de démonstration (chacun son mot de passe) :",
+      `  ${gerante.email}   — Gérante — ${motDePasseGerante}`,
+      `  ${vendeur.email}  — Vendeur — ${motDePasseVendeur}`,
       "",
       `Code du lien testeur : ${codeTest}`,
       `Valable jusqu'au ${finPeriodeTest.toLocaleDateString("fr-FR")}`,

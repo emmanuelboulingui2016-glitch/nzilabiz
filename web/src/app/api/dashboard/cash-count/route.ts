@@ -4,12 +4,18 @@ import { can } from "@/lib/auth/rbac";
 import { db } from "@/db/client";
 import { cashCounts } from "@/db/schema";
 import { getDashboardData } from "@/components/dashboard/get-dashboard-data";
+import { bloquerSiExpiree } from "@/lib/abonnement";
 
 // POST /api/dashboard/cash-count — §5 🔧 fond de caisse d'ouverture / comptage de fermeture.
 // body: { type: "OUVERTURE" | "FERMETURE", montantSaisi: number }
 export async function POST(request: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+
+  // Échéance d'abonnement dépassée : l'écriture est refusée côté serveur, pas seulement
+  // masquée dans l'interface.
+  const bloque = await bloquerSiExpiree();
+  if (bloque) return bloque;
   if (!can(session.role, "dashboard.view")) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }

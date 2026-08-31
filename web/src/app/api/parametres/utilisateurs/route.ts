@@ -7,6 +7,7 @@ import { getSession } from "@/lib/auth/session";
 import { can } from "@/lib/auth/rbac";
 import { hashPassword } from "@/lib/auth/password";
 import { generateTempPassword } from "@/lib/auth/temp-password";
+import { bloquerSiExpiree } from "@/lib/abonnement";
 
 // Onglet Utilisateurs — §14 du cahier des charges.
 // 🔧 Simplification documentée (voir résumé de tâche / README) : il n'y a pas de service d'envoi
@@ -50,6 +51,11 @@ export async function GET() {
 export async function POST(request: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+
+  // Échéance d'abonnement dépassée : l'écriture est refusée côté serveur, pas seulement
+  // masquée dans l'interface.
+  const bloque = await bloquerSiExpiree();
+  if (bloque) return bloque;
   if (!can(session.role, "parametres.utilisateurs")) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
