@@ -15,6 +15,7 @@ import { createSessionToken, setSessionCookie } from "@/lib/auth/session";
 import { deviceNameFromUserAgent } from "@/lib/device-name";
 import { clientIp, rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { isSuperAdminEmail } from "@/lib/auth/superadmin";
+import { bloquerSiPlafondComptes, etatBoutique } from "@/lib/abonnement";
 
 async function chargerInvitation(token: string) {
   const invitation = await db.query.invitations.findFirst({ where: eq(invitations.token, token) });
@@ -91,6 +92,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
   if (existant) {
     return NextResponse.json({ error: "Un compte existe déjà avec cet e-mail." }, { status: 409 });
   }
+
+  // Plafond de comptes de la formule. C'est ici que le contrôle compte vraiment : la vérification
+  // faite au moment de créer l'invitation ne dit rien de l'état de la boutique au moment où le
+  // lien est utilisé, parfois plusieurs jours après et après d'autres embauches.
+  //
+  // L'état est lu depuis la boutique de l'invitation, pas depuis une session : la personne qui
+  // accepte n'est pas encore connectée.
+  const etatBoutiqueInvitante = await etatBoutique(res.invitation.storeId);
+  const plafond = await bloquerSiPlafondComptes(res.invitation.storeId, etatBoutiqueInvitante.plan);
+  if (plafond) return plafond;
 
   const motDePasseHash = await hashPassword(parsed.data.password);
 

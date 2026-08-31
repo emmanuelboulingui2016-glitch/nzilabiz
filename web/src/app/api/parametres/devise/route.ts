@@ -5,7 +5,7 @@ import { db } from "@/db/client";
 import { stores } from "@/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { can } from "@/lib/auth/rbac";
-import { bloquerSiExpiree } from "@/lib/abonnement";
+import { bloquerSiExpiree, bloquerSiHorsFormule } from "@/lib/abonnement";
 
 // Onglet Devise — §14 "🔧 Amélioration" du cahier des charges : sélection réelle de la devise
 // (FCFA par défaut, options hors zone CEMAC pour une future expansion).
@@ -24,6 +24,11 @@ const deviseSchema = z.object({
 export async function GET() {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+
+  // Fonctionnalité hors de la formule Essentiel : refusée ici, pas seulement masquée
+  // dans le menu. Une route reste appelable même quand son bouton a disparu.
+  const horsFormule = await bloquerSiHorsFormule("devise");
+  if (horsFormule) return horsFormule;
   if (!can(session.role, "parametres.devise")) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
@@ -40,6 +45,11 @@ export async function GET() {
 export async function PUT(request: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+
+  // Fonctionnalité hors de la formule Essentiel : refusée ici, pas seulement masquée
+  // dans le menu. Une route reste appelable même quand son bouton a disparu.
+  const horsFormule = await bloquerSiHorsFormule("devise");
+  if (horsFormule) return horsFormule;
 
   // Échéance d'abonnement dépassée : l'écriture est refusée côté serveur, pas seulement
   // masquée dans l'interface.

@@ -183,7 +183,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 }
 
 const patchSchema = z.object({
-  plan: z.enum(["ESSAI", "PREMIUM", "ENTREPRISE"]).optional(),
+  plan: z.enum(["ESSAI", "ESSENTIEL", "PREMIUM", "ENTREPRISE"]).optional(),
   /** Nombre de jours à ajouter à l'échéance en cours (essai si plan ESSAI, abonnement sinon). */
   prolongerJours: z.number().int().min(1).max(730).optional(),
 });

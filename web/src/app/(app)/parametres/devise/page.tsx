@@ -5,8 +5,15 @@ import { can } from "@/lib/auth/rbac";
 import { db } from "@/db/client";
 import { stores } from "@/db/schema";
 import { DeviseForm } from "@/components/parametres/devise/devise-form";
+import { formuleCourante } from "@/lib/abonnement";
+import { formuleOuvre } from "@/lib/formules";
+import { HorsFormule } from "@/components/abonnement/hors-formule";
 
 export default async function DevisePage() {
+  // Hors formule Essentiel : on présente ce que Premium apporte, au lieu d'un écran vide.
+  // La route API correspondante refuse de son côté — masquer la page ne suffit pas.
+  if (!formuleOuvre(await formuleCourante(), "devise")) return <HorsFormule fonctionnalite="devise" />;
+
   const session = await getSession();
   if (!session) redirect("/connexion");
   if (!can(session.role, "parametres.devise")) {

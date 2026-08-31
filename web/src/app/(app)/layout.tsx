@@ -42,6 +42,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       storeName={boutiqueActive?.nom ?? "NzilaBiz"}
       boutiques={boutiques.map((b) => ({ id: b.id, nom: b.nom }))}
       boutiqueActiveId={session.storeId}
+      formule={etat?.plan ?? "ESSAI"}
       superAdmin={isSuperAdminEmail(session.email)}
       annonce={reglages.annonceActive ? reglages.annonce : null}
     >

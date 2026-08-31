@@ -20,6 +20,7 @@ import { Pricing } from "@/components/public/pricing";
 import { Faq } from "@/components/public/faq";
 import { BackToTop, ScrollProgress } from "@/components/public/scroll-helpers";
 import { getPlatformSettings, contactCommercial } from "@/lib/platform-settings";
+import { lireTarifs } from "@/lib/tarifs-serveur";
 
 export const metadata: Metadata = {
   title: "NzilaBiz — La gestion de boutique qui marche même sans réseau",
@@ -149,6 +150,9 @@ const FAQ_ITEMS = [
 // réglages.
 export default async function VitrinePage() {
   const contact = contactCommercial(await getPlatformSettings());
+  // Enchaînée, jamais en parallèle : le pooler en mode transaction ne rend pas la main quand
+  // plusieurs requêtes partent ensemble depuis une même requête HTTP (voir README).
+  const grille = await lireTarifs();
 
   return (
     <>
@@ -368,7 +372,7 @@ export default async function VitrinePage() {
               15 jours pour essayer, sans carte bancaire. Ensuite, un abonnement unique qui donne accès à
               tout, pour toute votre équipe.
             </p>
-            <Pricing contact={contact} />
+            <Pricing contact={contact} grille={grille} />
             <p className="mt-4 text-xs text-muted-foreground">
               Les paiements par Mobile Money sont en cours de mise en service : en attendant, l&apos;équipe
               NzilaBiz vous accompagne par WhatsApp pour activer votre abonnement.

@@ -16,12 +16,18 @@ import {
   Wallet,
 } from "lucide-react";
 import type { Permission } from "@/lib/auth/rbac";
+import type { Fonctionnalite } from "@/lib/formules";
 
 export type NavItem = {
   href: string;
   labelKey: string;
   permission: Permission;
   icon: LucideIcon;
+  /**
+   * Fonctionnalité facturable dont dépend cette entrée. Absente, l'entrée est dans toutes les
+   * formules. Le menu n'est qu'un affichage : la page et la route API refusent de leur côté.
+   */
+  fonctionnalite?: Fonctionnalite;
 };
 
 export type NavSection = {
@@ -56,7 +62,7 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { href: "/stock", labelKey: "nav.stock", permission: "stock.view", icon: Package },
       { href: "/boutiques", labelKey: "nav.boutiques", permission: "boutiques.reseau", icon: Building2 },
-      { href: "/depenses", labelKey: "nav.depenses", permission: "depenses.view", icon: Wallet },
+      { href: "/depenses", labelKey: "nav.depenses", permission: "depenses.view", icon: Wallet, fonctionnalite: "depenses" },
       { href: "/synchronisation", labelKey: "nav.synchronisation", permission: "synchronisation.view", icon: RefreshCw },
     ],
   },
@@ -64,8 +70,8 @@ export const NAV_SECTIONS: NavSection[] = [
     titleKey: "nav.sectionAnalyse",
     icon: LineChart,
     items: [
-      { href: "/documents", labelKey: "nav.documents", permission: "documents.view", icon: FileText },
-      { href: "/rapports", labelKey: "nav.rapports", permission: "rapports.view", icon: BarChart3 },
+      { href: "/documents", labelKey: "nav.documents", permission: "documents.view", icon: FileText, fonctionnalite: "documents" },
+      { href: "/rapports", labelKey: "nav.rapports", permission: "rapports.view", icon: BarChart3, fonctionnalite: "rapports" },
     ],
   },
 ];

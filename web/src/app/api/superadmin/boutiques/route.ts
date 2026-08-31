@@ -26,7 +26,7 @@ export async function GET(request: Request) {
     conditions.push(or(ilike(stores.nom, like), ilike(stores.ville, like), ilike(stores.quartier, like)));
   }
   if (plan && plan !== "TOUS") {
-    conditions.push(eq(stores.plan, plan as "ESSAI" | "PREMIUM" | "ENTREPRISE"));
+    conditions.push(eq(stores.plan, plan as "ESSAI" | "ESSENTIEL" | "PREMIUM" | "ENTREPRISE"));
   }
 
   // Les compteurs sont calculés en sous-requêtes corrélées : une seule requête, et pas de

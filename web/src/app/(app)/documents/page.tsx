@@ -4,8 +4,15 @@ import { getSession } from "@/lib/auth/session";
 import { can } from "@/lib/auth/rbac";
 import { chargerDocuments } from "@/components/documents/get-documents-data";
 import { DocumentsClient } from "@/components/documents/documents-client";
+import { formuleCourante } from "@/lib/abonnement";
+import { formuleOuvre } from "@/lib/formules";
+import { HorsFormule } from "@/components/abonnement/hors-formule";
 
 export default async function DocumentsPage() {
+  // Hors formule Essentiel : on présente ce que Premium apporte, au lieu d'un écran vide.
+  // La route API correspondante refuse de son côté — masquer la page ne suffit pas.
+  if (!formuleOuvre(await formuleCourante(), "documents")) return <HorsFormule fonctionnalite="documents" />;
+
   const session = await getSession();
   if (!session || !can(session.role, "documents.view")) {
     return (

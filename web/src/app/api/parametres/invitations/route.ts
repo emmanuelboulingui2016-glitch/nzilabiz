@@ -12,7 +12,7 @@ import { db } from "@/db/client";
 import { invitations, users } from "@/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { can } from "@/lib/auth/rbac";
-import { bloquerSiExpiree } from "@/lib/abonnement";
+import { bloquerSiExpiree, bloquerSiPlafondComptes, etatBoutiqueCourante } from "@/lib/abonnement";
 
 const DUREE_JOURS = 7;
 
@@ -36,6 +36,12 @@ export async function GET() {
   if (!can(session.role, "parametres.utilisateurs")) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
+
+  // Plafond de comptes de la formule. Vérifié ici et à l'acceptation de l'invitation : ce sont
+  // les deux seuls endroits où une ligne `users` naît.
+  const etatFormule = await etatBoutiqueCourante();
+  const plafond = await bloquerSiPlafondComptes(session.storeId, etatFormule?.plan ?? "ESSAI");
+  if (plafond) return plafond;
 
   const lignes = await db
     .select()

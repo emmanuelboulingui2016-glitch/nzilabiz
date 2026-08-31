@@ -26,7 +26,7 @@ type Detail = {
     pays: string;
     typeCommerce: string | null;
     devise: string;
-    plan: "ESSAI" | "PREMIUM" | "ENTREPRISE";
+    plan: "ESSAI" | "ESSENTIEL" | "PREMIUM" | "ENTREPRISE";
     creeLe: string;
     essaiExpireLe: string | null;
     abonnementExpireLe: string | null;
@@ -311,6 +311,7 @@ export function StoreDetailDialog({
                   className="h-9"
                 >
                   <option value="ESSAI">Essai</option>
+                  <option value="ESSENTIEL">Essentiel</option>
                   <option value="PREMIUM">Premium</option>
                   <option value="ENTREPRISE">Entreprise</option>
                 </Select>

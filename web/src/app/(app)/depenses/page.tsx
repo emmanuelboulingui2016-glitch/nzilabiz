@@ -3,8 +3,15 @@ import { getSession } from "@/lib/auth/session";
 import { can } from "@/lib/auth/rbac";
 import { chargerDepenses } from "@/components/depenses/get-depenses-data";
 import { DepensesClient } from "@/components/depenses/depenses-client";
+import { formuleCourante } from "@/lib/abonnement";
+import { formuleOuvre } from "@/lib/formules";
+import { HorsFormule } from "@/components/abonnement/hors-formule";
 
 export default async function DepensesPage() {
+  // Hors formule Essentiel : on présente ce que Premium apporte, au lieu d'un écran vide.
+  // La route API correspondante refuse de son côté — masquer la page ne suffit pas.
+  if (!formuleOuvre(await formuleCourante(), "depenses")) return <HorsFormule fonctionnalite="depenses" />;
+
   const session = await getSession();
   if (!session) redirect("/connexion");
   if (!can(session.role, "depenses.view")) redirect("/dashboard");

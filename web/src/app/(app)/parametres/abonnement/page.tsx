@@ -5,6 +5,7 @@ import { can } from "@/lib/auth/rbac";
 import { db } from "@/db/client";
 import { stores } from "@/db/schema";
 import { getPlatformSettings, contactCommercial } from "@/lib/platform-settings";
+import { lireTarifs } from "@/lib/tarifs-serveur";
 import { SubscriptionView } from "@/components/parametres/abonnement/subscription-view";
 
 // Onglet Abonnement — §14 + §16 du cahier des charges. Purement informatif côté données
@@ -27,6 +28,7 @@ export default async function AbonnementPage() {
   // Enchaînée, jamais en parallèle : le pooler en mode transaction ne rend pas la main quand
   // plusieurs requêtes partent ensemble depuis une même requête HTTP (voir README).
   const reglages = await getPlatformSettings();
+  const grille = await lireTarifs();
 
   return (
     <SubscriptionView
@@ -34,6 +36,7 @@ export default async function AbonnementPage() {
       essaiExpireLe={store.essaiExpireLe ? store.essaiExpireLe.toISOString() : null}
       abonnementExpireLe={store.abonnementExpireLe ? store.abonnementExpireLe.toISOString() : null}
       contact={contactCommercial(reglages)}
+      grille={grille}
     />
   );
 }

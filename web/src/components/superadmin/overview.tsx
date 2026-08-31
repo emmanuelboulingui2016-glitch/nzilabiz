@@ -59,7 +59,7 @@ export function SuperAdminOverview() {
     ventes: v.ventes,
   }));
 
-  const plans = (["ESSAI", "PREMIUM", "ENTREPRISE"] as const)
+  const plans = (["ESSAI", "ESSENTIEL", "PREMIUM", "ENTREPRISE"] as const)
     .map((plan) => ({ plan, nb: stats.parPlan[plan] ?? 0 }))
     .filter((p) => p.nb > 0);
 

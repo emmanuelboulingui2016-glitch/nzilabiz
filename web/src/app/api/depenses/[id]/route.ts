@@ -4,7 +4,7 @@ import { db } from "@/db/client";
 import { expenses } from "@/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { can } from "@/lib/auth/rbac";
-import { bloquerSiExpiree } from "@/lib/abonnement";
+import { bloquerSiExpiree, bloquerSiHorsFormule } from "@/lib/abonnement";
 import { refusJustificatif } from "@/lib/validation/fichier";
 
 const STOCK_RECEIPT_MESSAGE =
@@ -19,6 +19,11 @@ async function loadOwnExpense(storeId: string, id: string) {
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+
+  // Fonctionnalité hors de la formule Essentiel : refusée ici, pas seulement masquée
+  // dans le menu. Une route reste appelable même quand son bouton a disparu.
+  const horsFormule = await bloquerSiHorsFormule("depenses");
+  if (horsFormule) return horsFormule;
   if (!can(session.role, "depenses.view")) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
@@ -33,6 +38,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+
+  // Fonctionnalité hors de la formule Essentiel : refusée ici, pas seulement masquée
+  // dans le menu. Une route reste appelable même quand son bouton a disparu.
+  const horsFormule = await bloquerSiHorsFormule("depenses");
+  if (horsFormule) return horsFormule;
 
   // Échéance d'abonnement dépassée : l'écriture est refusée côté serveur, pas seulement
   // masquée dans l'interface.
@@ -114,6 +124,11 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+
+  // Fonctionnalité hors de la formule Essentiel : refusée ici, pas seulement masquée
+  // dans le menu. Une route reste appelable même quand son bouton a disparu.
+  const horsFormule = await bloquerSiHorsFormule("depenses");
+  if (horsFormule) return horsFormule;
 
   // Échéance d'abonnement dépassée : l'écriture est refusée côté serveur, pas seulement
   // masquée dans l'interface.

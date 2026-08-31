@@ -91,6 +91,7 @@ export function VolumeChart({ data }: { data: { label: string; volume: number; v
 const COULEURS_PLAN: Record<string, string> = {
   ESSAI: "var(--color-warning)",
   PREMIUM: "var(--color-primary)",
+  ESSENTIEL: "var(--color-emeraude)",
   ENTREPRISE: "var(--color-accent)",
 };
 

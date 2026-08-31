@@ -38,7 +38,7 @@ export const stockMovementTypeEnum = pgEnum("stock_movement_type", ["VENTE", "AN
 export const cashCountTypeEnum = pgEnum("cash_count_type", ["OUVERTURE", "FERMETURE"]);
 export const expenseFrequencyEnum = pgEnum("expense_frequency", ["HEBDOMADAIRE", "MENSUELLE"]);
 export const syncStatusEnum = pgEnum("sync_status", ["OK", "ECHEC", "EN_ATTENTE"]);
-export const subscriptionPlanEnum = pgEnum("subscription_plan", ["ESSAI", "PREMIUM", "ENTREPRISE"]);
+export const subscriptionPlanEnum = pgEnum("subscription_plan", ["ESSAI", "ESSENTIEL", "PREMIUM", "ENTREPRISE"]);
 export const approvalActionTypeEnum = pgEnum("approval_action_type", ["ANNULATION_VENTE", "REMISE_SEUIL", "MODIFICATION_PRIX"]);
 export const approvalStatusEnum = pgEnum("approval_status", ["EN_ATTENTE", "APPROUVEE", "REJETEE"]);
 export const documentTypeEnum = pgEnum("document_type", ["FACTURE", "PROFORMA", "REMBOURSEMENT"]);
@@ -370,6 +370,31 @@ export const mobileMoneySettings = pgTable("mobile_money_settings", {
   modeProduction: boolean("mode_production").notNull().default(false),
   misAJourLe: timestamp("mis_a_jour_le").notNull().defaultNow(),
 });
+
+// ---------------------------------------------------------------------------
+// Tarifs des formules
+// ---------------------------------------------------------------------------
+
+/**
+ * Grille tarifaire, modifiable depuis l'administration.
+ *
+ * Les montants vivaient en dur dans deux composants — la page tarifs publique et l'écran
+ * Abonnement — qui pouvaient donc afficher des prix différents, et changer un prix demandait un
+ * déploiement. Ils sont désormais lus en base, à un seul endroit.
+ *
+ * `plan` et `cycle` sont du texte et non des énumérations : une grille tarifaire doit pouvoir
+ * accueillir une offre ponctuelle sans migration de schéma, et le tarif « à partir de » d'Entreprise
+ * n'a pas le même statut que les autres. Les valeurs acceptées sont validées à l'écriture.
+ */
+export const planTarifs = pgTable("plan_tarifs", {
+  id: id(),
+  plan: text("plan").notNull(),
+  cycle: text("cycle").notNull(),
+  montant: money("montant").notNull(),
+  misAJourLe: timestamp("mis_a_jour_le").notNull().defaultNow(),
+}, (t) => ({
+  planCycleUnique: uniqueIndex("plan_tarifs_plan_cycle_unique").on(t.plan, t.cycle),
+}));
 
 // ---------------------------------------------------------------------------
 // Plateforme : réglages éditables, support, invitations

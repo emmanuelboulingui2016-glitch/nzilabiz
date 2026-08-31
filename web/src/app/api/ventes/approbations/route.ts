@@ -14,6 +14,7 @@ import { bloquerSiExpiree } from "@/lib/abonnement";
 export async function GET() {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+
   if (!can(session.role, "approbations.decider")) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }

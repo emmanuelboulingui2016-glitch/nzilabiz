@@ -5,6 +5,9 @@ import { can } from "@/lib/auth/rbac";
 import { db } from "@/db/client";
 import { stores } from "@/db/schema";
 import { ReceiptPreview } from "@/components/parametres/facturation/receipt-preview";
+import { formuleCourante } from "@/lib/abonnement";
+import { formuleOuvre } from "@/lib/formules";
+import { HorsFormule } from "@/components/abonnement/hors-formule";
 
 // Onglet Facturation — §14 : « apparence du reçu » (logo, téléphone, adresse, message de bas de
 // reçu) avec aperçu en direct.
@@ -16,6 +19,10 @@ import { ReceiptPreview } from "@/components/parametres/facturation/receipt-prev
 // dans l'app d'origine), en réutilisant l'endpoint PUT /api/parametres/boutique — pas de route
 // dédiée pour cet onglet.
 export default async function FacturationPage() {
+  // Hors formule Essentiel : on présente ce que Premium apporte, au lieu d'un écran vide.
+  // La route API correspondante refuse de son côté — masquer la page ne suffit pas.
+  if (!formuleOuvre(await formuleCourante(), "documents")) return <HorsFormule fonctionnalite="documents" />;
+
   const session = await getSession();
   if (!session) redirect("/connexion");
   if (!can(session.role, "parametres.boutique")) {

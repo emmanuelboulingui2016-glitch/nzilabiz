@@ -19,6 +19,7 @@ export function AppShell({
   annonce = null,
   boutiques = [],
   boutiqueActiveId,
+  formule = "ESSAI",
 }: {
   children: ReactNode;
   role: Role;
@@ -31,6 +32,8 @@ export function AppShell({
   /** Boutiques accessibles au compte. Une seule dans le cas courant : rien ne s'affiche alors. */
   boutiques?: BoutiqueOption[];
   boutiqueActiveId?: string;
+  /** Formule de la boutique — décide des entrées de menu affichées. */
+  formule?: string;
 }) {
   const router = useRouter();
 
@@ -50,6 +53,7 @@ export function AppShell({
         onLogout={onLogout}
         boutiques={boutiques}
         boutiqueActiveId={boutiqueActiveId}
+        formule={formule}
       />
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar boutiques={boutiques} boutiqueActiveId={boutiqueActiveId} />
@@ -57,7 +61,7 @@ export function AppShell({
         <PwaInstallBanner />
         <main className="flex-1 overflow-y-auto p-4 pb-20 md:pb-4">{children}</main>
       </div>
-      <MobileNav role={role} />
+      <MobileNav role={role} formule={formule} />
     </div>
   );
 }

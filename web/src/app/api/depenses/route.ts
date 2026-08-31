@@ -5,7 +5,7 @@ import { expenses } from "@/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { chargerDepenses } from "@/components/depenses/get-depenses-data";
 import { can } from "@/lib/auth/rbac";
-import { bloquerSiExpiree } from "@/lib/abonnement";
+import { bloquerSiExpiree, bloquerSiHorsFormule } from "@/lib/abonnement";
 import { refusJustificatif } from "@/lib/validation/fichier";
 
 // Catégories suggérées pour la saisie manuelle (§10 du cahier des charges). "Rachats de stock"
@@ -74,6 +74,11 @@ async function genererDepensesRecurrentesDues(storeId: string, fallbackUserId: s
 export async function GET(request: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+
+  // Fonctionnalité hors de la formule Essentiel : refusée ici, pas seulement masquée
+  // dans le menu. Une route reste appelable même quand son bouton a disparu.
+  const horsFormule = await bloquerSiHorsFormule("depenses");
+  if (horsFormule) return horsFormule;
   if (!can(session.role, "depenses.view")) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
@@ -95,6 +100,11 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+
+  // Fonctionnalité hors de la formule Essentiel : refusée ici, pas seulement masquée
+  // dans le menu. Une route reste appelable même quand son bouton a disparu.
+  const horsFormule = await bloquerSiHorsFormule("depenses");
+  if (horsFormule) return horsFormule;
 
   // Échéance d'abonnement dépassée : l'écriture est refusée côté serveur, pas seulement
   // masquée dans l'interface.

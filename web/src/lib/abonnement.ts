@@ -23,6 +23,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/db/client";
 import { getSession } from "@/lib/auth/session";
 import { isSuperAdminEmail } from "@/lib/auth/superadmin";
+import { formuleOuvre, messageHorsFormule, plafondComptes, type Fonctionnalite } from "@/lib/formules";
 
 export type RaisonBlocage = "ESSAI_EXPIRE" | "ABONNEMENT_EXPIRE";
 
@@ -189,5 +190,71 @@ export async function bloquerSiExpiree(): Promise<NextResponse | null> {
       code: "ABONNEMENT_EXPIRE",
     },
     { status: 402 }
+  );
+}
+
+/**
+ * Garde de formule, pour les routes qui servent une fonctionnalité facturable. Renvoie une réponse
+ * 403 si la formule de la boutique ne l'ouvre pas, `null` sinon :
+ *
+ *     const hors = await bloquerSiHorsFormule("depenses");
+ *     if (hors) return hors;
+ *
+ * 403 et non 402 : la boutique est à jour de son abonnement, c'est le contenu de sa formule qui ne
+ * comprend pas cette fonctionnalité. Confondre les deux ferait afficher « votre abonnement a
+ * expiré » à un client qui vient de payer.
+ *
+ * À placer après la vérification de session et après `bloquerSiExpiree` : une échéance dépassée
+ * prime sur le contenu de la formule.
+ */
+export async function bloquerSiHorsFormule(fonctionnalite: Fonctionnalite): Promise<NextResponse | null> {
+  const etat = await etatBoutiqueCourante();
+  if (!etat) return null; // pas de session : c'est à l'appelant de l'avoir déjà refusée
+  if (formuleOuvre(etat.plan, fonctionnalite)) return null;
+
+  return NextResponse.json(
+    { error: messageHorsFormule(fonctionnalite), code: "FORMULE_REQUISE", fonctionnalite },
+    { status: 403 }
+  );
+}
+
+/** Formule de la boutique courante, pour les écrans qui adaptent ce qu'ils affichent. */
+export async function formuleCourante(): Promise<string> {
+  return (await etatBoutiqueCourante())?.plan ?? "ESSAI";
+}
+
+/**
+ * Refuse la création d'un compte quand la formule a un plafond et qu'il est atteint.
+ *
+ * Seuls les comptes actifs sont comptés : un employé parti, dont le compte est fermé, ne doit pas
+ * occuper une place indéfiniment — ses ventes restent dans l'historique, mais sa chaise est libre.
+ *
+ * À appeler partout où une ligne `users` naît : la création directe par le patron, mais aussi
+ * l'acceptation d'une invitation, qui est l'autre chemin et qu'on oublie facilement.
+ */
+export async function bloquerSiPlafondComptes(storeId: string, plan: string): Promise<NextResponse | null> {
+  const plafond = plafondComptes(plan);
+  if (plafond === null) return null;
+
+  try {
+    const [ligne] = await db.execute<Record<string, unknown>>(sql`
+      select count(*)::int as total
+      from users
+      where store_id = ${storeId} and desactive_le is null
+    `);
+    if (Number(ligne?.total ?? 0) < plafond) return null;
+  } catch (e) {
+    // Comptage impossible : on laisse passer. Refuser sur une panne de lecture empêcherait un
+    // patron d'ajouter son vendeur sans qu'il puisse rien y faire.
+    console.error("formule : comptage des comptes impossible —", e instanceof Error ? e.message : e);
+    return null;
+  }
+
+  return NextResponse.json(
+    {
+      error: `Votre formule comprend ${plafond} comptes. Fermez un compte inutilisé, ou passez à Premium pour un nombre illimité.`,
+      code: "PLAFOND_COMPTES",
+    },
+    { status: 403 }
   );
 }

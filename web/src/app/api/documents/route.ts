@@ -18,12 +18,17 @@ import { getSession } from "@/lib/auth/session";
 import { can } from "@/lib/auth/rbac";
 import { nextDocumentNumero } from "@/components/documents/numero";
 import { chargerDocuments } from "@/components/documents/get-documents-data";
-import { bloquerSiExpiree } from "@/lib/abonnement";
+import { bloquerSiExpiree, bloquerSiHorsFormule } from "@/lib/abonnement";
 
 
 export async function GET(request: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+
+  // Fonctionnalité hors de la formule Essentiel : refusée ici, pas seulement masquée
+  // dans le menu. Une route reste appelable même quand son bouton a disparu.
+  const horsFormule = await bloquerSiHorsFormule("documents");
+  if (horsFormule) return horsFormule;
   if (!can(session.role, "documents.view")) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
@@ -61,6 +66,11 @@ const proformaSchema = z.object({
 export async function POST(request: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+
+  // Fonctionnalité hors de la formule Essentiel : refusée ici, pas seulement masquée
+  // dans le menu. Une route reste appelable même quand son bouton a disparu.
+  const horsFormule = await bloquerSiHorsFormule("documents");
+  if (horsFormule) return horsFormule;
 
   // Échéance d'abonnement dépassée : l'écriture est refusée côté serveur, pas seulement
   // masquée dans l'interface.

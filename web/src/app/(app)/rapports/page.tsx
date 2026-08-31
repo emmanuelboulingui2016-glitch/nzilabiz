@@ -5,8 +5,15 @@ import { db } from "@/db/client";
 import { stores } from "@/db/schema";
 import { getRapportsData } from "@/components/rapports/get-rapports-data";
 import { RapportsClient } from "@/components/rapports/rapports-client";
+import { formuleCourante } from "@/lib/abonnement";
+import { formuleOuvre } from "@/lib/formules";
+import { HorsFormule } from "@/components/abonnement/hors-formule";
 
 export default async function RapportsPage() {
+  // Hors formule Essentiel : on présente ce que Premium apporte, au lieu d'un écran vide.
+  // La route API correspondante refuse de son côté — masquer la page ne suffit pas.
+  if (!formuleOuvre(await formuleCourante(), "rapports")) return <HorsFormule fonctionnalite="rapports" />;
+
   const session = await getSession();
   if (!session) return null; // le layout (app) redirige déjà vers /connexion.
 

@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { useTranslations } from "@/lib/i18n/provider";
 import { NAV_SECTIONS } from "./nav-config";
 import { can, type Permission, type Role } from "@/lib/auth/rbac";
+import { formuleOuvre } from "@/lib/formules";
 import { Dialog } from "@/components/ui/dialog";
 
 const PRIMARY = [
@@ -17,7 +18,7 @@ const PRIMARY = [
   { href: "/stock", icon: Package, labelKey: "nav.stock" },
 ];
 
-export function MobileNav({ role }: { role: Role }) {
+export function MobileNav({ role, formule = "ESSAI" }: { role: Role; formule?: string }) {
   const pathname = usePathname();
   const { t } = useTranslations();
   const [open, setOpen] = useState(false);
@@ -53,7 +54,11 @@ export function MobileNav({ role }: { role: Role }) {
       <Dialog open={open} onClose={() => setOpen(false)} title={t("common.actions")}>
         <div className="space-y-4">
           {NAV_SECTIONS.map((section) => {
-            const items = section.items.filter((item) => can(role, item.permission as Permission));
+            const items = section.items.filter(
+              (item) =>
+                can(role, item.permission as Permission) &&
+                (!item.fonctionnalite || formuleOuvre(formule, item.fonctionnalite))
+            );
             if (items.length === 0) return null;
             const SectionIcon = section.icon;
             return (

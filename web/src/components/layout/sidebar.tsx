@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { NAV_SECTIONS } from "./nav-config";
 import { useTranslations } from "@/lib/i18n/provider";
 import { can, type Permission, type Role } from "@/lib/auth/rbac";
+import { formuleOuvre } from "@/lib/formules";
 import { cn } from "@/lib/utils";
 import { LogOut, PanelLeftClose, PanelLeftOpen, Settings, ShieldCheck } from "lucide-react";
 import { SelecteurBoutique, type BoutiqueOption } from "./selecteur-boutique";
@@ -24,6 +25,7 @@ export function Sidebar({
   onLogout,
   boutiques = [],
   boutiqueActiveId,
+  formule = "ESSAI",
 }: {
   role: Role;
   userName: string;
@@ -32,6 +34,8 @@ export function Sidebar({
   onLogout: () => void;
   boutiques?: BoutiqueOption[];
   boutiqueActiveId?: string;
+  /** Formule de la boutique : les entrées hors formule disparaissent du menu. */
+  formule?: string;
 }) {
   const pathname = usePathname();
   const { t } = useTranslations();
@@ -97,7 +101,11 @@ export function Sidebar({
 
       <nav className={cn("flex-1 space-y-5 overflow-y-auto overflow-x-hidden pb-4", collapsed ? "px-2" : "px-3")}>
         {NAV_SECTIONS.map((section) => {
-          const items = section.items.filter((item) => can(role, item.permission as Permission));
+          const items = section.items.filter(
+            (item) =>
+              can(role, item.permission as Permission) &&
+              (!item.fonctionnalite || formuleOuvre(formule, item.fonctionnalite))
+          );
           if (items.length === 0) return null;
           const SectionIcon = section.icon;
           return (

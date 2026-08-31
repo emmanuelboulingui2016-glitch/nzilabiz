@@ -18,7 +18,7 @@ export type BoutiqueLigne = {
   ville: string | null;
   quartier: string | null;
   typeCommerce: string | null;
-  plan: "ESSAI" | "PREMIUM" | "ENTREPRISE";
+  plan: "ESSAI" | "ESSENTIEL" | "PREMIUM" | "ENTREPRISE";
   programmeTest: boolean;
   devise: string;
   creeLe: string;
@@ -31,7 +31,7 @@ export type BoutiqueLigne = {
   derniereConnexion: string | null;
 };
 
-const TON_PLAN = { ESSAI: "warning", PREMIUM: "success", ENTREPRISE: "info" } as const;
+const TON_PLAN = { ESSAI: "warning", ESSENTIEL: "info", PREMIUM: "success", ENTREPRISE: "info" } as const;
 
 function echeance(b: BoutiqueLigne): { texte: string; alerte: boolean } {
   const brut = b.plan === "ESSAI" ? b.essaiExpireLe : b.abonnementExpireLe;
@@ -115,6 +115,7 @@ export function StoresTable({ planInitial = "TOUS" }: { planInitial?: string }) 
         <Select value={plan} onChange={(e) => setPlan(e.target.value)} className="w-auto" aria-label="Formule">
           <option value="TOUS">Toutes les formules</option>
           <option value="ESSAI">Essai</option>
+          <option value="ESSENTIEL">Essentiel</option>
           <option value="PREMIUM">Premium</option>
           <option value="ENTREPRISE">Entreprise</option>
         </Select>
