@@ -37,12 +37,6 @@ export async function GET() {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
 
-  // Plafond de comptes de la formule. Vérifié ici et à l'acceptation de l'invitation : ce sont
-  // les deux seuls endroits où une ligne `users` naît.
-  const etatFormule = await etatBoutiqueCourante();
-  const plafond = await bloquerSiPlafondComptes(session.storeId, etatFormule?.plan ?? "ESSAI");
-  if (plafond) return plafond;
-
   const lignes = await db
     .select()
     .from(invitations)
@@ -76,6 +70,12 @@ export async function POST(request: Request) {
   if (!can(session.role, "parametres.utilisateurs")) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
+
+  // Plafond de comptes de la formule. Vérifié ici et à l'acceptation de l'invitation : ce sont
+  // les deux seuls endroits où une ligne `users` naît.
+  const etatFormule = await etatBoutiqueCourante();
+  const plafond = await bloquerSiPlafondComptes(session.storeId, etatFormule?.plan ?? "ESSAI");
+  if (plafond) return plafond;
 
   const parsed = schema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
