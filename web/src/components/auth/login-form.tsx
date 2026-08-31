@@ -4,9 +4,9 @@
 // configurée : le serveur en décide et le passe en propriété, pour qu'aucun identifiant OAuth
 // n'atteigne le navigateur.
 
-import { Suspense, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { useTranslations } from "@/lib/i18n/provider";
@@ -27,19 +27,17 @@ function messageGoogle(raison: string): string {
   }
 }
 
-export function LoginForm({ googleActif = false }: { googleActif?: boolean }) {
-  return (
-    <Suspense fallback={null}>
-      <Formulaire googleActif={googleActif} />
-    </Suspense>
-  );
-}
-
-function Formulaire({ googleActif }: { googleActif: boolean }) {
+export function LoginForm({
+  googleActif = false,
+  erreur = null,
+}: {
+  googleActif?: boolean;
+  /** Motif d'un retour Google qui n'a pas abouti, lu dans l'adresse par la page serveur. */
+  erreur?: string | null;
+}) {
   const { t } = useTranslations();
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const erreurExterne = searchParams.get("error");
+  const erreurExterne = erreur;
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
