@@ -367,10 +367,10 @@ export default async function VitrinePage() {
       <section id="tarifs" className="border-y border-border bg-card py-16">
         <div className="mx-auto w-full max-w-6xl px-4">
           <Reveal>
-            <h2 className="text-3xl font-extrabold tracking-tight">Un prix simple</h2>
+            <h2 className="text-3xl font-extrabold tracking-tight">Des formules claires</h2>
             <p className="mt-2 max-w-2xl text-muted-foreground">
-              15 jours pour essayer, sans carte bancaire. Ensuite, un abonnement unique qui donne accès à
-              tout, pour toute votre équipe.
+              15 jours pour essayer, sans carte bancaire et avec toutes les fonctionnalités. Ensuite, deux
+              formules selon vos besoins — et une troisième si vous gérez plusieurs boutiques.
             </p>
             <Pricing contact={contact} grille={grille} />
             <p className="mt-4 text-xs text-muted-foreground">

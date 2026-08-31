@@ -1,56 +1,89 @@
 "use client";
 
-// Bloc tarifs interactif : la période choisie met à jour le prix affiché, l'économie réalisée et
-// le coût ramené au mois — c'est la question que se pose un commerçant devant trois formules.
+// Bloc tarifs de la vitrine — même grille que l'écran Abonnement de l'application.
 //
-// Les montants ne sont plus écrits ici. Ils viennent de la grille tarifaire, modifiable depuis
-// l'administration, et sont passés en propriété : ce composant et l'écran Abonnement affichaient
-// auparavant deux copies du même prix, qui pouvaient diverger sans que rien ne le signale.
+// Trois colonnes, celle du milieu décollée et pleine, un pictogramme par formule, un prix
+// dominant, une liste cochée, un bouton pleine largeur en pilule. La structure est celle d'une
+// page tarifs classique ; les couleurs restent celles de NzilaBiz — émeraude sur crème, Manrope.
+//
+// Les montants ne sont plus écrits ici. Ils viennent de la grille tarifaire modifiable depuis
+// l'administration : ce composant et l'écran Abonnement affichaient auparavant deux copies du même
+// prix, qui pouvaient diverger sans que rien ne le signale.
 //
 // L'essai n'a plus sa colonne. Il ne s'oppose pas aux formules, il les précède toutes : en faire
 // une quatrième carte laissait croire qu'il fallait choisir entre « essai » et « premium », et
 // réduisait la place des offres réellement payantes.
 
-import { useState } from "react";
+import { useState, type ComponentType } from "react";
 import Link from "next/link";
-import { Check, Minus } from "lucide-react";
+import { ArrowRight, Building2, Check, Minus, Sparkles, Store } from "lucide-react";
 import { ContactSupport } from "@/components/contact-support";
 import type { ContactCommercial } from "@/lib/platform-settings";
 import { ARGUMENTAIRE } from "@/lib/formules";
-import { CYCLES, LIBELLE_CYCLE, MOIS_PAR_CYCLE, economiePourcent, type Cycle, type Grille } from "@/lib/tarifs";
+import {
+  CYCLES,
+  LIBELLE_CYCLE,
+  MOIS_PAR_CYCLE,
+  economiePourcent,
+  type Cycle,
+  type Grille,
+  type PlanTarife,
+} from "@/lib/tarifs";
 import { cn } from "@/lib/utils";
 
-function fcfa(montant: number) {
-  return `${Math.round(montant).toLocaleString("fr-FR").replace(/ | /g, " ")} FCFA`;
+const SUFFIXE: Record<Cycle, string> = { mensuel: "/ mois", trimestriel: "/ trimestre", annuel: "/ an" };
+
+const PLANS: PlanTarife[] = ["ESSENTIEL", "PREMIUM", "ENTREPRISE"];
+
+const LIBELLE_PLAN: Record<PlanTarife, string> = {
+  ESSENTIEL: "Essentiel",
+  PREMIUM: "Premium",
+  ENTREPRISE: "Entreprise",
+};
+
+const ICONE: Record<PlanTarife, ComponentType<{ size?: number; className?: string }>> = {
+  ESSENTIEL: Store,
+  PREMIUM: Sparkles,
+  ENTREPRISE: Building2,
+};
+
+function nombre(montant: number) {
+  return Math.round(montant).toLocaleString("fr-FR").replace(/ | /g, " ");
 }
 
-const SUFFIXE: Record<Cycle, string> = { mensuel: "/ mois", trimestriel: "/ trimestre", annuel: "/ an" };
+function Coche({ vedette }: { vedette: boolean }) {
+  return (
+    <span
+      className={cn(
+        "mt-px flex h-[19px] w-[19px] shrink-0 items-center justify-center rounded-md",
+        vedette ? "bg-white/25" : "bg-primary"
+      )}
+    >
+      <Check size={12} strokeWidth={3.5} className={vedette ? "text-white" : "text-primary-foreground"} />
+    </span>
+  );
+}
+
+function Croix({ vedette }: { vedette: boolean }) {
+  return (
+    <span
+      className={cn(
+        "mt-px flex h-[19px] w-[19px] shrink-0 items-center justify-center rounded-md",
+        vedette ? "bg-white/10" : "bg-muted"
+      )}
+    >
+      <Minus size={12} strokeWidth={3} className="opacity-70" />
+    </span>
+  );
+}
 
 export function Pricing({ contact, grille }: { contact: ContactCommercial; grille: Grille }) {
   const [periode, setPeriode] = useState<Cycle>("annuel");
 
-  const essentiel = grille.ESSENTIEL[periode];
-  const premium = grille.PREMIUM[periode];
-  const entreprise = grille.ENTREPRISE.annuel;
-
-  const detail = (montant: number | undefined) => {
-    if (!montant) return null;
-    if (periode === "mensuel") return "Sans engagement, résiliable à tout moment.";
-    const parMois = Math.round(montant / MOIS_PAR_CYCLE[periode]);
-    return (
-      <>
-        Soit <strong className="text-foreground">{fcfa(parMois)}</strong> par mois.
-      </>
-    );
-  };
-
   return (
     <>
-      <p className="mt-6 text-sm text-muted-foreground">
-        Toutes les formules commencent par <strong className="text-foreground">15 jours d&apos;essai gratuit</strong>,
-        sans carte bancaire, avec l&apos;ensemble des fonctionnalités.
-      </p>
-
+      {/* L'essai est annoncé par la section qui enveloppe ce bloc : le répéter ici faisait deux
+          fois la même phrase à trois lignes d'intervalle. */}
       <div className="mt-6 inline-flex rounded-full bg-muted p-1">
         {CYCLES.map((c) => {
           const remise = economiePourcent(grille, "PREMIUM", c);
@@ -82,110 +115,118 @@ export function Pricing({ contact, grille }: { contact: ContactCommercial; grill
         })}
       </div>
 
-      <div className="mt-8 grid gap-5 lg:grid-cols-3">
-        {/* Essentiel */}
-        <div className="rounded-xl border border-border bg-card p-6 transition-shadow hover:shadow-md">
-          <h3 className="text-lg font-bold">Essentiel</h3>
-          <p className="mt-1 text-3xl font-extrabold tabular-nums">
-            {essentiel ? (
-              <>
-                {fcfa(essentiel)}{" "}
-                <span className="text-base font-bold text-muted-foreground">{SUFFIXE[periode]}</span>
-              </>
-            ) : (
-              <span className="text-base font-bold text-muted-foreground">Non proposé sur cette période</span>
-            )}
-          </p>
-          <p className="min-h-10 text-sm text-muted-foreground">{detail(essentiel)}</p>
+      {/* La carte du milieu est décollée : il lui faut de la place au-dessus et en dessous. */}
+      <div className="mt-8 grid items-start gap-6 text-left lg:grid-cols-3 lg:gap-5 lg:py-4">
+        {PLANS.map((p) => {
+          const entreprise = p === "ENTREPRISE";
+          const montant = entreprise ? grille.ENTREPRISE.annuel : grille[p][periode];
+          const parMois = montant && !entreprise ? Math.round(montant / MOIS_PAR_CYCLE[periode]) : null;
+          const vedette = p === "PREMIUM";
+          const Icone = ICONE[p];
 
-          <ul className="mt-4 space-y-2 text-sm">
-            {ARGUMENTAIRE.ESSENTIEL.inclus.map((l) => (
-              <li key={l} className="flex gap-2">
-                <Check size={16} className="mt-0.5 shrink-0 text-primary" /> {l}
-              </li>
-            ))}
-            {/* Ce qui n'y est pas se dit aussi. Un commerçant qui découvre l'absence après avoir
-                payé se sent trompé, et il a raison. */}
-            {ARGUMENTAIRE.ESSENTIEL.exclus.map((l) => (
-              <li key={l} className="flex gap-2 text-muted-foreground">
-                <Minus size={16} className="mt-0.5 shrink-0" /> {l}
-              </li>
-            ))}
-          </ul>
+          return (
+            <article
+              key={p}
+              className={cn(
+                "relative flex flex-col rounded-2xl p-6 transition-shadow sm:p-7",
+                vedette
+                  ? "bg-primary text-primary-foreground shadow-xl lg:-translate-y-4"
+                  : "border border-border bg-card shadow-sm hover:shadow-md"
+              )}
+            >
+              {vedette ? (
+                <span className="mb-4 self-start rounded-full bg-white/20 px-3 py-1 text-xs font-bold text-white">
+                  Le plus choisi
+                </span>
+              ) : null}
 
-          <Link
-            href="/inscription"
-            className="mt-6 inline-flex h-11 w-full items-center justify-center rounded-lg border border-border text-sm font-bold transition-colors hover:bg-muted"
-          >
-            Commencer
-          </Link>
-        </div>
+              <div className="flex items-center gap-3">
+                <span
+                  className={cn(
+                    "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl",
+                    vedette ? "bg-white/15" : "bg-primary/10"
+                  )}
+                >
+                  <Icone size={20} className={vedette ? "text-white" : "text-primary"} />
+                </span>
+                <h3 className="text-xl font-extrabold">{LIBELLE_PLAN[p]}</h3>
+              </div>
 
-        {/* Premium */}
-        <div className="relative rounded-xl border-2 border-primary bg-card p-6 shadow-sm transition-transform duration-300 lg:-translate-y-2 lg:hover:-translate-y-3">
-          <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-bold text-primary">
-            Le plus choisi
-          </span>
-          <h3 className="mt-3 text-lg font-bold">Premium</h3>
-          <p className="mt-1 text-3xl font-extrabold tabular-nums">
-            {premium ? (
-              <>
-                {fcfa(premium)}{" "}
-                <span className="text-base font-bold text-muted-foreground">{SUFFIXE[periode]}</span>
-              </>
-            ) : (
-              <span className="text-base font-bold text-muted-foreground">Non proposé sur cette période</span>
-            )}
-          </p>
-          <p className="min-h-10 text-sm text-muted-foreground">{detail(premium)}</p>
+              <p className="mt-6 text-4xl font-extrabold tabular-nums">
+                {montant ? (
+                  <>
+                    {nombre(montant)}
+                    <span
+                      className={cn(
+                        "ml-1.5 text-base font-bold",
+                        vedette ? "text-white/70" : "text-muted-foreground"
+                      )}
+                    >
+                      FCFA {entreprise ? "/ an" : SUFFIXE[periode]}
+                    </span>
+                  </>
+                ) : (
+                  <span className={cn("text-base font-bold", vedette ? "text-white/70" : "text-muted-foreground")}>
+                    {entreprise ? "Sur devis" : "Non proposé sur cette période"}
+                  </span>
+                )}
+              </p>
 
-          <ul className="mt-4 space-y-2 text-sm">
-            {ARGUMENTAIRE.PREMIUM.inclus.map((l) => (
-              <li key={l} className="flex gap-2">
-                <Check size={16} className="mt-0.5 shrink-0 text-primary" /> {l}
-              </li>
-            ))}
-          </ul>
+              <p className={cn("mt-2 min-h-10 text-sm", vedette ? "text-white/75" : "text-muted-foreground")}>
+                {entreprise
+                  ? "À partir de — tarif sur devis selon le nombre de boutiques."
+                  : parMois && periode !== "mensuel"
+                    ? `Soit ${nombre(parMois)} FCFA par mois.`
+                    : ARGUMENTAIRE[p].resume}
+              </p>
 
-          <Link
-            href="/inscription"
-            className="mt-6 inline-flex h-11 w-full items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground transition-opacity hover:opacity-90"
-          >
-            Démarrer l&apos;essai
-          </Link>
-          <p className="mt-2 text-center text-xs text-muted-foreground">
-            Facturé après vos 15 jours d&apos;essai.
-          </p>
-        </div>
+              <hr className={cn("my-6 border-t", vedette ? "border-white/20" : "border-border")} />
 
-        {/* Entreprise */}
-        <div className="rounded-xl border border-border bg-card p-6 transition-shadow hover:shadow-md">
-          <h3 className="text-lg font-bold">Entreprise</h3>
-          <p className="mt-1 text-3xl font-extrabold tabular-nums">
-            {entreprise ? (
-              <>
-                {fcfa(entreprise)} <span className="text-base font-bold text-muted-foreground">/ an</span>
-              </>
-            ) : (
-              <span className="text-base font-bold text-muted-foreground">Sur devis</span>
-            )}
-          </p>
-          <p className="min-h-10 text-sm text-muted-foreground">
-            {entreprise ? "À partir de — tarif sur devis selon le nombre de boutiques." : "Tarif sur devis."}
-          </p>
+              <ul className="flex-1 space-y-3 text-sm">
+                {ARGUMENTAIRE[p].inclus.map((l) => (
+                  <li key={l} className="flex items-start gap-2.5">
+                    <Coche vedette={vedette} />
+                    <span className={vedette ? "font-medium" : ""}>{l}</span>
+                  </li>
+                ))}
+                {/* Ce qui n'y est pas se dit aussi. Un commerçant qui découvre l'absence après
+                    avoir payé se sent trompé, et il a raison. */}
+                {ARGUMENTAIRE[p].exclus.map((l) => (
+                  <li
+                    key={l}
+                    className={cn("flex items-start gap-2.5", vedette ? "text-white/60" : "text-muted-foreground")}
+                  >
+                    <Croix vedette={vedette} />
+                    <span>{l}</span>
+                  </li>
+                ))}
+              </ul>
 
-          <ul className="mt-4 space-y-2 text-sm">
-            {ARGUMENTAIRE.ENTREPRISE.inclus.map((l) => (
-              <li key={l} className="flex gap-2">
-                <Check size={16} className="mt-0.5 shrink-0 text-primary" /> {l}
-              </li>
-            ))}
-          </ul>
+              <div className="mt-7">
+                {entreprise ? (
+                  <ContactSupport contact={contact} sujet="Demande de formule Entreprise" />
+                ) : (
+                  <Link
+                    href="/inscription"
+                    className={cn(
+                      "flex h-12 w-full items-center justify-center gap-2 rounded-full text-sm font-bold transition-opacity hover:opacity-90",
+                      vedette ? "bg-white text-primary" : "bg-primary text-primary-foreground"
+                    )}
+                  >
+                    Démarrer l&apos;essai
+                    <ArrowRight size={16} />
+                  </Link>
+                )}
 
-          <div className="mt-6">
-            <ContactSupport contact={contact} sujet="Demande de formule Entreprise" />
-          </div>
-        </div>
+                <p
+                  className={cn("mt-3 text-center text-xs", vedette ? "text-white/70" : "text-muted-foreground")}
+                >
+                  {entreprise ? "Nous répondons dans la journée" : "Aucune carte bancaire demandée"}
+                </p>
+              </div>
+            </article>
+          );
+        })}
       </div>
     </>
   );

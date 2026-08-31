@@ -107,8 +107,12 @@ export function messageHorsFormule(fonctionnalite: Fonctionnalite): string {
 }
 
 /** Argumentaire des formules — la même liste alimente le site public et l'écran Abonnement. */
-export const ARGUMENTAIRE: Record<Exclude<Formule, "ESSAI">, { inclus: string[]; exclus: string[] }> = {
+export const ARGUMENTAIRE: Record<
+  Exclude<Formule, "ESSAI">,
+  { resume: string; inclus: string[]; exclus: string[] }
+> = {
   ESSENTIEL: {
+    resume: "Tout ce qu'il faut pour tenir sa boutique au jour le jour, sans rien de superflu.",
     inclus: [
       "Caisse et ventes illimitées",
       "Stock, réceptions et inventaire",
@@ -126,6 +130,7 @@ export const ARGUMENTAIRE: Record<Exclude<Formule, "ESSAI">, { inclus: string[];
     ],
   },
   PREMIUM: {
+    resume: "L'application entière, pour une boutique qui compte ses dépenses et facture ses clients.",
     inclus: [
       "Tout Essentiel, sans limite de comptes",
       "Dépenses et dépenses récurrentes",
@@ -137,6 +142,7 @@ export const ARGUMENTAIRE: Record<Exclude<Formule, "ESSAI">, { inclus: string[];
     exclus: [],
   },
   ENTREPRISE: {
+    resume: "Plusieurs boutiques, un seul compte, un seul abonnement et des chiffres consolidés.",
     inclus: [
       "Tout Premium",
       "Plusieurs boutiques sous un seul compte",

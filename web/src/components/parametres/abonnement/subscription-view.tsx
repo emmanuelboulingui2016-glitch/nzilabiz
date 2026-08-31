@@ -2,15 +2,29 @@
 
 // Écran Abonnement — ce que couvre la formule en cours, et ce que les autres apportent.
 //
+// La mise en page reprend la structure d'une grille tarifaire classique : trois colonnes, celle du
+// milieu mise en avant, un pictogramme par formule, un prix dominant, une liste cochée, un bouton
+// pleine largeur. Les couleurs, elles, restent celles de NzilaBiz — émeraude, forêt, crème,
+// Manrope : c'est la structure qui est reprise du modèle, pas sa palette bleue.
+//
 // Les montants viennent de la grille tarifaire modifiable depuis l'administration, et les listes
 // de fonctionnalités de `lib/formules.ts`, le fichier qui décide réellement de ce qui est ouvert.
-// C'était auparavant deux listes écrites à la main — ici et sur le site public — qu'aucun mécanisme
-// n'obligeait à correspondre à ce que l'application faisait vraiment.
+// C'étaient auparavant deux listes écrites à la main — ici et sur le site public — qu'aucun
+// mécanisme n'obligeait à correspondre à ce que l'application faisait vraiment.
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ComponentType } from "react";
 import Link from "next/link";
 import { differenceInCalendarDays } from "date-fns";
-import { Building2, Check, Minus, MessageCircle, Smartphone } from "lucide-react";
+import {
+  ArrowRight,
+  Building2,
+  Check,
+  MessageCircle,
+  Minus,
+  Smartphone,
+  Sparkles,
+  Store,
+} from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,9 +36,47 @@ import { CYCLES, LIBELLE_CYCLE, MOIS_PAR_CYCLE, type Cycle, type Grille, type Pl
 import { formatFcfa } from "@/lib/currency";
 import { cn } from "@/lib/utils";
 
-const SUFFIXE: Record<Cycle, string> = { mensuel: "par mois", trimestriel: "par trimestre", annuel: "par an" };
+const SUFFIXE: Record<Cycle, string> = { mensuel: "/ mois", trimestriel: "/ trimestre", annuel: "/ an" };
 
 const PLANS: PlanTarife[] = ["ESSENTIEL", "PREMIUM", "ENTREPRISE"];
+
+const ICONE: Record<PlanTarife, ComponentType<{ size?: number; className?: string }>> = {
+  ESSENTIEL: Store,
+  PREMIUM: Sparkles,
+  ENTREPRISE: Building2,
+};
+
+/** Montant sans le sigle : le « FCFA » est rendu à part, en plus petit, comme la périodicité. */
+function nombre(montant: number) {
+  return Math.round(montant).toLocaleString("fr-FR").replace(/ | /g, " ");
+}
+
+/** Coche du modèle : un carré plein, pas une simple icône — c'est ce qui donne le rythme visuel. */
+function Coche({ vedette }: { vedette: boolean }) {
+  return (
+    <span
+      className={cn(
+        "mt-px flex h-[19px] w-[19px] shrink-0 items-center justify-center rounded-md",
+        vedette ? "bg-white/25" : "bg-primary"
+      )}
+    >
+      <Check size={12} strokeWidth={3.5} className={vedette ? "text-white" : "text-primary-foreground"} />
+    </span>
+  );
+}
+
+function Croix({ vedette }: { vedette: boolean }) {
+  return (
+    <span
+      className={cn(
+        "mt-px flex h-[19px] w-[19px] shrink-0 items-center justify-center rounded-md",
+        vedette ? "bg-white/10" : "bg-muted"
+      )}
+    >
+      <Minus size={12} strokeWidth={3} className="opacity-70" />
+    </span>
+  );
+}
 
 export function SubscriptionView({
   plan,
@@ -64,7 +116,8 @@ export function SubscriptionView({
     );
 
   return (
-    <div className="space-y-4 pb-20 md:pb-0">
+    <div className="space-y-6 pb-20 md:pb-0">
+      {/* État de l'abonnement en cours */}
       <Card>
         <CardHeader>
           <CardTitle>Votre abonnement</CardTitle>
@@ -103,85 +156,136 @@ export function SubscriptionView({
         </CardContent>
       </Card>
 
-      <div className="inline-flex rounded-full bg-muted p-1">
-        {CYCLES.map((c) => (
-          <button
-            key={c}
-            onClick={() => setPeriode(c)}
-            aria-pressed={periode === c}
-            className={cn(
-              "rounded-full px-4 py-1.5 text-sm font-bold transition-colors",
-              periode === c ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground"
-            )}
-          >
-            {LIBELLE_CYCLE[c]}
-          </button>
-        ))}
+      {/* Titre + sélecteur de périodicité, centrés comme sur une page tarifs */}
+      <div className="text-center">
+        <h2 className="text-2xl font-extrabold sm:text-3xl">Nos formules</h2>
+        <p className="mx-auto mt-2 max-w-lg text-sm text-muted-foreground">
+          Changez de formule à tout moment. Vos données sont conservées dans tous les cas.
+        </p>
+
+        <div className="mt-5 inline-flex rounded-full bg-muted p-1">
+          {CYCLES.map((c) => (
+            <button
+              key={c}
+              onClick={() => setPeriode(c)}
+              aria-pressed={periode === c}
+              className={cn(
+                "rounded-full px-4 py-2 text-sm font-bold transition-colors sm:px-5",
+                periode === c
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {LIBELLE_CYCLE[c]}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-3">
+      {/* La carte du milieu est décollée : il faut de la place au-dessus et en dessous. */}
+      <div className="grid items-start gap-6 lg:grid-cols-3 lg:gap-5 lg:py-4">
         {PLANS.map((p) => {
           const actuel = plan === p;
           const entreprise = p === "ENTREPRISE";
           // Entreprise ne se propose qu'à l'année, sur devis : son prix dépend du nombre de boutiques.
           const montant = entreprise ? grille.ENTREPRISE.annuel : grille[p][periode];
           const parMois = montant && !entreprise ? Math.round(montant / MOIS_PAR_CYCLE[periode]) : null;
+          const vedette = p === "PREMIUM";
+          const Icone = ICONE[p];
 
           return (
-            <Card key={p} className={cn(actuel && "ring-2 ring-primary")}>
-              <CardHeader>
-                <div className="flex flex-wrap items-center gap-2">
-                  <CardTitle className="text-base font-semibold text-foreground">{LIBELLE_FORMULE[p]}</CardTitle>
-                  {actuel ? (
-                    <Badge tone="success" className="text-xs">
-                      Votre formule
-                    </Badge>
-                  ) : null}
-                </div>
-                <p className="mt-1 text-2xl font-extrabold tabular-nums">
-                  {montant ? (
-                    <>
-                      {formatFcfa(montant)}{" "}
-                      <span className="text-sm font-bold text-muted-foreground">
-                        {entreprise ? "par an" : SUFFIXE[periode]}
-                      </span>
-                    </>
-                  ) : (
-                    <span className="text-sm font-bold text-muted-foreground">
-                      {entreprise ? "Sur devis" : "Non proposé sur cette période"}
-                    </span>
+            <article
+              key={p}
+              className={cn(
+                "relative flex flex-col rounded-2xl p-6 transition-shadow sm:p-7",
+                vedette
+                  ? "bg-primary text-primary-foreground shadow-xl lg:-translate-y-4"
+                  : "border border-border bg-card shadow-sm hover:shadow-md",
+                actuel && !vedette && "ring-2 ring-primary"
+              )}
+            >
+              {(vedette || actuel) && (
+                <span
+                  className={cn(
+                    "mb-4 self-start rounded-full px-3 py-1 text-xs font-bold",
+                    vedette ? "bg-white/20 text-white" : "bg-primary/10 text-primary"
                   )}
-                </p>
-                <p className="min-h-8 text-xs text-muted-foreground">
-                  {entreprise
-                    ? "À partir de — selon le nombre de boutiques."
-                    : parMois && periode !== "mensuel"
-                      ? `Soit ${formatFcfa(parMois)} par mois.`
-                      : "Sans engagement."}
-                </p>
-              </CardHeader>
+                >
+                  {actuel ? "Votre formule" : "Le plus choisi"}
+                </span>
+              )}
 
-              <CardContent className="space-y-3">
-                <ul className="space-y-1.5 text-sm">
-                  {ARGUMENTAIRE[p].inclus.map((l) => (
-                    <li key={l} className="flex items-start gap-2">
-                      <Check size={15} className="mt-0.5 shrink-0 text-primary" />
-                      {l}
-                    </li>
-                  ))}
-                  {/* Ce qui n'est pas compris se dit aussi : un commerçant qui le découvre après
-                      avoir payé se sent trompé, et il a raison. */}
-                  {ARGUMENTAIRE[p].exclus.map((l) => (
-                    <li key={l} className="flex items-start gap-2 text-muted-foreground">
-                      <Minus size={15} className="mt-0.5 shrink-0" />
-                      {l}
-                    </li>
-                  ))}
-                </ul>
+              <div className="flex items-center gap-3">
+                <span
+                  className={cn(
+                    "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl",
+                    vedette ? "bg-white/15" : "bg-primary/10"
+                  )}
+                >
+                  <Icone size={20} className={vedette ? "text-white" : "text-primary"} />
+                </span>
+                <h3 className="text-xl font-extrabold">{LIBELLE_FORMULE[p]}</h3>
+              </div>
 
+              <p className="mt-6 text-4xl font-extrabold tabular-nums">
+                {montant ? (
+                  <>
+                    {nombre(montant)}
+                    <span
+                      className={cn(
+                        "ml-1.5 text-base font-bold",
+                        vedette ? "text-white/70" : "text-muted-foreground"
+                      )}
+                    >
+                      FCFA {entreprise ? "/ an" : SUFFIXE[periode]}
+                    </span>
+                  </>
+                ) : (
+                  <span className={cn("text-base font-bold", vedette ? "text-white/70" : "text-muted-foreground")}>
+                    {entreprise ? "Sur devis" : "Non proposé sur cette période"}
+                  </span>
+                )}
+              </p>
+
+              <p
+                className={cn(
+                  "mt-2 min-h-10 text-sm",
+                  vedette ? "text-white/75" : "text-muted-foreground"
+                )}
+              >
+                {entreprise
+                  ? "À partir de — selon le nombre de boutiques."
+                  : parMois && periode !== "mensuel"
+                    ? `Soit ${formatFcfa(parMois)} par mois.`
+                    : ARGUMENTAIRE[p].resume}
+              </p>
+
+              <hr className={cn("my-6 border-t", vedette ? "border-white/20" : "border-border")} />
+
+              <ul className="flex-1 space-y-3 text-sm">
+                {ARGUMENTAIRE[p].inclus.map((l) => (
+                  <li key={l} className="flex items-start gap-2.5">
+                    <Coche vedette={vedette} />
+                    <span className={vedette ? "font-medium" : ""}>{l}</span>
+                  </li>
+                ))}
+                {/* Ce qui n'est pas compris se dit aussi : un commerçant qui le découvre après
+                    avoir payé se sent trompé, et il a raison. */}
+                {ARGUMENTAIRE[p].exclus.map((l) => (
+                  <li
+                    key={l}
+                    className={cn("flex items-start gap-2.5", vedette ? "text-white/60" : "text-muted-foreground")}
+                  >
+                    <Croix vedette={vedette} />
+                    <span>{l}</span>
+                  </li>
+                ))}
+              </ul>
+
+              <div className="mt-7">
                 {actuel && entreprise ? (
                   <Link href="/boutiques" className="block">
-                    <Button size="sm" className="w-full">
+                    <Button className="h-12 w-full rounded-full text-sm font-bold">
                       <Building2 size={16} />
                       Gérer mes boutiques
                     </Button>
@@ -189,19 +293,37 @@ export function SubscriptionView({
                 ) : entreprise ? (
                   <ContactSupport contact={contact} sujet="Demande de formule Entreprise" />
                 ) : actuel ? (
-                  <p className="text-xs text-muted-foreground">C&apos;est la formule active sur cette boutique.</p>
+                  <p
+                    className={cn(
+                      "flex h-12 items-center justify-center rounded-full text-sm font-bold",
+                      vedette ? "bg-white/15 text-white" : "bg-muted text-muted-foreground"
+                    )}
+                  >
+                    Formule active
+                  </p>
                 ) : montant ? (
-                  <Button
-                    size="sm"
-                    variant={p === "PREMIUM" ? "primary" : "outline"}
-                    className="w-full"
+                  <button
                     onClick={() => setSouscription({ plan: p, montant })}
+                    className={cn(
+                      "flex h-12 w-full items-center justify-center gap-2 rounded-full text-sm font-bold transition-opacity hover:opacity-90",
+                      vedette ? "bg-white text-primary" : "bg-primary text-primary-foreground"
+                    )}
                   >
                     Choisir {LIBELLE_FORMULE[p]}
-                  </Button>
+                    <ArrowRight size={16} />
+                  </button>
                 ) : null}
-              </CardContent>
-            </Card>
+
+                <p
+                  className={cn(
+                    "mt-3 text-center text-xs",
+                    vedette ? "text-white/70" : "text-muted-foreground"
+                  )}
+                >
+                  {entreprise ? "Tarif sur devis, sans engagement" : "Sans engagement, résiliable à tout moment"}
+                </p>
+              </div>
+            </article>
           );
         })}
       </div>
