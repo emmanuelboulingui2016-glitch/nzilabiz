@@ -71,6 +71,13 @@
       "when": 1787217519967,
       "tag": "0009_romantic_changeling",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1788203357870,
+      "tag": "0010_peaceful_blonde_phantom",
+      "breakpoints": true
     }
   ]
 }

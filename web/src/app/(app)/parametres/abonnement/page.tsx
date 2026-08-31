@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth/session";
 import { can } from "@/lib/auth/rbac";
 import { db } from "@/db/client";
 import { stores } from "@/db/schema";
+import { getPlatformSettings, contactCommercial } from "@/lib/platform-settings";
 import { SubscriptionView } from "@/components/parametres/abonnement/subscription-view";
 
 // Onglet Abonnement — §14 + §16 du cahier des charges. Purement informatif côté données
@@ -23,11 +24,16 @@ export default async function AbonnementPage() {
   const store = await db.query.stores.findFirst({ where: eq(stores.id, session.storeId) });
   if (!store) redirect("/connexion");
 
+  // Enchaînée, jamais en parallèle : le pooler en mode transaction ne rend pas la main quand
+  // plusieurs requêtes partent ensemble depuis une même requête HTTP (voir README).
+  const reglages = await getPlatformSettings();
+
   return (
     <SubscriptionView
       plan={store.plan}
       essaiExpireLe={store.essaiExpireLe ? store.essaiExpireLe.toISOString() : null}
       abonnementExpireLe={store.abonnementExpireLe ? store.abonnementExpireLe.toISOString() : null}
+      contact={contactCommercial(reglages)}
     />
   );
 }

@@ -18,6 +18,7 @@ import {
   integer,
   uniqueIndex,
   index,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createId } from "@paralleldrive/cuid2";
@@ -71,9 +72,19 @@ export const stores = pgTable("stores", {
   // savoir qui prévenir quand le programme se termine.
   programmeTest: boolean("programme_test").notNull().default(false),
   abonnementExpireLe: timestamp("abonnement_expire_le"),
+  // Formule Entreprise : une boutique peut être rattachée à une « maison mère ». Le contrat
+  // d'abonnement est alors porté par la maison mère seule — c'est elle qu'on facture, et son
+  // échéance gouverne l'accès de toutes ses boutiques (voir `src/lib/abonnement.ts`).
+  //
+  // `set null` et non `cascade` : supprimer la maison mère ne doit jamais effacer les ventes,
+  // le stock et les clients des boutiques rattachées. Elles redeviennent indépendantes, avec
+  // leur propre plan — quitte à ce qu'un administrateur doive trancher ensuite.
+  maisonMereId: text("maison_mere_id").references((): AnyPgColumn => stores.id, { onDelete: "set null" }),
   noteBasFacture: text("note_bas_facture"),
   creeLe: timestamp("cree_le").notNull().defaultNow(),
-});
+}, (t) => ({
+  maisonMereIdx: index("stores_maison_mere_idx").on(t.maisonMereId),
+}));
 
 // ---------------------------------------------------------------------------
 // Utilisateurs & appareils
@@ -95,6 +106,29 @@ export const users = pgTable("users", {
   desactiveLe: timestamp("desactive_le"),
   creeLe: timestamp("cree_le").notNull().defaultNow(),
 });
+
+/**
+ * Accès d'un utilisateur à une boutique **autre que la sienne** — le socle du réseau Entreprise.
+ *
+ * `users.store_id` reste la boutique d'origine du compte, celle où il a été créé et où vivent ses
+ * ventes. Cette table n'y touche pas : elle ajoute des accès, elle n'en déplace aucun. Un compte
+ * sans aucune ligne ici se comporte exactement comme avant.
+ *
+ * Le rôle est porté par le rattachement, pas par le compte : un patron reste patron dans sa
+ * boutique d'origine même s'il n'est que gérant dans une autre. C'est ce rôle-là qui est inscrit
+ * dans la session au moment de basculer.
+ */
+export const storeMemberships = pgTable("store_memberships", {
+  id: id(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  storeId: text("store_id").notNull().references(() => stores.id, { onDelete: "cascade" }),
+  role: roleEnum("role").notNull().default("PATRON"),
+  creeLe: timestamp("cree_le").notNull().defaultNow(),
+}, (t) => ({
+  userStoreUnique: uniqueIndex("store_memberships_user_store_unique").on(t.userId, t.storeId),
+  userIdx: index("store_memberships_user_idx").on(t.userId),
+  storeIdx: index("store_memberships_store_idx").on(t.storeId),
+}));
 
 export const devices = pgTable("devices", {
   id: id(),

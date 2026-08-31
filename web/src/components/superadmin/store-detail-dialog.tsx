@@ -31,6 +31,11 @@ type Detail = {
     essaiExpireLe: string | null;
     abonnementExpireLe: string | null;
     programmeTest: boolean;
+    /** Réseau Entreprise : maison mère dont cette boutique dépend, le cas échéant. */
+    maisonMereId: string | null;
+    maisonMereNom: string | null;
+    /** Nombre de boutiques rattachées à celle-ci. */
+    boutiquesRattachees: number;
   };
   modules: {
     cle: string;
@@ -277,6 +282,23 @@ export function StoreDetailDialog({
 
           <div className="space-y-3 rounded-lg border border-border p-4">
             <p className="text-sm font-bold">Administration de l&apos;abonnement</p>
+
+            {/* Un réseau, un contrat : agir sur la mauvaise boutique n'aurait aucun effet, et
+                rien à l'écran ne le dirait. On l'annonce avant, plutôt que de refuser après. */}
+            {detail.boutique.maisonMereId ? (
+              <p className="rounded-lg border border-warning/40 bg-warning/5 p-3 text-xs text-foreground">
+                Boutique rattachée au réseau de{" "}
+                <strong>{detail.boutique.maisonMereNom ?? "sa maison mère"}</strong>. Son accès suit
+                l&apos;échéance de la maison mère : la formule et la prolongation se modifient là-bas.
+              </p>
+            ) : detail.boutique.boutiquesRattachees > 0 ? (
+              <p className="rounded-lg border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
+                Maison mère de {detail.boutique.boutiquesRattachees} boutique
+                {detail.boutique.boutiquesRattachees > 1 ? "s" : ""} rattachée
+                {detail.boutique.boutiquesRattachees > 1 ? "s" : ""}. Ce que vous modifiez ici s&apos;applique
+                à tout le réseau.
+              </p>
+            ) : null}
             <div className="flex flex-wrap items-end gap-2">
               <div className="min-w-40">
                 <Label htmlFor="sa-plan" className="text-xs">
@@ -296,7 +318,7 @@ export function StoreDetailDialog({
               <Button
                 size="sm"
                 variant="outline"
-                disabled={occupe || plan === detail.boutique.plan}
+                disabled={occupe || plan === detail.boutique.plan || detail.boutique.maisonMereId !== null}
                 onClick={() => appliquer({ plan }, "Formule mise à jour.")}
               >
                 Changer la formule
@@ -320,7 +342,7 @@ export function StoreDetailDialog({
               </div>
               <Button
                 size="sm"
-                disabled={occupe || !jours}
+                disabled={occupe || !jours || detail.boutique.maisonMereId !== null}
                 onClick={() => appliquer({ prolongerJours: Number(jours) }, `Échéance prolongée de ${jours} jours.`)}
               >
                 Prolonger

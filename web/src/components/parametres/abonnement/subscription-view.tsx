@@ -1,12 +1,15 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { differenceInCalendarDays } from "date-fns";
-import { CheckCircle2, MessageCircle, Smartphone } from "lucide-react";
+import { Building2, CheckCircle2, MessageCircle, Smartphone } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
+import { ContactSupport, lienWhatsapp } from "@/components/contact-support";
+import type { ContactCommercial } from "@/lib/platform-settings";
 import { formatFcfa } from "@/lib/currency";
 import { cn } from "@/lib/utils";
 
@@ -17,12 +20,6 @@ const PLAN_LABEL: Record<Plan, string> = {
   PREMIUM: "Premium",
   ENTREPRISE: "Entreprise",
 };
-
-const WHATSAPP_BASE = "https://wa.me/?text=";
-
-function waLink(message: string) {
-  return `${WHATSAPP_BASE}${encodeURIComponent(message)}`;
-}
 
 type Cycle = "mensuel" | "trimestriel" | "annuel";
 
@@ -42,10 +39,12 @@ export function SubscriptionView({
   plan,
   essaiExpireLe,
   abonnementExpireLe,
+  contact,
 }: {
   plan: Plan;
   essaiExpireLe: string | null;
   abonnementExpireLe: string | null;
+  contact: ContactCommercial;
 }) {
   const [chooseCycle, setChooseCycle] = useState<Cycle | null>(null);
   const [mobileMoneyStub, setMobileMoneyStub] = useState<{ cycle: Cycle } | null>(null);
@@ -57,6 +56,18 @@ export function SubscriptionView({
   }, [expiryDate]);
 
   const planTone = plan === "PREMIUM" ? "success" : plan === "ENTREPRISE" ? "info" : "warning";
+
+  // Le lien WhatsApp portait un message mais aucun destinataire : `wa.me` sans numéro ouvre le
+  // sélecteur de contacts du téléphone, et le commerçant se retrouvait à devoir deviner à qui
+  // écrire. Le numéro vient désormais des réglages de la plateforme ; sans numéro publié, on
+  // propose les autres coordonnées plutôt qu'un bouton qui ne mène nulle part.
+  const whatsappPremium = (cycle: Cycle) =>
+    lienWhatsapp(
+      contact,
+      `Bonjour, je souhaite souscrire au plan Premium NzilaBiz (${CYCLE_LABEL[cycle]}, ${formatFcfa(
+        CYCLE_AMOUNT[cycle]
+      )}). Pouvez-vous m'aider à finaliser le paiement ?`
+    );
 
   return (
     <div className="space-y-4 pb-20 md:pb-0">
@@ -128,12 +139,17 @@ export function SubscriptionView({
           <CardContent className="space-y-3">
             <p className="text-sm font-medium">À partir de {formatFcfa(700000)} / an</p>
             <p className="text-xs text-muted-foreground">Tarif sur devis selon le nombre de boutiques et de volumes.</p>
-            <a
-              href="mailto:contact@nzilabiz.com?subject=Demande%20plan%20Entreprise"
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-border px-4 text-sm font-medium hover:bg-muted"
-            >
-              Nous contacter
-            </a>
+            {plan === "ENTREPRISE" ? (
+              <Link
+                href="/boutiques"
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-bold text-primary-foreground hover:brightness-95"
+              >
+                <Building2 size={16} />
+                Gérer mes boutiques
+              </Link>
+            ) : (
+              <ContactSupport contact={contact} sujet="Demande de formule Entreprise" />
+            )}
           </CardContent>
         </Card>
       </div>
@@ -162,19 +178,19 @@ export function SubscriptionView({
                 <Smartphone size={16} />
                 Payer par Mobile Money
               </Button>
-              <a
-                href={waLink(
-                  `Bonjour, je souhaite souscrire au plan Premium NzilaBiz (${CYCLE_LABEL[chooseCycle]}, ${formatFcfa(
-                    CYCLE_AMOUNT[chooseCycle]
-                  )}). Pouvez-vous m'aider à finaliser le paiement ?`
-                )}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex h-10 items-center justify-start gap-2 rounded-lg border border-border px-4 text-sm font-medium hover:bg-muted"
-              >
-                <MessageCircle size={16} />
-                Nous contacter via WhatsApp
-              </a>
+              {whatsappPremium(chooseCycle) ? (
+                <a
+                  href={whatsappPremium(chooseCycle)!}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex h-10 items-center justify-start gap-2 rounded-lg border border-border px-4 text-sm font-medium hover:bg-muted"
+                >
+                  <MessageCircle size={16} />
+                  Nous contacter via WhatsApp
+                </a>
+              ) : (
+                <ContactSupport contact={contact} sujet="Souscription à la formule Premium" />
+              )}
             </div>
           </div>
         )}
@@ -193,19 +209,19 @@ export function SubscriptionView({
               équivalent) seront configurés — contactez le support pour l&apos;instant. Aucun paiement n&apos;a été
               effectué.
             </p>
-            <a
-              href={waLink(
-                `Bonjour, je souhaite payer mon abonnement Premium NzilaBiz par Mobile Money (${
-                  CYCLE_LABEL[mobileMoneyStub.cycle]
-                }, ${formatFcfa(CYCLE_AMOUNT[mobileMoneyStub.cycle])}).`
-              )}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex h-10 items-center justify-start gap-2 rounded-lg border border-border px-4 text-sm font-medium hover:bg-muted"
-            >
-              <MessageCircle size={16} />
-              Nous contacter via WhatsApp en attendant
-            </a>
+            {whatsappPremium(mobileMoneyStub.cycle) ? (
+              <a
+                href={whatsappPremium(mobileMoneyStub.cycle)!}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex h-10 items-center justify-start gap-2 rounded-lg border border-border px-4 text-sm font-medium hover:bg-muted"
+              >
+                <MessageCircle size={16} />
+                Nous contacter via WhatsApp en attendant
+              </a>
+            ) : (
+              <ContactSupport contact={contact} sujet="Paiement de l'abonnement Premium" />
+            )}
           </div>
         )}
       </Dialog>

@@ -99,6 +99,17 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const nb = (k: string) => Number(u[k] ?? 0);
   const quand = (k: string) => (u[k] ? new Date(u[k] as string).toISOString() : null);
 
+  // Réseau Entreprise : cette boutique est-elle rattachée à une maison mère, ou en porte-t-elle ?
+  // L'information change ce que l'administration a le droit de modifier ici, elle ne peut pas être
+  // laissée de côté.
+  const maisonMere = boutique.maisonMereId
+    ? await db.query.stores.findFirst({ where: eq(stores.id, boutique.maisonMereId), columns: { nom: true } })
+    : null;
+  const [compte] = await db.execute<Record<string, unknown>>(sql`
+    select count(*)::int as total from stores where maison_mere_id = ${id}
+  `);
+  const rattachees = Number(compte?.total ?? 0);
+
   const modules = [
     { cle: "vente", libelle: "Caisse et ventes", volume: nb("ventes_nb"),
       detail: `${nb("ventes_annulees")} annulée(s)`, dernier: quand("ventes_dernier") },
@@ -139,6 +150,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       essaiExpireLe: boutique.essaiExpireLe?.toISOString() ?? null,
       abonnementExpireLe: boutique.abonnementExpireLe?.toISOString() ?? null,
       programmeTest: boutique.programmeTest,
+      maisonMereId: boutique.maisonMereId,
+      maisonMereNom: maisonMere?.nom ?? null,
+      boutiquesRattachees: rattachees,
     },
     modules,
     equipe: equipe.map((u) => ({
@@ -185,6 +199,24 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const parsed = patchSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Requête invalide" }, { status: 400 });
+  }
+
+  // Une boutique rattachée ne porte pas son contrat : son accès est gouverné par l'échéance de sa
+  // maison mère (voir `src/lib/abonnement.ts`). Changer sa formule ou prolonger sa date écrirait
+  // dans des colonnes que plus personne ne lit — l'administration croirait avoir agi, et la
+  // boutique resterait bloquée. On refuse en désignant l'endroit où l'action a un effet.
+  if (boutique.maisonMereId) {
+    const mere = await db.query.stores.findFirst({
+      where: eq(stores.id, boutique.maisonMereId),
+      columns: { nom: true },
+    });
+    return NextResponse.json(
+      {
+        error: `Cette boutique appartient au réseau de « ${mere?.nom ?? "sa maison mère"} ». L'abonnement se modifie sur la maison mère, qui porte le contrat de tout le réseau.`,
+        code: "BOUTIQUE_RATTACHEE",
+      },
+      { status: 409 }
+    );
   }
 
   const planCible = parsed.data.plan ?? boutique.plan;

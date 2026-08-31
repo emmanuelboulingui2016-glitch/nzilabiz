@@ -1,6 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import {
   BarChart3,
+  Building2,
   FileText,
   HandCoins,
   LayoutDashboard,
@@ -54,6 +55,7 @@ export const NAV_SECTIONS: NavSection[] = [
     icon: Store,
     items: [
       { href: "/stock", labelKey: "nav.stock", permission: "stock.view", icon: Package },
+      { href: "/boutiques", labelKey: "nav.boutiques", permission: "boutiques.reseau", icon: Building2 },
       { href: "/depenses", labelKey: "nav.depenses", permission: "depenses.view", icon: Wallet },
       { href: "/synchronisation", labelKey: "nav.synchronisation", permission: "synchronisation.view", icon: RefreshCw },
     ],

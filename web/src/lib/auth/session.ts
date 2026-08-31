@@ -64,8 +64,15 @@ export async function clearSessionCookie() {
  * Un téléphone volé gardait ainsi l'accès à la boutique pendant un mois, avec un écran affirmant
  * le contraire.
  *
+ * Depuis le réseau Entreprise, cette vérification porte aussi sur la **boutique** inscrite dans le
+ * jeton. Un compte peut basculer d'une boutique à l'autre, et la bascule réécrit `storeId` dans le
+ * jeton ; sans relecture, un rattachement retiré ensuite laisserait ce jeton ouvrir la boutique
+ * pendant trente jours encore. La boutique d'origine du compte (`users.store_id`) et ses
+ * rattachements (`store_memberships`) sont donc les seules valeurs acceptées.
+ *
  * Coût : une lecture indexée par requête HTTP, dédupliquée par `cache()` — les composants serveur
- * appellent `getSession()` plusieurs fois par page, la base n'est interrogée qu'une.
+ * appellent `getSession()` plusieurs fois par page, la base n'est interrogée qu'une. Le contrôle de
+ * boutique tient dans la même instruction : aucun aller-retour supplémentaire.
  *
  * En cas de panne de base, on laisse passer plutôt que de déconnecter tout le monde : c'est le
  * choix déjà retenu pour la limitation de débit. Une base indisponible ne permet de toute façon
@@ -78,6 +85,10 @@ async function accesRevoque(p: SessionPayload): Promise<boolean> {
         ? sql`
             select
               (u.desactive_le is not null) as compte_ferme,
+              (u.store_id <> ${p.storeId} and not exists (
+                select 1 from store_memberships m
+                where m.user_id = u.id and m.store_id = ${p.storeId}
+              )) as boutique_hors_acces,
               not exists (
                 select 1 from devices d
                 where d.id = ${p.deviceId} and d.user_id = u.id and d.revoque = false
@@ -86,14 +97,24 @@ async function accesRevoque(p: SessionPayload): Promise<boolean> {
             where u.id = ${p.userId}
           `
         : sql`
-            select (u.desactive_le is not null) as compte_ferme, false as appareil_hors_service
+            select
+              (u.desactive_le is not null) as compte_ferme,
+              (u.store_id <> ${p.storeId} and not exists (
+                select 1 from store_memberships m
+                where m.user_id = u.id and m.store_id = ${p.storeId}
+              )) as boutique_hors_acces,
+              false as appareil_hors_service
             from users u
             where u.id = ${p.userId}
           `
     );
     // Aucune ligne : le compte a été supprimé avec sa boutique (suppression en cascade).
     if (!ligne) return true;
-    return Boolean(ligne.compte_ferme) || Boolean(ligne.appareil_hors_service);
+    return (
+      Boolean(ligne.compte_ferme) ||
+      Boolean(ligne.boutique_hors_acces) ||
+      Boolean(ligne.appareil_hors_service)
+    );
   } catch (e) {
     console.error("session : vérification de révocation impossible —", e instanceof Error ? e.message : e);
     return false;

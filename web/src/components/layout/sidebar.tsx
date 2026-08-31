@@ -9,6 +9,7 @@ import { useTranslations } from "@/lib/i18n/provider";
 import { can, type Permission, type Role } from "@/lib/auth/rbac";
 import { cn } from "@/lib/utils";
 import { LogOut, PanelLeftClose, PanelLeftOpen, Settings, ShieldCheck } from "lucide-react";
+import { SelecteurBoutique, type BoutiqueOption } from "./selecteur-boutique";
 
 // Le menu replié laisse les icônes visibles : sur un petit écran de portable (fréquent en
 // boutique), ça rend une bonne moitié de la largeur à l'écran de caisse sans perdre la
@@ -21,16 +22,21 @@ export function Sidebar({
   storeName,
   superAdmin = false,
   onLogout,
+  boutiques = [],
+  boutiqueActiveId,
 }: {
   role: Role;
   userName: string;
   storeName: string;
   superAdmin?: boolean;
   onLogout: () => void;
+  boutiques?: BoutiqueOption[];
+  boutiqueActiveId?: string;
 }) {
   const pathname = usePathname();
   const { t } = useTranslations();
   const [collapsed, setCollapsed] = useState(false);
+  const reseau = boutiques.length > 1;
 
   // Lu après le montage (et non à l'initialisation) : le serveur ne connaît pas localStorage,
   // le lire trop tôt provoquerait une erreur d'hydratation.
@@ -54,7 +60,11 @@ export function Sidebar({
       )}
     >
       <div className={cn("flex items-center gap-2 px-4 py-5", collapsed && "flex-col gap-3 px-2")}>
-        <Link href="/dashboard" className="flex min-w-0 items-center gap-2" title={storeName || "NzilaBiz"}>
+        <Link
+          href="/dashboard"
+          className={cn("flex min-w-0 items-center gap-2", !collapsed && !reseau && "flex-1")}
+          title={storeName || "NzilaBiz"}
+        >
           <Image
             src="/brand/nzilabiz-icone-transparent.png"
             alt="NzilaBiz"
@@ -62,8 +72,15 @@ export function Sidebar({
             height={32}
             className="shrink-0"
           />
-          {collapsed ? null : <span className="truncate text-lg font-extrabold">{storeName || "NzilaBiz"}</span>}
+          {collapsed || reseau ? null : (
+            <span className="truncate text-lg font-extrabold">{storeName || "NzilaBiz"}</span>
+          )}
         </Link>
+        {/* Le sélecteur ne remplace le nom que lorsqu'il y a réellement plusieurs boutiques :
+            une flèche dépliante sur une liste d'un seul élément n'apporte rien. */}
+        {!collapsed && reseau && boutiqueActiveId ? (
+          <SelecteurBoutique boutiques={boutiques} activeId={boutiqueActiveId} />
+        ) : null}
         <button
           onClick={toggle}
           aria-label={collapsed ? t("nav.expandMenu") : t("nav.collapseMenu")}

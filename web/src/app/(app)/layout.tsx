@@ -1,25 +1,14 @@
 import { redirect } from "next/navigation";
-import { eq } from "drizzle-orm";
 import { getSession } from "@/lib/auth/session";
 import { isSuperAdminEmail } from "@/lib/auth/superadmin";
 import { getPlatformSettings } from "@/lib/platform-settings";
-import { db } from "@/db/client";
-import { stores } from "@/db/schema";
 import { AppShell } from "@/components/layout/app-shell";
 import { etatBoutiqueCourante } from "@/lib/abonnement";
+import { boutiquesAccessibles } from "@/lib/reseau";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
   if (!session) redirect("/connexion");
-
-  // Enchaînées, jamais en parallèle : le pooler en mode transaction ne rend pas la main quand
-  // plusieurs requêtes partent ensemble depuis une même requête HTTP (voir README).
-  // Seul le nom est lu : la ligne complète embarque `logo_url`, une image entière en base64, et
-  // ce calque s'exécute au-dessus de chaque page de l'application.
-  const store = await db.query.stores.findFirst({
-    where: eq(stores.id, session.storeId),
-    columns: { nom: true },
-  });
 
   // Échéance dépassée : redirection vers /abonnement-expire, page située hors de ce calque.
   //
@@ -34,13 +23,25 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const etat = await etatBoutiqueCourante();
   if (etat && !etat.actif) redirect("/abonnement-expire");
 
+  // Enchaînées, jamais en parallèle : le pooler en mode transaction ne rend pas la main quand
+  // plusieurs requêtes partent ensemble depuis une même requête HTTP (voir README).
+  //
+  // Cette lecture remplace celle du seul nom de la boutique et coûte le même aller-retour : elle
+  // renvoie les boutiques accessibles au compte — une seule dans le cas courant. Ne sont lus que
+  // l'identifiant et le nom : la ligne complète embarque `logo_url`, une image entière en base64,
+  // et ce calque s'exécute au-dessus de chaque page de l'application.
+  const boutiques = await boutiquesAccessibles(session.userId);
+  const boutiqueActive = boutiques.find((b) => b.id === session.storeId);
+
   const reglages = await getPlatformSettings();
 
   return (
     <AppShell
       role={session.role}
       userName={session.nom}
-      storeName={store?.nom ?? "NzilaBiz"}
+      storeName={boutiqueActive?.nom ?? "NzilaBiz"}
+      boutiques={boutiques.map((b) => ({ id: b.id, nom: b.nom }))}
+      boutiqueActiveId={session.storeId}
       superAdmin={isSuperAdminEmail(session.email)}
       annonce={reglages.annonceActive ? reglages.annonce : null}
     >

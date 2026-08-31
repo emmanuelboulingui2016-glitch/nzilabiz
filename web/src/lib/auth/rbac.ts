@@ -25,6 +25,7 @@ export type Permission =
   | "documents.view"
   | "documents.edit"
   | "rapports.view"
+  | "boutiques.reseau"
   | "parametres.boutique"
   | "parametres.abonnement"
   | "parametres.utilisateurs"
@@ -54,6 +55,9 @@ const MATRIX: Record<Role, Permission[]> = {
     "documents.view",
     "documents.edit",
     "rapports.view",
+    // Le réseau de boutiques engage le contrat : un gérant administre sa boutique, il n'en ouvre
+    // pas de nouvelle au nom du patron.
+    "boutiques.reseau",
     "parametres.boutique",
     "parametres.abonnement",
     "parametres.utilisateurs",

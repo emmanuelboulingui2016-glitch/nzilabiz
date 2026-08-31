@@ -7,6 +7,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Check } from "lucide-react";
+import { ContactSupport } from "@/components/contact-support";
+import type { ContactCommercial } from "@/lib/platform-settings";
 import { cn } from "@/lib/utils";
 
 type Periode = "mensuel" | "trimestriel" | "annuel";
@@ -32,7 +34,7 @@ function fcfa(montant: number) {
   return `${Math.round(montant).toLocaleString("fr-FR").replace(/ | /g, " ")} FCFA`;
 }
 
-export function Pricing() {
+export function Pricing({ contact }: { contact: ContactCommercial }) {
   const [periode, setPeriode] = useState<Periode>("annuel");
   const offre = OFFRES[periode];
 
@@ -140,7 +142,8 @@ export function Pricing() {
           <p className="text-sm text-muted-foreground">À partir de — tarif sur devis</p>
           <ul className="mt-4 space-y-2 text-sm">
             {[
-              "Gestion multi-boutiques",
+              "Plusieurs boutiques sous un seul compte",
+              "Chiffres consolidés sur tout le réseau",
               "Utilisateurs illimités",
               "Support dédié",
               "Formation des équipes incluse",
@@ -150,12 +153,9 @@ export function Pricing() {
               </li>
             ))}
           </ul>
-          <a
-            href="mailto:contact@nzilabiz.com?subject=Demande%20plan%20Entreprise"
-            className="mt-6 inline-flex h-11 w-full items-center justify-center rounded-lg border border-border text-sm font-bold transition-colors hover:bg-muted"
-          >
-            Nous contacter
-          </a>
+          <div className="mt-6">
+            <ContactSupport contact={contact} sujet="Demande de formule Entreprise" />
+          </div>
         </div>
       </div>
     </>

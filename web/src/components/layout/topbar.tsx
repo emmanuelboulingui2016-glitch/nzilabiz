@@ -9,6 +9,7 @@ import { useTheme } from "@/lib/theme-provider";
 import { useOnlineStatus } from "@/lib/use-online-status";
 import { LOCALES, LOCALE_LABELS } from "@/lib/i18n/config";
 import { cn } from "@/lib/utils";
+import { SelecteurBoutique, type BoutiqueOption } from "./selecteur-boutique";
 
 type Resultat = {
   type: "produit" | "client" | "vente";
@@ -34,7 +35,13 @@ const TON_ALERTE = {
   info: "border-primary/40 bg-primary/5",
 } as const;
 
-export function Topbar() {
+export function Topbar({
+  boutiques = [],
+  boutiqueActiveId,
+}: {
+  boutiques?: BoutiqueOption[];
+  boutiqueActiveId?: string;
+}) {
   const { t, locale, setLocale } = useTranslations();
   const { theme, toggle } = useTheme();
   const online = useOnlineStatus();
@@ -108,6 +115,14 @@ export function Topbar() {
 
   return (
     <header className="flex h-16 items-center gap-3 border-b border-border bg-card px-4">
+      {/* La barre latérale est masquée sous 768 px. Sans ce rappel, un commerçant en réseau ne
+          pourrait pas changer de boutique depuis son téléphone — c'est-à-dire presque jamais. */}
+      {boutiques.length > 1 && boutiqueActiveId ? (
+        <div className="md:hidden">
+          <SelecteurBoutique boutiques={boutiques} activeId={boutiqueActiveId} variante="compact" />
+        </div>
+      ) : null}
+
       <div ref={rechercheRef} className="relative flex-1 max-w-md">
         <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
         <input
