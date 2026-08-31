@@ -7,7 +7,6 @@ import { db } from "@/db/client";
 import { stores } from "@/db/schema";
 import { AppShell } from "@/components/layout/app-shell";
 import { etatBoutiqueCourante } from "@/lib/abonnement";
-import { EcranBlocage } from "@/components/abonnement/ecran-blocage";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
@@ -22,16 +21,18 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     columns: { nom: true },
   });
 
-  // Échéance dépassée : on rend l'écran de blocage à la place de l'application. Remplacer les
-  // enfants plutôt que rediriger — un calque ne connaît pas le chemin courant, et rediriger vers une
-  // page située sous ce même calque tournerait en boucle.
+  // Échéance dépassée : redirection vers /abonnement-expire, page située hors de ce calque.
+  //
+  // Rendre l'écran de blocage ici, à la place de `{children}`, ne suffisait pas : Next.js rend la
+  // page en parallèle du calque, et ne pas l'afficher ne l'empêche ni de s'exécuter, ni de déposer
+  // ses résultats dans la charge envoyée au navigateur. Le contrôle a montré les chiffres d'affaires
+  // d'une boutique bloquée présents dans le HTML. `redirect()` interrompt le rendu ; c'est la seule
+  // façon de garantir qu'aucune donnée ne parte.
   //
   // Ne bloque jamais un administrateur de la plateforme ni une boutique du programme de test : la
   // règle est dans `etatBoutiqueCourante`, pas ici, pour qu'aucun appelant ne puisse l'oublier.
   const etat = await etatBoutiqueCourante();
-  if (etat && !etat.actif) {
-    return <EcranBlocage etat={etat} nomBoutique={store?.nom ?? "votre boutique"} />;
-  }
+  if (etat && !etat.actif) redirect("/abonnement-expire");
 
   const reglages = await getPlatformSettings();
 
