@@ -14,7 +14,6 @@ const TABS: { href: string; label: string; permission?: Permission }[] = [
   { href: "/parametres/utilisateurs", label: "Utilisateurs", permission: "parametres.utilisateurs" },
   { href: "/parametres/securite", label: "Sécurité & connexion", permission: "parametres.securite" },
   { href: "/parametres/notifications", label: "Notifications", permission: "parametres.notifications" },
-  { href: "/parametres/mobile-money", label: "Mobile Money", permission: "parametres.mobilemoney" },
   { href: "/parametres/synchronisation", label: "Synchronisation", permission: "parametres.synchronisation" },
   { href: "/parametres/compte", label: "Mon compte" },
   { href: "/parametres/aide", label: "Aide & support" },

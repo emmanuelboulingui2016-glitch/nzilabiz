@@ -32,7 +32,6 @@ export type Permission =
   | "parametres.securite"
   | "parametres.notifications"
   | "parametres.devise"
-  | "parametres.mobilemoney"
   | "parametres.synchronisation"
   | "approbations.decider";
 
@@ -64,7 +63,6 @@ const MATRIX: Record<Role, Permission[]> = {
     "parametres.securite",
     "parametres.notifications",
     "parametres.devise",
-    "parametres.mobilemoney",
     "parametres.synchronisation",
     "approbations.decider",
   ],

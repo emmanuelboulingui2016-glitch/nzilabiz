@@ -36,7 +36,6 @@ export type Fonctionnalite =
   | "documents"
   | "rapports"
   | "devise"
-  | "mobilemoney"
   | "reseau";
 
 export const LIBELLE_FONCTIONNALITE: Record<Fonctionnalite, string> = {
@@ -44,7 +43,6 @@ export const LIBELLE_FONCTIONNALITE: Record<Fonctionnalite, string> = {
   documents: "Les factures et proformas",
   rapports: "Les rapports et exports",
   devise: "Le changement de devise",
-  mobilemoney: "La configuration Mobile Money",
   reseau: "La gestion de plusieurs boutiques",
 };
 
@@ -60,7 +58,6 @@ const TOUT: Fonctionnalite[] = [
   "documents",
   "rapports",
   "devise",
-  "mobilemoney",
 ];
 
 const INCLUS: Record<Formule, Fonctionnalite[]> = {
@@ -126,7 +123,7 @@ export const ARGUMENTAIRE: Record<
       "Dépenses",
       "Factures et proformas",
       "Rapports et exports PDF/CSV",
-      "Multi-devise et configuration Mobile Money",
+      "Changement de devise",
     ],
   },
   PREMIUM: {
@@ -136,7 +133,7 @@ export const ARGUMENTAIRE: Record<
       "Dépenses et dépenses récurrentes",
       "Factures, proformas et remboursements",
       "Rapports avancés et exports PDF/CSV",
-      "Multi-devise et configuration Mobile Money",
+      "Changement de devise",
       "Support prioritaire WhatsApp",
     ],
     exclus: [],

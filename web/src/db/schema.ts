@@ -353,24 +353,6 @@ export const notificationSettings = pgTable("notification_settings", {
   remiseSeuilApprobation: money("remise_seuil_approbation").notNull().default("0"),
 });
 
-// Configuration Mobile Money de la boutique (§16). Partagée par tous les appareils de la
-// boutique — elle vivait auparavant dans le localStorage du navigateur, donc perdue au moindre
-// changement d'appareil et invisible pour les autres utilisateurs.
-//
-// La clé API de l'agrégateur est stockée ici mais n'est JAMAIS renvoyée en clair par l'API :
-// seuls sa présence et ses 4 derniers caractères remontent au navigateur.
-export const mobileMoneySettings = pgTable("mobile_money_settings", {
-  id: id(),
-  storeId: text("store_id").notNull().unique().references(() => stores.id, { onDelete: "cascade" }),
-  operateurPrioritaire: text("operateur_prioritaire").notNull().default("AIRTEL_MONEY"),
-  numeroMarchandAirtel: text("numero_marchand_airtel"),
-  numeroMarchandMoov: text("numero_marchand_moov"),
-  agregateurSiteId: text("agregateur_site_id"),
-  agregateurApiKey: text("agregateur_api_key"),
-  modeProduction: boolean("mode_production").notNull().default(false),
-  misAJourLe: timestamp("mis_a_jour_le").notNull().defaultNow(),
-});
-
 // ---------------------------------------------------------------------------
 // Tarifs des formules
 // ---------------------------------------------------------------------------
@@ -593,7 +575,6 @@ export const storesRelations = relations(stores, ({ many, one }) => ({
   notifications: many(notifications),
   syncLogs: many(syncLogs),
   notificationSettings: one(notificationSettings),
-  mobileMoneySettings: one(mobileMoneySettings),
 }));
 
 export const usersRelations = relations(users, ({ one, many }) => ({

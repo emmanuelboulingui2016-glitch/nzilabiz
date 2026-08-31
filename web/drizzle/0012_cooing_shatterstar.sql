@@ -1,0 +1,1 @@
+DROP TABLE "mobile_money_settings" CASCADE;
