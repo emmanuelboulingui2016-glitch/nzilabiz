@@ -20,7 +20,13 @@ export type SessionPayload = {
   storeId: string;
   role: "PATRON" | "GERANT" | "VENDEUR";
   deviceId?: string;
-  email: string;
+  /**
+   * `null` pour un employé qui se connecte par téléphone : la plupart des vendeurs n'ont pas
+   * d'adresse. `isSuperAdminEmail` traite déjà `null` comme « pas administrateur », ce qui est la
+   * réponse voulue — un compte sans adresse ne peut pas être celui d'un administrateur de la
+   * plateforme, dont la liste est faite d'adresses.
+   */
+  email: string | null;
   nom: string;
 };
 

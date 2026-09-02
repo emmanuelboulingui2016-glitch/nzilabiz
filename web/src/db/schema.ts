@@ -90,11 +90,33 @@ export const stores = pgTable("stores", {
 // Utilisateurs & appareils
 // ---------------------------------------------------------------------------
 
+/**
+ * Comptes de l'application.
+ *
+ * Un compte s'identifie par une adresse e-mail **ou** par un numéro de téléphone, jamais par rien.
+ * C'est une règle métier : le patron ouvre la boutique avec son adresse, ses gérants et vendeurs
+ * se connectent avec leur numéro. La plupart des vendeurs d'Afrique centrale n'ont pas d'adresse
+ * e-mail ; leur en inventer une pour satisfaire un schéma revenait à leur donner un identifiant
+ * qu'ils ne retenaient pas.
+ *
+ * Les deux colonnes sont donc nullables et uniques. PostgreSQL autorise plusieurs NULL dans un
+ * index unique : c'est exactement ce qu'il faut pour que dix vendeurs sans e-mail coexistent.
+ *
+ * La contrainte « au moins l'un des deux » est tenue par le code, pas par une contrainte CHECK :
+ * elle devrait sinon être levée puis reposée à chaque migration touchant la table, et une
+ * migration qui échoue à mi-chemin sur une base de production coûte plus cher que le garde-fou
+ * n'apporte. Les deux seuls endroits qui créent une ligne — la création par le patron et
+ * l'acceptation d'une invitation — la vérifient.
+ *
+ * Les numéros sont stockés sous leur forme normalisée : chiffres seuls, indicatif compris. Voir
+ * `src/lib/telephone.ts` pour la raison — c'est le même piège que la casse des e-mails.
+ */
 export const users = pgTable("users", {
   id: id(),
   storeId: text("store_id").notNull().references(() => stores.id, { onDelete: "cascade" }),
   nom: text("nom").notNull(),
-  email: text("email").notNull().unique(),
+  email: text("email").unique(),
+  telephone: text("telephone").unique(),
   motDePasseHash: text("mot_de_passe_hash"),
   role: roleEnum("role").notNull().default("VENDEUR"),
   photoUrl: text("photo_url"),
@@ -432,8 +454,14 @@ export const supportTickets = pgTable("support_tickets", {
   storeId: text("store_id").notNull().references(() => stores.id, { onDelete: "cascade" }),
   userId: text("user_id").references(() => users.id, { onDelete: "set null" }),
   // Recopiés à la création : le ticket doit rester lisible même si le compte est supprimé.
+  //
+  // Deux colonnes de contact, l'une ou l'autre selon la façon dont l'auteur se connecte. Un
+  // vendeur qui n'a que son numéro doit pouvoir écrire au support, et le support doit pouvoir lui
+  // répondre : ranger un numéro dans une colonne nommée « e-mail » aurait marché six mois, puis
+  // trompé la première personne qui aurait tenté un envoi automatique.
   auteurNom: text("auteur_nom").notNull(),
-  auteurEmail: text("auteur_email").notNull(),
+  auteurEmail: text("auteur_email"),
+  auteurTelephone: text("auteur_telephone"),
   sujet: text("sujet").notNull(),
   message: text("message").notNull(),
   statut: supportStatusEnum("statut").notNull().default("OUVERT"),
@@ -451,7 +479,10 @@ export const invitations = pgTable("invitations", {
   token: text("token").notNull().unique(),
   role: roleEnum("role").notNull().default("VENDEUR"),
   nomPrevu: text("nom_prevu"),
+  // `emailPrevu` appartient à l'époque où les employés se connectaient par adresse. Conservé pour
+  // les invitations déjà émises ; les nouvelles réservent un numéro.
   emailPrevu: text("email_prevu"),
+  telephonePrevu: text("telephone_prevu"),
   creeParId: text("cree_par_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   expireLe: timestamp("expire_le").notNull(),
   utiliseLe: timestamp("utilise_le"),

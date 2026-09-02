@@ -29,6 +29,7 @@ export default async function SecuritePage() {
         initial={{
           nom: user.nom,
           email: user.email,
+          telephone: user.telephone,
           aMotDePasse: Boolean(user.motDePasseHash),
           googleLie: Boolean(user.googleId),
         }}

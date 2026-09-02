@@ -21,7 +21,7 @@ type Invitation = {
   token: string;
   role: "GERANT" | "VENDEUR";
   nomPrevu: string | null;
-  emailPrevu: string | null;
+  telephonePrevu: string | null;
   etat: "ACTIVE" | "UTILISEE" | "EXPIREE" | "REVOQUEE";
   expireLe: string;
   utiliseLe: string | null;
@@ -49,7 +49,7 @@ export function InvitationsPanel({ storeName }: { storeName: string }) {
   const [occupe, setOccupe] = useState(false);
   const [role, setRole] = useState<"GERANT" | "VENDEUR">("VENDEUR");
   const [nomPrevu, setNomPrevu] = useState("");
-  const [emailPrevu, setEmailPrevu] = useState("");
+  const [telephonePrevu, setTelephonePrevu] = useState("");
   const [afficher, setAfficher] = useState<Invitation | null>(null);
 
   const charger = useCallback(async () => {
@@ -85,7 +85,7 @@ export function InvitationsPanel({ storeName }: { storeName: string }) {
         body: JSON.stringify({
           role,
           nomPrevu: nomPrevu.trim() || null,
-          emailPrevu: emailPrevu.trim() || null,
+          telephonePrevu: telephonePrevu.trim() || null,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -95,7 +95,7 @@ export function InvitationsPanel({ storeName }: { storeName: string }) {
       }
       setCreation(false);
       setNomPrevu("");
-      setEmailPrevu("");
+      setTelephonePrevu("");
       setAfficher(data.invitation);
       charger();
     } finally {
@@ -165,7 +165,7 @@ export function InvitationsPanel({ storeName }: { storeName: string }) {
             >
               <div className="min-w-0">
                 <p className="flex flex-wrap items-center gap-2 text-sm font-semibold">
-                  {inv.nomPrevu || inv.emailPrevu || "Invitation sans nom"}
+                  {inv.nomPrevu || inv.telephonePrevu || "Invitation sans nom"}
                   <Badge tone={TON_ETAT[inv.etat]}>{LABEL_ETAT[inv.etat]}</Badge>
                   <Badge tone="neutral">{inv.role === "GERANT" ? "Gérant" : "Vendeur"}</Badge>
                 </p>
@@ -229,16 +229,17 @@ export function InvitationsPanel({ storeName }: { storeName: string }) {
             />
           </div>
           <div>
-            <Label htmlFor="inv-email">Réserver à un e-mail (optionnel)</Label>
+            <Label htmlFor="inv-telephone">Réserver à un numéro (optionnel)</Label>
             <Input
-              id="inv-email"
-              type="email"
-              value={emailPrevu}
-              onChange={(e) => setEmailPrevu(e.target.value)}
-              placeholder="employe@exemple.com"
+              id="inv-telephone"
+              type="tel"
+              inputMode="tel"
+              placeholder="07 00 00 00"
+              value={telephonePrevu}
+              onChange={(e) => setTelephonePrevu(e.target.value)}
             />
             <p className="mt-1 text-xs text-muted-foreground">
-              Si vous le renseignez, seule cette adresse pourra accepter l&apos;invitation.
+              Si vous le renseignez, seul ce numéro pourra accepter l&apos;invitation.
             </p>
           </div>
           <div className="flex justify-end gap-2 pt-1">

@@ -13,13 +13,15 @@ import { invitations, users } from "@/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { can } from "@/lib/auth/rbac";
 import { bloquerSiExpiree, bloquerSiPlafondComptes, etatBoutiqueCourante } from "@/lib/abonnement";
+import { normaliserTelephone } from "@/lib/telephone";
+import { stores } from "@/db/schema";
 
 const DUREE_JOURS = 7;
 
 const schema = z.object({
   role: z.enum(["GERANT", "VENDEUR"]),
   nomPrevu: z.string().trim().max(120).nullable().optional(),
-  emailPrevu: z.string().trim().email("E-mail invalide.").toLowerCase().nullable().optional().or(z.literal("")),
+  telephonePrevu: z.string().trim().max(30).nullable().optional().or(z.literal("")),
   dureeJours: z.number().int().min(1).max(30).optional(),
 });
 
@@ -50,7 +52,7 @@ export async function GET() {
       token: i.token,
       role: i.role,
       nomPrevu: i.nomPrevu,
-      emailPrevu: i.emailPrevu,
+      telephonePrevu: i.telephonePrevu,
       etat: etat(i),
       expireLe: i.expireLe.toISOString(),
       utiliseLe: i.utiliseLe?.toISOString() ?? null,
@@ -82,11 +84,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Requête invalide" }, { status: 400 });
   }
 
-  const email = parsed.data.emailPrevu?.trim() || null;
-  if (email) {
-    const existant = await db.query.users.findFirst({ where: eq(users.email, email) });
+  // Réserver l'invitation à un numéro précis : un lien transmis à un tiers ne doit pas lui
+  // permettre d'entrer dans la boutique sous une autre identité.
+  let numeroPrevu: string | null = null;
+  const brutPrevu = parsed.data.telephonePrevu?.trim();
+  if (brutPrevu) {
+    const boutique = await db.query.stores.findFirst({
+      where: eq(stores.id, session.storeId),
+      columns: { indicatif: true },
+    });
+    numeroPrevu = normaliserTelephone(brutPrevu, boutique?.indicatif);
+    if (!numeroPrevu) {
+      return NextResponse.json({ error: "Ce numéro de téléphone n'est pas valide." }, { status: 400 });
+    }
+  }
+  if (numeroPrevu) {
+    const existant = await db.query.users.findFirst({ where: eq(users.telephone, numeroPrevu) });
     if (existant) {
-      return NextResponse.json({ error: "Un compte existe déjà avec cet e-mail." }, { status: 409 });
+      return NextResponse.json({ error: "Un compte existe déjà avec ce numéro." }, { status: 409 });
     }
   }
 
@@ -104,7 +119,7 @@ export async function POST(request: Request) {
       token,
       role: parsed.data.role,
       nomPrevu: parsed.data.nomPrevu?.trim() || null,
-      emailPrevu: email,
+      telephonePrevu: numeroPrevu,
       creeParId: session.userId,
       expireLe,
     })
@@ -117,7 +132,7 @@ export async function POST(request: Request) {
         token: invitation.token,
         role: invitation.role,
         nomPrevu: invitation.nomPrevu,
-        emailPrevu: invitation.emailPrevu,
+        telephonePrevu: invitation.telephonePrevu,
         etat: "ACTIVE",
         expireLe: invitation.expireLe.toISOString(),
         creeLe: invitation.creeLe.toISOString(),

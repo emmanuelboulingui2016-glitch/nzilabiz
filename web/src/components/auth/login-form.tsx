@@ -39,7 +39,9 @@ export function LoginForm({
   const router = useRouter();
   const erreurExterne = erreur;
 
-  const [email, setEmail] = useState("");
+  // Un seul champ pour l'e-mail (patron) ou le téléphone (gérant, vendeur) : le serveur distingue
+  // les deux à la lecture, sur la présence d'un "@".
+  const [identifiant, setIdentifiant] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -53,7 +55,7 @@ export function LoginForm({
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ identifiant, password }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -83,8 +85,24 @@ export function LoginForm({
 
       <form onSubmit={onSubmit} className="space-y-3">
         <div>
-          <Label htmlFor="email">{t("auth.email")}</Label>
-          <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+          {/* Libellé et texte d'aide écrits en dur : la clé "auth.email" du dictionnaire i18n
+              (src/lib/i18n) reste hors du périmètre de ce composant. À faire évoluer côté i18n
+              si les autres langues (en, ar) doivent aussi refléter ce champ mixte. */}
+          <Label htmlFor="identifiant">E-mail ou téléphone</Label>
+          <Input
+            id="identifiant"
+            name="identifiant"
+            type="text"
+            inputMode="tel"
+            autoComplete="username"
+            aria-describedby="identifiant-aide"
+            required
+            value={identifiant}
+            onChange={(e) => setIdentifiant(e.target.value)}
+          />
+          <p id="identifiant-aide" className="mt-1 text-xs text-muted-foreground">
+            Les gérants et vendeurs se connectent avec leur numéro de téléphone.
+          </p>
         </div>
         <div>
           <Label htmlFor="password">{t("auth.password")}</Label>

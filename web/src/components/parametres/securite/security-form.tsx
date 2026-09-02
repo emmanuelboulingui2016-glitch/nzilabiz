@@ -7,10 +7,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
+import { formaterTelephone } from "@/lib/telephone";
 
 export type SecurityInitial = {
   nom: string;
-  email: string;
+  // Un employé se connecte par téléphone et n'a pas d'adresse : les deux sont facultatifs, mais
+  // jamais absents tous les deux.
+  email: string | null;
+  telephone: string | null;
   aMotDePasse: boolean;
   googleLie: boolean;
 };
@@ -98,8 +102,14 @@ export function SecurityForm({ initial }: { initial: SecurityInitial }) {
               <Input id="sec-nom" value={nom} onChange={(e) => setNom(e.target.value)} required />
             </div>
             <div>
-              <Label htmlFor="sec-email">E-mail du compte</Label>
-              <Input id="sec-email" value={initial.email} disabled />
+              <Label htmlFor="sec-email">
+                {initial.telephone ? "Téléphone du compte" : "E-mail du compte"}
+              </Label>
+              <Input
+                id="sec-email"
+                value={initial.telephone ? formaterTelephone(initial.telephone) : (initial.email ?? "—")}
+                disabled
+              />
               <p className="mt-1 text-xs text-muted-foreground">
                 L&apos;e-mail sert d&apos;identifiant de connexion et n&apos;est pas modifiable ici.
               </p>

@@ -7,7 +7,7 @@ import { NextResponse } from "next/server";
 import { desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
-import { supportTickets } from "@/db/schema";
+import { supportTickets, users } from "@/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { clientIp, rateLimit, tooManyRequests } from "@/lib/rate-limit";
 
@@ -60,6 +60,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Requête invalide" }, { status: 400 });
   }
 
+  // Le contact est recopié depuis le compte : la session ne porte pas le numéro, et un ticket
+  // auquel on ne peut pas répondre ne sert à personne. Une requête à la fois — le pooler en mode
+  // transaction ne rend pas la main sur des requêtes lancées ensemble (voir README).
+  const auteur = await db.query.users.findFirst({
+    where: eq(users.id, session.userId),
+    columns: { telephone: true },
+  });
+
   const [ticket] = await db
     .insert(supportTickets)
     .values({
@@ -67,6 +75,7 @@ export async function POST(request: Request) {
       userId: session.userId,
       auteurNom: session.nom,
       auteurEmail: session.email,
+      auteurTelephone: auteur?.telephone ?? null,
       sujet: parsed.data.sujet,
       message: parsed.data.message,
     })

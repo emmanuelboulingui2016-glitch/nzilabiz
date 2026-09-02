@@ -4,7 +4,7 @@ import { useState, type FormEvent } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { fr } from "date-fns/locale";
 import { toast } from "sonner";
-import { Copy, KeyRound, Trash2, UserPlus } from "lucide-react";
+import { Copy, KeyRound, Pencil, Trash2, UserPlus } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,13 +16,21 @@ export type Role = "PATRON" | "GERANT" | "VENDEUR";
 export type StoreUser = {
   id: string;
   nom: string;
-  email: string;
+  // Le patron garde son e-mail, ses employés ont un numéro : les deux formes coexistent, jamais
+  // les deux en même temps pour un même compte.
+  email: string | null;
+  telephone: string | null;
   role: Role;
   derniereConnexion: string | null;
   creeLe: string;
   aMotDePasse: boolean;
   googleId: boolean;
 };
+
+/** Identifiant affiché : le téléphone d'un employé prime sur l'e-mail quand les deux existent. */
+function identifiantAffiche(user: StoreUser): string {
+  return user.telephone ?? user.email ?? "—";
+}
 
 const ROLE_LABEL: Record<Role, string> = {
   PATRON: "Patron",
@@ -48,7 +56,7 @@ export function UsersManager({
   const [savingRole, setSavingRole] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [resetId, setResetId] = useState<string | null>(null);
-  const [tempCred, setTempCred] = useState<{ email: string; password: string } | null>(null);
+  const [tempCred, setTempCred] = useState<{ identifiant: string; password: string } | null>(null);
 
   // Réinitialisation du mot de passe d'un employé. Sans envoi d'e-mail dans le service, c'est le
   // seul recours quand un vendeur oublie le sien : le Patron lui remet le nouveau de vive voix.
@@ -62,7 +70,7 @@ export function UsersManager({
         toast.error(data.error ?? "Réinitialisation impossible.");
         return;
       }
-      setTempCred({ email: user.email, password: data.tempPassword });
+      setTempCred({ identifiant: identifiantAffiche(user), password: data.tempPassword });
     } catch {
       toast.error("Erreur réseau — réessayez.");
     } finally {
@@ -72,7 +80,7 @@ export function UsersManager({
 
   // -- Invitation --------------------------------------------------------
   const [nom, setNom] = useState("");
-  const [email, setEmail] = useState("");
+  const [telephone, setTelephone] = useState("");
   const [role, setRole] = useState<Role>("VENDEUR");
   const [inviting, setInviting] = useState(false);
 
@@ -83,7 +91,7 @@ export function UsersManager({
       const res = await fetch("/api/parametres/utilisateurs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nom, email, role }),
+        body: JSON.stringify({ nom, telephone, role }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -92,9 +100,9 @@ export function UsersManager({
       }
       setList((prev) => [...prev, data.user]);
       setInviteOpen(false);
-      setTempCred({ email: data.user.email, password: data.tempPassword });
+      setTempCred({ identifiant: identifiantAffiche(data.user), password: data.tempPassword });
       setNom("");
-      setEmail("");
+      setTelephone("");
       setRole("VENDEUR");
       toast.success("Employé créé. Communiquez-lui le mot de passe temporaire affiché.");
     } catch {
@@ -128,13 +136,52 @@ export function UsersManager({
     }
   };
 
+  // -- Modification (nom, téléphone) --------------------------------------
+  // Un vendeur change souvent de puce ou de téléphone : corriger son numéro ne doit pas obliger à
+  // recréer le compte, sous peine de perdre son historique de ventes.
+  const [editUser, setEditUser] = useState<StoreUser | null>(null);
+  const [editNom, setEditNom] = useState("");
+  const [editTelephone, setEditTelephone] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  function ouvrirEdition(user: StoreUser) {
+    setEditUser(user);
+    setEditNom(user.nom);
+    setEditTelephone(user.telephone ?? "");
+  }
+
+  const handleEdit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!editUser) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/parametres/utilisateurs/${editUser.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nom: editNom, telephone: editTelephone || null }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error ?? "Impossible d'enregistrer ces modifications.");
+        return;
+      }
+      setList((prev) => prev.map((u) => (u.id === editUser.id ? { ...u, nom: editNom, telephone: editTelephone || null } : u)));
+      toast.success(`Informations de ${editNom} mises à jour.`);
+      setEditUser(null);
+    } catch {
+      toast.error("Erreur réseau — réessayez.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // -- Suppression -----------------------------------------------------
   const removeUser = async (user: StoreUser) => {
     if (user.id === currentUserId) {
       toast.error("Vous ne pouvez pas vous retirer vous-même.");
       return;
     }
-    if (!window.confirm(`Retirer ${user.nom} (${user.email}) de la boutique ?`)) return;
+    if (!window.confirm(`Retirer ${user.nom} (${identifiantAffiche(user)}) de la boutique ?`)) return;
     setRemovingId(user.id);
     try {
       const res = await fetch(`/api/parametres/utilisateurs/${user.id}`, { method: "DELETE" });
@@ -187,7 +234,7 @@ export function UsersManager({
                     <Badge tone={ROLE_TONE[user.role]}>{ROLE_LABEL[user.role]}</Badge>
                     {user.id === currentUserId && <Badge tone="neutral">Vous</Badge>}
                   </div>
-                  <p className="text-xs text-muted-foreground">{user.email}</p>
+                  <p className="text-xs text-muted-foreground">{identifiantAffiche(user)}</p>
                   <p className="text-xs text-muted-foreground">
                     {user.derniereConnexion
                       ? `Dernière connexion ${formatDistanceToNow(new Date(user.derniereConnexion), {
@@ -197,12 +244,13 @@ export function UsersManager({
                       : "Jamais connecté"}
                   </p>
                 </div>
-                <div className="flex items-center gap-2 sm:pl-2">
+                <div className="flex flex-wrap items-center gap-2 sm:pl-2">
                   <Select
                     value={user.role}
                     disabled={savingRole === user.id}
                     onChange={(e) => changeRole(user, e.target.value as Role)}
-                    className="w-36"
+                    className="h-11 w-36"
+                    aria-label={`Rôle de ${user.nom}`}
                   >
                     <option value="PATRON">Patron</option>
                     <option value="GERANT">Gérant</option>
@@ -210,21 +258,35 @@ export function UsersManager({
                   </Select>
                   <Button
                     variant="outline"
-                    size="sm"
+                    size="icon"
+                    className="h-11 w-11"
+                    onClick={() => ouvrirEdition(user)}
+                    aria-label={`Modifier le nom et le téléphone de ${user.nom}`}
+                    title="Modifier le nom et le téléphone"
+                  >
+                    <Pencil size={16} />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-11 w-11"
                     disabled={resetId === user.id}
                     onClick={() => reinitialiserMotDePasse(user)}
+                    aria-label={`Générer un nouveau mot de passe pour ${user.nom}`}
                     title="Générer un nouveau mot de passe et le remettre à l'employé"
                   >
-                    <KeyRound size={14} />
+                    <KeyRound size={16} />
                   </Button>
                   <Button
                     variant="danger"
-                    size="sm"
+                    size="icon"
+                    className="h-11 w-11"
                     disabled={removingId === user.id || user.id === currentUserId}
                     onClick={() => removeUser(user)}
+                    aria-label={`Retirer ${user.nom} de la boutique`}
                     title={user.id === currentUserId ? "Vous ne pouvez pas vous retirer vous-même." : undefined}
                   >
-                    <Trash2 size={14} />
+                    <Trash2 size={16} />
                   </Button>
                 </div>
               </div>
@@ -247,14 +309,20 @@ export function UsersManager({
             <Input id="invite-nom" value={nom} onChange={(e) => setNom(e.target.value)} required />
           </div>
           <div>
-            <Label htmlFor="invite-email">E-mail</Label>
+            <Label htmlFor="invite-telephone">Téléphone</Label>
             <Input
-              id="invite-email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              id="invite-telephone"
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
+              placeholder="07 00 00 00"
+              value={telephone}
+              onChange={(e) => setTelephone(e.target.value)}
               required
             />
+            <p className="mt-1 text-xs text-muted-foreground">
+              L&apos;employé se connectera avec ce numéro, sans adresse e-mail.
+            </p>
           </div>
           <div>
             <Label htmlFor="invite-role">Rôle</Label>
@@ -279,6 +347,46 @@ export function UsersManager({
         </form>
       </Dialog>
 
+      {/* Dialog modification (nom, téléphone) */}
+      <Dialog open={editUser !== null} onClose={() => setEditUser(null)} title="Modifier l'accès">
+        {editUser && (
+          <form onSubmit={handleEdit} className="space-y-3">
+            <div>
+              <Label htmlFor="edit-nom">Nom</Label>
+              <Input id="edit-nom" value={editNom} onChange={(e) => setEditNom(e.target.value)} required />
+            </div>
+            {editUser.email && (
+              <div>
+                <Label htmlFor="edit-email">E-mail</Label>
+                {/* L'e-mail du patron n'est pas modifiable ici : il sert d'identifiant durable et sa
+                    mise à jour n'est pas couverte par ce formulaire. */}
+                <Input id="edit-email" value={editUser.email} disabled />
+              </div>
+            )}
+            <div>
+              <Label htmlFor="edit-telephone">Téléphone</Label>
+              <Input
+                id="edit-telephone"
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel"
+                placeholder="07 00 00 00"
+                value={editTelephone}
+                onChange={(e) => setEditTelephone(e.target.value)}
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="outline" onClick={() => setEditUser(null)}>
+                Annuler
+              </Button>
+              <Button type="submit" disabled={saving}>
+                {saving ? "Enregistrement..." : "Enregistrer"}
+              </Button>
+            </div>
+          </form>
+        )}
+      </Dialog>
+
       {/* Dialog identifiants temporaires */}
       <Dialog open={tempCred !== null} onClose={() => setTempCred(null)} title="Accès créé">
         {tempCred && (
@@ -289,7 +397,7 @@ export function UsersManager({
             </p>
             <div className="rounded-lg border border-border bg-muted p-3">
               <p>
-                <span className="text-muted-foreground">E-mail :</span> <strong>{tempCred.email}</strong>
+                <span className="text-muted-foreground">Identifiant :</span> <strong>{tempCred.identifiant}</strong>
               </p>
               <div className="mt-1 flex items-center gap-2">
                 <span className="text-muted-foreground">Mot de passe temporaire :</span>

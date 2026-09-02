@@ -14,7 +14,7 @@ import { Input, Label } from "@/components/ui/input";
 type Invitation = {
   role: "GERANT" | "VENDEUR";
   nomPrevu: string | null;
-  emailPrevu: string | null;
+  telephonePrevu: string | null;
   expireLe: string;
   boutique: string;
 };
@@ -24,7 +24,7 @@ export function InvitationForm({ token }: { token: string }) {
   const [invitation, setInvitation] = useState<Invitation | null>(null);
   const [erreurJeton, setErreurJeton] = useState<string | null>(null);
   const [nom, setNom] = useState("");
-  const [email, setEmail] = useState("");
+  const [telephone, setTelephone] = useState("");
   const [password, setPassword] = useState("");
   const [envoi, setEnvoi] = useState(false);
 
@@ -38,7 +38,7 @@ export function InvitationForm({ token }: { token: string }) {
         }
         setInvitation(data.invitation);
         setNom(data.invitation.nomPrevu ?? "");
-        setEmail(data.invitation.emailPrevu ?? "");
+        setTelephone(data.invitation.telephonePrevu ?? "");
       })
       .catch(() => setErreurJeton("Impossible de vérifier cette invitation."));
   }, [token]);
@@ -50,7 +50,7 @@ export function InvitationForm({ token }: { token: string }) {
       const res = await fetch(`/api/invitations/${token}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nom, email, password }),
+        body: JSON.stringify({ nom, telephone, password }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -103,22 +103,27 @@ export function InvitationForm({ token }: { token: string }) {
       </div>
 
       <div>
-        <Label htmlFor="inv-email">Votre e-mail</Label>
+        <Label htmlFor="inv-telephone">Votre numéro de téléphone</Label>
         <Input
-          id="inv-email"
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          id="inv-telephone"
+          type="tel"
+          inputMode="tel"
+          autoComplete="tel"
+          placeholder="07 00 00 00"
+          value={telephone}
+          onChange={(e) => setTelephone(e.target.value)}
           required
-          readOnly={Boolean(invitation.emailPrevu)}
-          className={invitation.emailPrevu ? "bg-muted" : undefined}
+          readOnly={Boolean(invitation.telephonePrevu)}
+          className={invitation.telephonePrevu ? "bg-muted" : undefined}
         />
-        {invitation.emailPrevu ? (
+        {invitation.telephonePrevu ? (
           <p className="mt-1 text-xs text-muted-foreground">
-            Cette invitation est réservée à cette adresse.
+            Cette invitation est réservée à ce numéro.
           </p>
         ) : (
-          <p className="mt-1 text-xs text-muted-foreground">Il vous servira à vous connecter.</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            C&apos;est avec ce numéro que vous vous connecterez.
+          </p>
         )}
       </div>
 

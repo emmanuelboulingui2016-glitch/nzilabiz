@@ -17,10 +17,24 @@ export const registerSchema = z.object({
   codeTest: z.string().trim().optional(),
 });
 
-export const loginSchema = z.object({
-  email,
-  password: z.string().min(1, "Mot de passe requis"),
-});
+/**
+ * Un seul champ pour deux formes d'identifiant : le patron entre son adresse, ses employés leur
+ * numéro. Le tri se fait sur la présence d'un « @ », côté serveur — demander à un vendeur de
+ * choisir d'abord un onglet « e-mail » ou « téléphone » ajouterait une décision là où il n'y en a
+ * pas : il n'a qu'un seul identifiant, il le tape.
+ *
+ * `email` reste accepté, facultatif, le temps que les onglets ouverts pendant le déploiement se
+ * referment : ils enverraient encore l'ancienne forme, et leur propriétaire ne comprendrait pas
+ * d'être refusé.
+ */
+export const loginSchema = z
+  .object({
+    identifiant: z.string().trim().min(1, "E-mail ou téléphone requis").optional(),
+    email: z.string().trim().optional(),
+    password: z.string().min(1, "Mot de passe requis"),
+  })
+  .transform((v) => ({ identifiant: v.identifiant || v.email || "", password: v.password }))
+  .refine((v) => v.identifiant.length > 0, { message: "E-mail ou téléphone requis" });
 
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;

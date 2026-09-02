@@ -61,7 +61,11 @@ export async function POST(request: Request) {
 
   // Compte fermé par son titulaire : aucun envoi. Un compte supprimé ne se rouvre pas par ce
   // chemin, et son adresse a de toute façon été remplacée à la suppression.
-  if (!user || user.desactiveLe) return NextResponse.json(REPONSE);
+  // Un compte sans adresse — un vendeur qui se connecte par téléphone — ne peut pas être rejoint
+  // par ce chemin. Son patron lui remet un mot de passe depuis Paramètres → Utilisateurs, ce qui
+  // est de toute façon la façon dont ces comptes ont été créés. Même réponse neutre que pour une
+  // adresse inconnue : elle ne doit rien apprendre sur ce que la base contient.
+  if (!user || user.desactiveLe || !user.email) return NextResponse.json(REPONSE);
 
   const reglages = await getPlatformSettings();
   const jeton = await creerJeton(user.id, ip);

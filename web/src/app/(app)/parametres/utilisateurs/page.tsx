@@ -39,6 +39,7 @@ export default async function UtilisateursPage() {
         id: u.id,
         nom: u.nom,
         email: u.email,
+        telephone: u.telephone,
         role: u.role,
         derniereConnexion: u.derniereConnexion ? u.derniereConnexion.toISOString() : null,
         creeLe: u.creeLe.toISOString(),

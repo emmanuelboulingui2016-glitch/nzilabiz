@@ -40,7 +40,9 @@ export default async function SuperAdminLayout({ children }: { children: React.R
 
   return (
     <div className="flex h-dvh w-full overflow-hidden bg-background">
-      <AdminSidebar email={superAdmin.email} />
+      {/* Un administrateur de plateforme est identifié par son adresse : `getSuperAdminSession`
+          l'a déjà comparée à la liste autorisée, elle ne peut pas être absente ici. */}
+      <AdminSidebar email={superAdmin.email ?? ""} />
       <div className="flex min-w-0 flex-1 flex-col">
         <AdminMobileNav />
         <main className="flex-1 overflow-y-auto p-4 md:p-6">{children}</main>

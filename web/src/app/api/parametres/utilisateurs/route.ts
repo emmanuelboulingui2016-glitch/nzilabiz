@@ -2,12 +2,13 @@ import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
-import { users } from "@/db/schema";
+import { users, stores } from "@/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { can } from "@/lib/auth/rbac";
 import { hashPassword } from "@/lib/auth/password";
 import { generateTempPassword } from "@/lib/auth/temp-password";
 import { bloquerSiExpiree, bloquerSiPlafondComptes, etatBoutiqueCourante } from "@/lib/abonnement";
+import { normaliserTelephone } from "@/lib/telephone";
 
 // Onglet Utilisateurs — §14 du cahier des charges.
 // 🔧 Simplification documentée (voir résumé de tâche / README) : il n'y a pas de service d'envoi
@@ -18,7 +19,7 @@ import { bloquerSiExpiree, bloquerSiPlafondComptes, etatBoutiqueCourante } from 
 
 const inviteSchema = z.object({
   nom: z.string().trim().min(1, "Le nom est requis.").max(120),
-  email: z.string().trim().email("E-mail invalide.").toLowerCase(),
+  telephone: z.string().trim().min(1, "Le numéro de téléphone est requis.").max(30),
   role: z.enum(["PATRON", "GERANT", "VENDEUR"]),
 });
 
@@ -39,6 +40,7 @@ export async function GET() {
       id: u.id,
       nom: u.nom,
       email: u.email,
+      telephone: u.telephone,
       role: u.role,
       derniereConnexion: u.derniereConnexion ? u.derniereConnexion.toISOString() : null,
       creeLe: u.creeLe.toISOString(),
@@ -71,11 +73,28 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Requête invalide" }, { status: 400 });
   }
-  const { nom, email, role } = parsed.data;
+  const { nom, telephone, role } = parsed.data;
 
-  const existing = await db.query.users.findFirst({ where: eq(users.email, email) });
+  // Le compte d'un employé s'identifie par son numéro, pas par une adresse : c'est la règle « une
+  // adresse par boutique », celle du patron. Inventer une adresse à un vendeur qui n'en a pas lui
+  // donnait un identifiant qu'il ne retenait pas, et le patron finissait par la noter sur un
+  // papier collé à la caisse.
+  //
+  // Requêtes enchaînées, jamais en parallèle : le pooler en mode transaction ne rend pas la main
+  // quand plusieurs requêtes partent ensemble depuis une même requête HTTP (voir README).
+  const boutique = await db.query.stores.findFirst({
+    where: eq(stores.id, session.storeId),
+    columns: { indicatif: true },
+  });
+
+  const numero = normaliserTelephone(telephone, boutique?.indicatif);
+  if (!numero) {
+    return NextResponse.json({ error: "Ce numéro de téléphone n'est pas valide." }, { status: 400 });
+  }
+
+  const existing = await db.query.users.findFirst({ where: eq(users.telephone, numero) });
   if (existing) {
-    return NextResponse.json({ error: "Un compte existe déjà avec cet e-mail." }, { status: 409 });
+    return NextResponse.json({ error: "Un compte existe déjà avec ce numéro." }, { status: 409 });
   }
 
   const tempPassword = generateTempPassword();
@@ -83,7 +102,7 @@ export async function POST(request: Request) {
 
   const [created] = await db
     .insert(users)
-    .values({ storeId: session.storeId, nom, email, role, motDePasseHash })
+    .values({ storeId: session.storeId, nom, telephone: numero, role, motDePasseHash })
     .returning();
 
   return NextResponse.json({
@@ -92,6 +111,7 @@ export async function POST(request: Request) {
       id: created.id,
       nom: created.nom,
       email: created.email,
+      telephone: created.telephone,
       role: created.role,
       derniereConnexion: null,
       creeLe: created.creeLe.toISOString(),

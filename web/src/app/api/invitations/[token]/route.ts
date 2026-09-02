@@ -14,8 +14,8 @@ import { hashPassword } from "@/lib/auth/password";
 import { createSessionToken, setSessionCookie } from "@/lib/auth/session";
 import { deviceNameFromUserAgent } from "@/lib/device-name";
 import { clientIp, rateLimit, tooManyRequests } from "@/lib/rate-limit";
-import { isSuperAdminEmail } from "@/lib/auth/superadmin";
 import { bloquerSiPlafondComptes, etatBoutique } from "@/lib/abonnement";
+import { normaliserTelephone, formaterTelephone } from "@/lib/telephone";
 
 async function chargerInvitation(token: string) {
   const invitation = await db.query.invitations.findFirst({ where: eq(invitations.token, token) });
@@ -37,7 +37,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tok
     invitation: {
       role: res.invitation.role,
       nomPrevu: res.invitation.nomPrevu,
-      emailPrevu: res.invitation.emailPrevu,
+      telephonePrevu: res.invitation.telephonePrevu,
       expireLe: res.invitation.expireLe.toISOString(),
       boutique: boutique?.nom ?? "",
     },
@@ -46,7 +46,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tok
 
 const schema = z.object({
   nom: z.string().trim().min(2, "Indiquez votre nom.").max(120),
-  email: z.string().trim().email("E-mail invalide.").toLowerCase(),
+  telephone: z.string().trim().min(1, "Votre numéro de téléphone est requis.").max(30),
   password: z.string().min(6, "Le mot de passe doit contenir au moins 6 caractères."),
 });
 
@@ -67,30 +67,34 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Requête invalide" }, { status: 400 });
   }
 
-  const email = parsed.data.email.toLowerCase();
+  // Le numéro est normalisé avant toute comparaison : « 07 00 00 00 » et « +241 07 00 00 00 »
+  // désignent le même abonné, et l'employé ne doit pas être refusé parce qu'il a écrit son numéro
+  // autrement que son patron (voir `src/lib/telephone.ts`).
+  const boutiqueInvitante = await db.query.stores.findFirst({
+    where: eq(stores.id, res.invitation.storeId),
+    columns: { indicatif: true },
+  });
+  const telephone = normaliserTelephone(parsed.data.telephone, boutiqueInvitante?.indicatif);
+  if (!telephone) {
+    return NextResponse.json({ error: "Ce numéro de téléphone n'est pas valide." }, { status: 400 });
+  }
 
-  // Si l'invitation visait une adresse précise, on s'y tient : sinon un lien transmis à un tiers
+  // Si l'invitation visait un numéro précis, on s'y tient : sinon un lien transmis à un tiers
   // permettrait d'entrer dans la boutique sous une autre identité.
-  if (res.invitation.emailPrevu && res.invitation.emailPrevu.toLowerCase() !== email) {
+  if (res.invitation.telephonePrevu && res.invitation.telephonePrevu !== telephone) {
     return NextResponse.json(
-      { error: `Cette invitation est réservée à ${res.invitation.emailPrevu}.` },
+      { error: `Cette invitation est réservée au ${formaterTelephone(res.invitation.telephonePrevu, boutiqueInvitante?.indicatif)}.` },
       { status: 400 }
     );
   }
 
-  // Même garde-fou qu'à l'inscription publique : l'invité choisit librement son adresse quand
-  // l'invitation n'en impose pas une. Sans ce contrôle, un employé invité comme simple vendeur
-  // pourrait saisir une adresse de superadmin et ressortir administrateur de toute la plateforme.
-  if (isSuperAdminEmail(email)) {
-    return NextResponse.json(
-      { error: "Cette adresse ne peut pas être utilisée." },
-      { status: 403 }
-    );
-  }
+  // Le garde-fou « cette adresse est celle d'un administrateur de plateforme » disparaît avec
+  // l'adresse : une invitation ne crée plus qu'un compte identifié par un numéro, et la liste des
+  // administrateurs est faite d'adresses. Rien à contourner ici.
 
-  const existant = await db.query.users.findFirst({ where: eq(users.email, email) });
+  const existant = await db.query.users.findFirst({ where: eq(users.telephone, telephone) });
   if (existant) {
-    return NextResponse.json({ error: "Un compte existe déjà avec cet e-mail." }, { status: 409 });
+    return NextResponse.json({ error: "Un compte existe déjà avec ce numéro." }, { status: 409 });
   }
 
   // Plafond de comptes de la formule. C'est ici que le contrôle compte vraiment : la vérification
@@ -110,7 +114,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
     .values({
       storeId: res.invitation.storeId,
       nom: parsed.data.nom,
-      email,
+      telephone,
       motDePasseHash,
       role: res.invitation.role,
     })
