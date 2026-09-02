@@ -56,6 +56,10 @@ export function Sidebar({
     });
   }
 
+  // Initiale de l'utilisateur pour l'avatar du pied de menu — un simple rond coloré vaut mieux
+  // qu'un bloc de texte pour ancrer visuellement "qui est connecté".
+  const initiale = (userName.trim().charAt(0) || "?").toUpperCase();
+
   return (
     <aside
       className={cn(
@@ -63,7 +67,7 @@ export function Sidebar({
         collapsed ? "w-[76px]" : "w-64"
       )}
     >
-      <div className={cn("flex items-center gap-2 px-4 py-5", collapsed && "flex-col gap-3 px-2")}>
+      <div className={cn("flex items-center gap-2 px-4 py-6", collapsed && "flex-col gap-3 px-2")}>
         <Link
           href="/dashboard"
           className={cn("flex min-w-0 items-center gap-2", !collapsed && !reseau && "flex-1")}
@@ -77,7 +81,7 @@ export function Sidebar({
             className="shrink-0"
           />
           {collapsed || reseau ? null : (
-            <span className="truncate text-lg font-extrabold">{storeName || "NzilaBiz"}</span>
+            <span className="truncate text-lg font-extrabold tracking-tight">{storeName || "NzilaBiz"}</span>
           )}
         </Link>
         {/* Le sélecteur ne remplace le nom que lorsqu'il y a réellement plusieurs boutiques :
@@ -91,7 +95,7 @@ export function Sidebar({
           title={collapsed ? t("nav.expandMenu") : t("nav.collapseMenu")}
           aria-expanded={!collapsed}
           className={cn(
-            "rounded-lg p-1.5 text-sidebar-foreground/70 transition-colors hover:bg-white/10 hover:text-white",
+            "rounded-lg p-1.5 text-sidebar-foreground/70 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40",
             collapsed ? "" : "ml-auto"
           )}
         >
@@ -99,7 +103,7 @@ export function Sidebar({
         </button>
       </div>
 
-      <nav className={cn("flex-1 space-y-5 overflow-y-auto overflow-x-hidden pb-4", collapsed ? "px-2" : "px-3")}>
+      <nav className={cn("flex-1 space-y-6 overflow-y-auto overflow-x-hidden pb-4", collapsed ? "px-2" : "px-3")}>
         {NAV_SECTIONS.map((section) => {
           const items = section.items.filter(
             (item) =>
@@ -113,7 +117,7 @@ export function Sidebar({
               {collapsed ? (
                 <div className="mx-auto mb-2 h-px w-8 bg-white/15" aria-hidden />
               ) : (
-                <p className="mb-1.5 flex items-center gap-1.5 px-3 text-xs font-bold uppercase tracking-wider text-sidebar-muted">
+                <p className="mb-2 flex items-center gap-1.5 px-3 text-xs font-bold uppercase tracking-wider text-sidebar-muted">
                   <SectionIcon size={13} className="shrink-0" />
                   {t(section.titleKey)}
                 </p>
@@ -130,11 +134,14 @@ export function Sidebar({
                       title={collapsed ? label : undefined}
                       aria-current={active ? "page" : undefined}
                       className={cn(
-                        "flex items-center gap-2.5 rounded-lg py-2 text-sm transition-colors",
-                        collapsed ? "justify-center px-2" : "px-3",
+                        // Filet d'accent à gauche (accent = vert clair de la marque) : un repère
+                        // supplémentaire pour l'entrée active, sans changer la largeur des autres —
+                        // le filet transparent occupe déjà la place.
+                        "flex items-center gap-2.5 rounded-lg border-l-2 py-2 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40",
+                        collapsed ? "justify-center border-l-0 px-2" : "pl-[10px] pr-3",
                         active
-                          ? "bg-white/15 font-bold text-white"
-                          : "font-semibold text-sidebar-foreground/90 hover:bg-white/10 hover:text-white"
+                          ? "border-accent bg-white/15 font-bold text-white"
+                          : "border-transparent font-semibold text-sidebar-foreground/80 hover:bg-white/10 hover:text-white"
                       )}
                     >
                       <ItemIcon size={18} className="shrink-0" />
@@ -154,7 +161,7 @@ export function Sidebar({
             href="/superadmin"
             title={collapsed ? "Administration" : undefined}
             className={cn(
-              "mb-1 flex items-center gap-2.5 rounded-lg py-2 text-sm font-semibold text-accent transition-colors hover:bg-white/10",
+              "mb-1 flex items-center gap-2.5 rounded-lg py-2 text-sm font-semibold text-accent transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40",
               collapsed ? "justify-center px-2" : "px-3"
             )}
           >
@@ -166,7 +173,7 @@ export function Sidebar({
           href="/parametres"
           title={collapsed ? t("nav.parametres") : undefined}
           className={cn(
-            "mb-1 flex items-center gap-2.5 rounded-lg py-2 text-sm font-semibold text-sidebar-foreground/90 transition-colors hover:bg-white/10 hover:text-white",
+            "mb-1 flex items-center gap-2.5 rounded-lg py-2 text-sm font-semibold text-sidebar-foreground/90 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40",
             collapsed ? "justify-center px-2" : "px-3"
           )}
         >
@@ -175,21 +182,29 @@ export function Sidebar({
         </Link>
         <div
           className={cn(
-            "flex items-center rounded-lg py-2",
+            "flex items-center gap-2 rounded-lg py-1.5",
             collapsed ? "justify-center px-2" : "justify-between px-3"
           )}
         >
           {collapsed ? null : (
-            <div className="min-w-0">
-              <p className="truncate text-sm font-bold">{userName}</p>
-              <p className="truncate text-xs font-medium text-sidebar-muted">{role}</p>
+            <div className="flex min-w-0 items-center gap-2.5">
+              <span
+                aria-hidden
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/10 text-sm font-bold text-white"
+              >
+                {initiale}
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-bold text-white">{userName}</p>
+                <p className="truncate text-xs font-medium text-sidebar-muted">{role}</p>
+              </div>
             </div>
           )}
           <button
             onClick={onLogout}
             aria-label={t("nav.logout")}
             title={t("nav.logout")}
-            className="rounded-lg p-1.5 transition-colors hover:bg-white/10"
+            className="shrink-0 rounded-lg p-1.5 transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
           >
             <LogOut size={18} />
           </button>

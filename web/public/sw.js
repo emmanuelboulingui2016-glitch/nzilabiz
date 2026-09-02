@@ -81,13 +81,44 @@ async function bornerCache(nom, maximum) {
 /**
  * Une charge RSC n'est pas une page : c'est le format interne par lequel Next.js transporte le
  * résultat d'un rendu serveur lors d'une navigation côté client. La mettre en cache mêlerait des
- * fragments d'une version du site à ceux d'une autre. On la laisse passer : quand elle échoue
- * hors connexion, le navigateur retombe sur une navigation complète — et celle-là trouvera la
- * page en cache.
+ * fragments d'une version du site à ceux d'une autre — voir `reponseRscHorsLigne` un peu plus bas
+ * pour ce qu'on fait à la place quand le réseau manque.
  */
 function estChargeRsc(request) {
   const url = new URL(request.url);
   return url.searchParams.has("_rsc") || request.headers.get("RSC") === "1";
+}
+
+/**
+ * v3 laissait la charge RSC filer vers le réseau sans y toucher (pas de `event.respondWith`),
+ * en pariant que Next.js rattraperait lui-même l'échec hors connexion par une navigation
+ * complète. En conditions réelles, ce pari ne payait pas : le clic sur « Vendre », « Stock »,
+ * « Clients » ou « Ventes » depuis `/dashboard` ne faisait plus rien. La navigation entre onglets
+ * de l'App Router ne charge pas une page, elle demande une charge RSC en `fetch()` ; laissée à
+ * elle-même hors connexion, cette requête finit certes par rejeter, mais le moment et la façon
+ * dont Next.js réagit à ce rejet ne sont pas assez fiables pour qu'on puisse s'y fier : le vendeur
+ * restait bloqué sur l'écran courant.
+ *
+ * On répond donc nous-mêmes, sans jamais mettre la charge RSC en cache (le risque décrit ci-dessus
+ * reste entier) : réseau d'abord, et seulement sur échec réseau, une réponse fabriquée à la volée
+ * qui n'a manifestement pas la forme d'une charge RSC valide — mauvais `content-type` (`text/plain`
+ * au lieu de `text/x-component`), statut hors 2xx. Next.js, en l'examinant, la classe comme une
+ * réponse invalide (voir `fetch-server-response.js` du paquet `next` : `!isFlightResponse ||
+ * !res.ok`) et bascule aussitôt, de son propre chef, vers une navigation de document complète
+ * (`location.assign`). Cette navigation-là a `request.mode === "navigate"` : c'est exactement la
+ * branche juste en dessous, qui sait déjà servir la page depuis `CACHE_PAGES`.
+ *
+ * Cette réponse de repli n'entre jamais dans un cache : elle est reconstruite à chaque échec et ne
+ * transporte aucun fragment RSC réel. Rien, donc, qui puisse un jour se mélanger aux scripts d'un
+ * autre déploiement — le risque documenté plus haut ne s'applique qu'au contenu qu'on stocke, et
+ * on ne stocke ici rien du tout.
+ */
+function reponseRscHorsLigne() {
+  return new Response("Hors connexion", {
+    status: 503,
+    statusText: "Hors connexion",
+    headers: { "content-type": "text/plain; charset=utf-8" },
+  });
 }
 
 function cacheable(response) {
@@ -100,13 +131,19 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(request.url);
 
-  // Une autre origine, une route d'API, une charge RSC : rien de tout cela n'entre dans le cache.
-  // Les données métier passent par IndexedDB, pas par le service worker — mettre en cache une
-  // réponse d'API reviendrait à servir au commerçant un stock ou un chiffre d'affaires périmés
-  // sans qu'il puisse s'en apercevoir.
+  // Une autre origine, une route d'API : rien de tout cela n'entre dans le cache. Les données
+  // métier passent par IndexedDB, pas par le service worker — mettre en cache une réponse d'API
+  // reviendrait à servir au commerçant un stock ou un chiffre d'affaires périmés sans qu'il puisse
+  // s'en apercevoir.
   if (url.origin !== self.location.origin) return;
   if (url.pathname.startsWith("/api/")) return;
-  if (estChargeRsc(request)) return;
+
+  // Charge RSC : réseau d'abord, jamais de cache. Sur échec réseau, `reponseRscHorsLigne` pousse
+  // Next à basculer lui-même vers une navigation complète (voir la fonction ci-dessus).
+  if (estChargeRsc(request)) {
+    event.respondWith(fetch(request).catch(reponseRscHorsLigne));
+    return;
+  }
 
   // ---------------------------------------------------------------------------------------------
   // Navigation : réseau d'abord, et on garde une copie.

@@ -25,16 +25,21 @@ export function MobileNav({ role, formule = "ESSAI" }: { role: Role; formule?: s
 
   return (
     <>
-      <nav className="fixed inset-x-0 bottom-0 z-40 flex h-16 items-center justify-around border-t border-border bg-card md:hidden">
+      {/* Refonte 2026 : l'ombre remplace le trait de séparation, et l'onglet actif porte une
+          pastille pleine au lieu d'une simple couleur — sur un petit écran tenu à bout de bras, une
+          teinte de texte ne suffit pas à dire où l'on est. Hauteur portée à 68 px : la zone tactile
+          de chaque onglet dépasse ainsi les 44 px recommandés, marges comprises. */}
+      <nav className="fixed inset-x-0 bottom-0 z-40 flex h-[68px] items-center justify-around border-t border-border/60 bg-card px-1 shadow-relief md:hidden">
         {PRIMARY.map(({ href, icon: Icon, labelKey }) => {
           const active = pathname === href || pathname?.startsWith(href + "/");
           return (
             <Link
               key={href}
               href={href}
+              aria-current={active ? "page" : undefined}
               className={cn(
-                "flex flex-col items-center gap-0.5 text-[11px] font-medium",
-                active ? "text-primary" : "text-muted-foreground"
+                "flex min-w-[64px] flex-col items-center gap-0.5 rounded-xl px-2 py-1.5 text-[11px] font-semibold transition-colors",
+                active ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted"
               )}
             >
               <Icon size={20} />
@@ -44,7 +49,7 @@ export function MobileNav({ role, formule = "ESSAI" }: { role: Role; formule?: s
         })}
         <button
           onClick={() => setOpen(true)}
-          className="flex flex-col items-center gap-0.5 text-[11px] font-medium text-muted-foreground"
+          className="flex min-w-[64px] flex-col items-center gap-0.5 rounded-xl px-2 py-1.5 text-[11px] font-semibold text-muted-foreground transition-colors hover:bg-muted"
         >
           <Menu size={20} />
           {t("nav.parametres")}

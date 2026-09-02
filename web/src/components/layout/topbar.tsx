@@ -35,6 +35,12 @@ const TON_ALERTE = {
   info: "border-primary/40 bg-primary/5",
 } as const;
 
+// Bouton icône rond, 44px : hauteur tactile minimale pour la cloche, le thème, la fermeture de
+// recherche — répétée ici plutôt qu'ajoutée au composant Button, car ce ne sont pas des <Button>
+// mais des icônes nues insérées dans une barre dense.
+const ICON_BUTTON =
+  "flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50";
+
 export function Topbar({
   boutiques = [],
   boutiqueActiveId,
@@ -114,7 +120,7 @@ export function Topbar({
   };
 
   return (
-    <header className="flex h-16 items-center gap-3 border-b border-border bg-card px-4">
+    <header className="flex h-16 items-center gap-2 border-b border-border/60 bg-card px-3 shadow-carte sm:gap-3 md:px-6">
       {/* La barre latérale est masquée sous 768 px. Sans ce rappel, un commerçant en réseau ne
           pourrait pas changer de boutique depuis son téléphone — c'est-à-dire presque jamais. */}
       {boutiques.length > 1 && boutiqueActiveId ? (
@@ -123,7 +129,7 @@ export function Topbar({
         </div>
       ) : null}
 
-      <div ref={rechercheRef} className="relative flex-1 max-w-md">
+      <div ref={rechercheRef} className="relative min-w-0 flex-1 max-w-md">
         <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
         <input
           value={query}
@@ -134,7 +140,7 @@ export function Topbar({
           onFocus={() => setRechercheOuverte(true)}
           placeholder={t("common.search")}
           aria-label={t("common.search")}
-          className="h-9 w-full rounded-lg border border-border bg-background pl-9 pr-8 text-sm outline-none focus:ring-2 focus:ring-primary/30"
+          className="h-10 w-full rounded-lg border border-border bg-background pl-9 pr-8 text-sm outline-none transition-colors focus:border-primary/50 focus:ring-2 focus:ring-primary/30"
         />
         {query ? (
           <button
@@ -143,14 +149,14 @@ export function Topbar({
               setResultats([]);
             }}
             aria-label={t("common.close")}
-            className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:bg-muted"
+            className="absolute right-1 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
           >
             <X size={14} />
           </button>
         ) : null}
 
         {rechercheOuverte && query.trim().length >= 2 ? (
-          <div className="absolute left-0 right-0 top-11 z-50 overflow-hidden rounded-xl border border-border bg-card shadow-xl">
+          <div className="absolute left-0 right-0 top-12 z-50 overflow-hidden rounded-xl border border-border/60 bg-card shadow-vedette">
             {resultats.length === 0 ? (
               <p className="px-4 py-3 text-sm text-muted-foreground">
                 Aucun résultat pour « {query.trim()} ».
@@ -163,7 +169,7 @@ export function Topbar({
                     <li key={`${r.type}-${r.id}`}>
                       <button
                         onClick={() => ouvrirResultat(r.href)}
-                        className="flex w-full items-center gap-3 border-b border-border px-4 py-2.5 text-left last:border-b-0 hover:bg-muted"
+                        className="flex w-full items-center gap-3 border-b border-border/60 px-4 py-2.5 text-left last:border-b-0 hover:bg-muted"
                       >
                         <Icone size={16} className="shrink-0 text-muted-foreground" />
                         <span className="min-w-0 flex-1">
@@ -180,10 +186,10 @@ export function Topbar({
         ) : null}
       </div>
 
-      <div className="ml-auto flex items-center gap-2">
+      <div className="ml-auto flex items-center gap-1 sm:gap-2">
         <span
           className={cn(
-            "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium",
+            "hidden items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold sm:inline-flex",
             online ? "bg-success/15 text-success" : "bg-danger/15 text-danger"
           )}
         >
@@ -194,7 +200,7 @@ export function Topbar({
         <select
           value={locale}
           onChange={(e) => setLocale(e.target.value as (typeof LOCALES)[number])}
-          className="h-9 rounded-lg border border-border bg-background px-2 text-sm outline-none"
+          className="hidden h-10 rounded-lg border border-border bg-background px-2 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-primary/30 sm:block"
           aria-label="Langue"
         >
           {LOCALES.map((l) => (
@@ -204,11 +210,7 @@ export function Topbar({
           ))}
         </select>
 
-        <button
-          onClick={toggle}
-          aria-label="Mode sombre"
-          className="rounded-lg p-2 text-muted-foreground hover:bg-muted"
-        >
+        <button onClick={toggle} aria-label="Mode sombre" className={ICON_BUTTON}>
           {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
         </button>
 
@@ -220,19 +222,20 @@ export function Topbar({
             }}
             aria-label="Notifications"
             aria-expanded={alertesOuvertes}
-            className="relative rounded-lg p-2 text-muted-foreground hover:bg-muted"
+            aria-haspopup="menu"
+            className={cn("relative", ICON_BUTTON)}
           >
             <Bell size={18} />
             {alertes.length > 0 && (
-              <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-semibold text-white">
+              <span className="absolute right-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-semibold text-white">
                 {alertes.length}
               </span>
             )}
           </button>
 
           {alertesOuvertes ? (
-            <div className="absolute right-0 top-11 z-50 w-80 overflow-hidden rounded-xl border border-border bg-card shadow-xl">
-              <p className="border-b border-border px-4 py-2.5 text-sm font-bold">Alertes</p>
+            <div className="absolute right-0 top-12 z-50 w-80 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-xl border border-border/60 bg-card shadow-vedette">
+              <p className="border-b border-border/60 px-4 py-2.5 text-sm font-bold">Alertes</p>
               {alertes.length === 0 ? (
                 <p className="px-4 py-4 text-sm text-muted-foreground">
                   Rien à signaler — stock, créances et approbations sont à jour.
@@ -244,7 +247,7 @@ export function Topbar({
                       <Link
                         href={a.href}
                         onClick={() => setAlertesOuvertes(false)}
-                        className={cn("block rounded-lg border p-3 hover:brightness-95", TON_ALERTE[a.niveau])}
+                        className={cn("block rounded-lg border p-3 transition-colors hover:brightness-95", TON_ALERTE[a.niveau])}
                       >
                         <p className="text-sm font-bold">{a.titre}</p>
                         <p className="mt-0.5 text-xs text-muted-foreground">{a.detail}</p>

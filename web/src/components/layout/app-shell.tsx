@@ -144,7 +144,9 @@ export function AppShell({
         <Topbar boutiques={boutiques} boutiqueActiveId={boutiqueActiveId} />
         {annonce ? <AnnouncementBanner message={annonce} /> : null}
         <PwaInstallBanner />
-        <main className="flex-1 overflow-y-auto p-4 pb-20 md:pb-4">{children}</main>
+        {/* Plus d'air autour du contenu sur grand écran ; sur mobile, le padding bas reste calé sur
+            la hauteur de la navigation du pouce (MobileNav) pour ne jamais passer dessous. */}
+        <main className="flex-1 overflow-y-auto p-4 pb-24 md:p-6 md:pb-6">{children}</main>
       </div>
       <MobileNav role={role} formule={formule} />
     </div>

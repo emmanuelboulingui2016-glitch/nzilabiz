@@ -20,19 +20,25 @@ export function StatCard({
   helpText?: string;
 }) {
   return (
-    <Card className={cn("p-4", className)} title={helpText}>
-      <div className="flex items-start justify-between">
-        <span className="text-sm text-muted-foreground">{label}</span>
-        {icon ? <span className="text-primary">{icon}</span> : null}
+    <Card className={cn("p-5", className)} title={helpText}>
+      <div className="flex items-start justify-between gap-3">
+        <span className="text-sm font-medium text-muted-foreground">{label}</span>
+        {icon ? (
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+            {icon}
+          </span>
+        ) : null}
       </div>
-      <div className="mt-1 text-2xl font-bold tracking-tight">{value}</div>
+      {/* Le chiffre grossit : c'est la donnée que le commerçant vient chercher en premier sur ce
+          tableau de bord, elle doit se lire d'un coup d'œil. */}
+      <div className="mt-2 text-3xl font-extrabold tracking-tight text-foreground">{value}</div>
       {delta ? (
         <div
           className={cn(
-            "mt-1 text-xs font-medium",
-            deltaTone === "positive" && "text-success",
-            deltaTone === "negative" && "text-danger",
-            deltaTone === "neutral" && "text-muted-foreground"
+            "mt-2 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold",
+            deltaTone === "positive" && "bg-success/10 text-success",
+            deltaTone === "negative" && "bg-danger/10 text-danger",
+            deltaTone === "neutral" && "bg-muted text-muted-foreground"
           )}
         >
           {delta}

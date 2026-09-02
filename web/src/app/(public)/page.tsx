@@ -145,6 +145,14 @@ const FAQ_ITEMS = [
   },
 ];
 
+// Petite étiquette au-dessus d'un titre de section : donne un repère de lecture avant le h2, sans
+// ajouter de niveau de titre supplémentaire (elle n'est pas un <h*>, seulement une amorce visuelle).
+function Amorce({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="text-xs font-extrabold uppercase tracking-[0.14em] text-primary">{children}</span>
+  );
+}
+
 // Les coordonnées de contact viennent des réglages de la plateforme. La page reste pré-générée :
 // le calque public la revalide déjà toutes les heures et purge son cache à l'enregistrement des
 // réglages.
@@ -173,42 +181,42 @@ export default async function VitrinePage() {
           style={{ animation: "floatSoft 11s ease-in-out infinite reverse" }}
         />
 
-        <div className="relative mx-auto grid w-full max-w-6xl items-center gap-10 px-4 py-16 lg:grid-cols-2 lg:py-24">
+        <div className="relative mx-auto grid w-full max-w-6xl items-center gap-12 px-4 py-20 sm:px-6 lg:grid-cols-2 lg:py-28">
           <Reveal>
             <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-bold uppercase tracking-wider">
               <WifiOff size={13} /> Fonctionne sans réseau
             </span>
-            <h1 className="mt-4 text-4xl font-extrabold leading-tight tracking-tight sm:text-5xl">
+            <h1 className="mt-5 text-4xl font-extrabold leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl">
               Gérez votre boutique, simplement, au quotidien
             </h1>
-            <p className="mt-4 max-w-xl text-lg text-sidebar-muted">
+            <p className="mt-5 max-w-xl text-lg text-sidebar-muted">
               Caisse, stock, crédits clients, dépenses et rapports — en FCFA, sur votre téléphone, même
               quand la connexion coupe. Pensé pour les commerçants d&apos;Afrique centrale.
             </p>
-            <div className="mt-8 flex flex-wrap gap-3">
+            <div className="mt-9 flex flex-wrap gap-3">
               <Link
                 href="/inscription"
-                className="group inline-flex h-12 items-center gap-2 rounded-lg bg-primary px-6 text-base font-bold text-primary-foreground transition-all hover:opacity-90 hover:shadow-lg hover:shadow-primary/25"
+                className="group inline-flex h-12 items-center gap-2 rounded-full bg-primary px-7 text-base font-bold text-primary-foreground shadow-vedette transition-all hover:opacity-90"
               >
                 Essayer 15 jours gratuitement
                 <ArrowRight size={18} className="transition-transform group-hover:translate-x-1" />
               </Link>
               <Link
                 href="/connexion"
-                className="inline-flex h-12 items-center rounded-lg border border-white/25 px-6 text-base font-bold transition-colors hover:bg-white/10"
+                className="inline-flex h-12 items-center rounded-full border border-white/25 px-7 text-base font-bold transition-colors hover:bg-white/10"
               >
                 J&apos;ai déjà un compte
               </Link>
             </div>
             <p className="mt-3 text-sm text-sidebar-muted">Sans carte bancaire. Sans engagement.</p>
 
-            <dl className="mt-10 grid max-w-md grid-cols-3 gap-3 text-center">
+            <dl className="mt-11 grid max-w-md grid-cols-3 gap-3 text-center">
               {[
                 { valeur: 11, suffixe: "", libelle: "modules métier" },
                 { valeur: 100, suffixe: " %", libelle: "utilisable hors ligne" },
                 { valeur: 3, suffixe: "", libelle: "rôles d'utilisateur" },
               ].map((s) => (
-                <div key={s.libelle} className="rounded-xl bg-white/5 p-3 ring-1 ring-white/10">
+                <div key={s.libelle} className="rounded-2xl bg-white/5 p-3 ring-1 ring-white/10">
                   <dt className="text-2xl font-extrabold tabular-nums">
                     <AnimatedCounter value={s.valeur} suffix={s.suffixe} />
                   </dt>
@@ -225,8 +233,13 @@ export default async function VitrinePage() {
       </section>
 
       {/* Problème → solution ---------------------------------------------- */}
-      <section className="mx-auto w-full max-w-6xl px-4 py-16">
-        <div className="grid gap-6 md:grid-cols-3">
+      <section className="mx-auto w-full max-w-6xl px-4 py-20 sm:px-6 lg:py-24">
+        <Reveal>
+          <Amorce>Le constat</Amorce>
+          <h2 className="mt-2 text-3xl font-extrabold tracking-tight">Ce que vous vivez tous les jours</h2>
+        </Reveal>
+
+        <div className="mt-9 grid gap-6 md:grid-cols-3">
           {[
             {
               titre: "Le cahier ne suit plus",
@@ -245,7 +258,7 @@ export default async function VitrinePage() {
             },
           ].map((p, i) => (
             <Reveal key={p.titre} delay={i * 100}>
-              <div className="h-full rounded-xl border border-border bg-card p-5 transition-shadow hover:shadow-md">
+              <div className="h-full rounded-2xl bg-card p-6 shadow-carte transition-shadow hover:shadow-relief">
                 <h3 className="text-base font-bold">{p.titre}</h3>
                 <p className="mt-2 text-sm text-muted-foreground">{p.texte}</p>
               </div>
@@ -254,7 +267,7 @@ export default async function VitrinePage() {
         </div>
 
         <Reveal delay={200}>
-          <div className="mt-8 rounded-xl border border-primary/30 bg-primary/5 p-6 text-center">
+          <div className="mt-8 rounded-2xl bg-primary/5 p-8 text-center shadow-carte">
             <p className="text-lg font-bold">
               NzilaBiz fait le travail à votre place : vous encaissez, l&apos;application tient les comptes.
             </p>
@@ -263,24 +276,25 @@ export default async function VitrinePage() {
       </section>
 
       {/* Fonctionnalités --------------------------------------------------- */}
-      <section id="fonctionnalites" className="border-y border-border bg-card py-16">
-        <div className="mx-auto w-full max-w-6xl px-4">
+      <section id="fonctionnalites" className="bg-card py-20 lg:py-24">
+        <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">
           <Reveal>
-            <h2 className="text-3xl font-extrabold tracking-tight">Tout ce dont une boutique a besoin</h2>
-            <p className="mt-2 max-w-2xl text-muted-foreground">
+            <Amorce>Fonctionnalités</Amorce>
+            <h2 className="mt-2 text-3xl font-extrabold tracking-tight">Tout ce dont une boutique a besoin</h2>
+            <p className="mt-3 max-w-2xl text-muted-foreground">
               Pas de fonctionnalité décorative : chaque écran répond à une question que vous vous posez
               réellement dans la journée.
             </p>
           </Reveal>
 
-          <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-11 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             {MODULES.map(({ icon: Icone, titre, texte }, i) => (
               <Reveal key={titre} delay={(i % 4) * 80}>
-                <div className="group h-full rounded-xl border border-border bg-background p-5 transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-lg">
-                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary transition-transform duration-300 group-hover:scale-110">
+                <div className="group h-full rounded-2xl bg-background p-6 shadow-carte transition-all duration-300 hover:-translate-y-1 hover:shadow-relief">
+                  <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary transition-transform duration-300 group-hover:scale-110">
                     <Icone size={20} />
                   </span>
-                  <h3 className="mt-3 text-base font-bold">{titre}</h3>
+                  <h3 className="mt-4 text-base font-bold">{titre}</h3>
                   <p className="mt-1.5 text-sm text-muted-foreground">{texte}</p>
                 </div>
               </Reveal>
@@ -290,14 +304,21 @@ export default async function VitrinePage() {
       </section>
 
       {/* Hors ligne + Mobile Money ----------------------------------------- */}
-      <section className="mx-auto w-full max-w-6xl px-4 py-16">
-        <div className="grid gap-6 md:grid-cols-2">
+      <section className="mx-auto w-full max-w-6xl px-4 py-20 sm:px-6 lg:py-24">
+        <Reveal>
+          <Amorce>Le détail qui compte</Amorce>
+          <h2 className="mt-2 text-3xl font-extrabold tracking-tight">
+            Deux automatismes qui changent le quotidien
+          </h2>
+        </Reveal>
+
+        <div className="mt-9 grid gap-6 md:grid-cols-2">
           <Reveal>
-            <div className="h-full rounded-xl border border-border bg-card p-6 transition-shadow hover:shadow-md">
-              <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <div className="h-full rounded-2xl bg-card p-7 shadow-carte transition-shadow hover:shadow-relief">
+              <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
                 <WifiOff size={20} />
               </span>
-              <h3 className="mt-3 text-xl font-bold">La coupure de réseau n&apos;arrête pas la vente</h3>
+              <h3 className="mt-4 text-xl font-bold">La coupure de réseau n&apos;arrête pas la vente</h3>
               <p className="mt-2 text-sm text-muted-foreground">
                 Les ventes enregistrées hors connexion sont stockées sur l&apos;appareil et remontent
                 automatiquement dès le retour du réseau. Vous voyez à tout moment ce qui reste à
@@ -306,11 +327,11 @@ export default async function VitrinePage() {
             </div>
           </Reveal>
           <Reveal delay={120}>
-            <div className="h-full rounded-xl border border-border bg-card p-6 transition-shadow hover:shadow-md">
-              <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <div className="h-full rounded-2xl bg-card p-7 shadow-carte transition-shadow hover:shadow-relief">
+              <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
                 <Smartphone size={20} />
               </span>
-              <h3 className="mt-3 text-xl font-bold">Airtel Money et Moov Money</h3>
+              <h3 className="mt-4 text-xl font-bold">Airtel Money et Moov Money</h3>
               <p className="mt-2 text-sm text-muted-foreground">
                 Enregistrez vos encaissements Mobile Money avec leur référence, à côté des espèces et du
                 crédit, pour un point de caisse juste en fin de journée. La configuration des opérateurs
@@ -322,19 +343,20 @@ export default async function VitrinePage() {
       </section>
 
       {/* Démarrage ---------------------------------------------------------- */}
-      <section className="border-y border-border bg-card py-16">
-        <div className="mx-auto w-full max-w-6xl px-4">
+      <section className="bg-card py-20 lg:py-24">
+        <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">
           <Reveal>
-            <h2 className="text-3xl font-extrabold tracking-tight">Opérationnel le jour même</h2>
+            <Amorce>Mise en route</Amorce>
+            <h2 className="mt-2 text-3xl font-extrabold tracking-tight">Opérationnel le jour même</h2>
           </Reveal>
-          <div className="mt-8 grid gap-5 md:grid-cols-3">
+          <div className="mt-11 grid gap-6 md:grid-cols-3">
             {ETAPES.map((e, i) => (
               <Reveal key={e.numero} delay={i * 120}>
-                <div className="relative h-full rounded-xl border border-border bg-background p-5">
-                  <span className="absolute -top-4 left-5 flex h-9 w-9 items-center justify-center rounded-full bg-primary text-base font-extrabold text-primary-foreground shadow">
+                <div className="relative h-full rounded-2xl bg-background p-6 pt-7 shadow-carte">
+                  <span className="absolute -top-4 left-6 flex h-9 w-9 items-center justify-center rounded-full bg-primary text-base font-extrabold text-primary-foreground shadow-vedette">
                     {e.numero}
                   </span>
-                  <h3 className="mt-4 text-base font-bold">{e.titre}</h3>
+                  <h3 className="mt-3 text-base font-bold">{e.titre}</h3>
                   <p className="mt-1.5 text-sm text-muted-foreground">{e.texte}</p>
                 </div>
               </Reveal>
@@ -344,17 +366,18 @@ export default async function VitrinePage() {
       </section>
 
       {/* Rôles -------------------------------------------------------------- */}
-      <section className="mx-auto w-full max-w-6xl px-4 py-16">
+      <section className="mx-auto w-full max-w-6xl px-4 py-20 sm:px-6 lg:py-24">
         <Reveal>
-          <h2 className="text-3xl font-extrabold tracking-tight">Chacun voit ce qui le concerne</h2>
-          <p className="mt-2 max-w-2xl text-muted-foreground">
+          <Amorce>Équipe</Amorce>
+          <h2 className="mt-2 text-3xl font-extrabold tracking-tight">Chacun voit ce qui le concerne</h2>
+          <p className="mt-3 max-w-2xl text-muted-foreground">
             Vos vendeurs encaissent sans avoir accès à vos marges ni à vos rapports.
           </p>
         </Reveal>
-        <div className="mt-8 grid gap-5 md:grid-cols-3">
+        <div className="mt-9 grid gap-6 md:grid-cols-3">
           {ROLES.map((r, i) => (
             <Reveal key={r.titre} delay={i * 100}>
-              <div className="h-full rounded-xl border border-border bg-card p-5 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg">
+              <div className="h-full rounded-2xl bg-card p-6 shadow-carte transition-all duration-300 hover:-translate-y-1 hover:shadow-relief">
                 <h3 className="text-base font-bold">{r.titre}</h3>
                 <p className="mt-1.5 text-sm text-muted-foreground">{r.texte}</p>
               </div>
@@ -364,16 +387,17 @@ export default async function VitrinePage() {
       </section>
 
       {/* Tarifs ------------------------------------------------------------- */}
-      <section id="tarifs" className="border-y border-border bg-card py-16">
-        <div className="mx-auto w-full max-w-6xl px-4">
+      <section id="tarifs" className="bg-card py-20 lg:py-24">
+        <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">
           <Reveal>
-            <h2 className="text-3xl font-extrabold tracking-tight">Des formules claires</h2>
-            <p className="mt-2 max-w-2xl text-muted-foreground">
+            <Amorce>Tarifs</Amorce>
+            <h2 className="mt-2 text-3xl font-extrabold tracking-tight">Des formules claires</h2>
+            <p className="mt-3 max-w-2xl text-muted-foreground">
               15 jours pour essayer, sans carte bancaire et avec toutes les fonctionnalités. Ensuite, deux
               formules selon vos besoins — et une troisième si vous gérez plusieurs boutiques.
             </p>
             <Pricing contact={contact} grille={grille} />
-            <p className="mt-4 text-xs text-muted-foreground">
+            <p className="mt-5 text-xs text-muted-foreground">
               Les paiements par Mobile Money sont en cours de mise en service : en attendant, l&apos;équipe
               NzilaBiz vous accompagne par WhatsApp pour activer votre abonnement.
             </p>
@@ -382,31 +406,32 @@ export default async function VitrinePage() {
       </section>
 
       {/* FAQ ---------------------------------------------------------------- */}
-      <section id="faq" className="mx-auto w-full max-w-3xl px-4 py-16">
+      <section id="faq" className="mx-auto w-full max-w-3xl px-4 py-20 sm:px-6 lg:py-24">
         <Reveal>
-          <h2 className="text-3xl font-extrabold tracking-tight">Questions fréquentes</h2>
+          <Amorce>Questions fréquentes</Amorce>
+          <h2 className="mt-2 text-3xl font-extrabold tracking-tight">Ce qu&apos;on nous demande le plus</h2>
           <Faq items={FAQ_ITEMS} />
         </Reveal>
       </section>
 
       {/* CTA final ----------------------------------------------------------- */}
-      <section className="relative overflow-hidden bg-sidebar py-16 text-sidebar-foreground">
+      <section className="relative overflow-hidden bg-sidebar py-20 text-sidebar-foreground lg:py-24">
         <div
           aria-hidden
           className="pointer-events-none absolute left-1/2 top-0 h-72 w-72 -translate-x-1/2 rounded-full bg-primary/20 blur-3xl"
         />
-        <div className="relative mx-auto w-full max-w-3xl px-4 text-center">
+        <div className="relative mx-auto w-full max-w-3xl px-4 text-center sm:px-6">
           <Reveal>
-            <h2 className="text-3xl font-extrabold tracking-tight">
+            <h2 className="text-3xl font-extrabold tracking-tight sm:text-4xl">
               Votre boutique mérite mieux qu&apos;un cahier
             </h2>
-            <p className="mt-3 text-sidebar-muted">
+            <p className="mt-4 text-sidebar-muted">
               Créez votre compte, choisissez un catalogue de départ, et encaissez votre première vente
               aujourd&apos;hui.
             </p>
             <Link
               href="/inscription"
-              className="group mt-8 inline-flex h-12 items-center gap-2 rounded-lg bg-primary px-8 text-base font-bold text-primary-foreground transition-all hover:opacity-90 hover:shadow-lg hover:shadow-primary/25"
+              className="group mt-9 inline-flex h-12 items-center gap-2 rounded-full bg-primary px-8 text-base font-bold text-primary-foreground shadow-vedette transition-all hover:opacity-90"
             >
               Créer ma boutique
               <ArrowRight size={18} className="transition-transform group-hover:translate-x-1" />

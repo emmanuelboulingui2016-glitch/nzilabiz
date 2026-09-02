@@ -58,7 +58,7 @@ export function AppPreview() {
         ))}
       </div>
 
-      <div className="min-h-72 rounded-xl bg-white/95 p-3 text-[#14261d] shadow-inner sm:min-h-80">
+      <div className="min-h-72 rounded-xl bg-card/95 p-3 text-card-foreground shadow-inner sm:min-h-80">
         {actif === "vendre" ? <ApercuVendre /> : actif === "clients" ? <ApercuClients /> : <ApercuRapports />}
       </div>
 
@@ -81,22 +81,22 @@ function ApercuVendre() {
 
   return (
     <div className="animate-[fadeIn_.3s_ease-out] space-y-2">
-      <p className="text-xs font-bold uppercase tracking-wider text-[#5b6b62]">Panier en cours</p>
+      <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Panier en cours</p>
       {panier.map((l, i) => (
         <div
           key={l.nom}
-          className="flex items-center justify-between rounded-lg border border-[#e2e6df] px-3 py-2"
+          className="flex items-center justify-between rounded-lg bg-muted/60 px-3 py-2"
           style={{ animation: `slideIn .35s ease-out ${i * 70}ms both` }}
         >
           <span className="min-w-0 truncate text-sm font-semibold">{l.nom}</span>
-          <span className="ml-2 shrink-0 text-xs text-[#5b6b62]">
+          <span className="ml-2 shrink-0 text-xs text-muted-foreground">
             ×{l.qte} · {l.prix.toLocaleString("fr-FR")}
           </span>
         </div>
       ))}
-      <div className="flex items-center justify-between rounded-lg bg-[#0f9d58]/10 px-3 py-2.5">
+      <div className="flex items-center justify-between rounded-lg bg-primary/10 px-3 py-2.5">
         <span className="text-sm font-bold">Total</span>
-        <span className="text-lg font-extrabold text-[#0b5a38]">{total.toLocaleString("fr-FR")} FCFA</span>
+        <span className="text-lg font-extrabold text-foret">{total.toLocaleString("fr-FR")} FCFA</span>
       </div>
       <div className="grid grid-cols-3 gap-2 pt-1">
         {["Espèces", "Mobile Money", "Crédit"].map((mode, i) => (
@@ -104,7 +104,7 @@ function ApercuVendre() {
             key={mode}
             className={cn(
               "rounded-lg px-2 py-2 text-center text-[11px] font-bold",
-              i === 0 ? "bg-[#0f9d58] text-white" : "border border-[#e2e6df] text-[#5b6b62]"
+              i === 0 ? "bg-primary text-primary-foreground" : "bg-muted/60 text-muted-foreground"
             )}
           >
             {mode}
@@ -115,35 +115,46 @@ function ApercuVendre() {
   );
 }
 
+// Les teintes de segment reprennent exactement celles de l'écran Clients réel (voir
+// `SEGMENT_TONES` dans `components/clients/types.ts`) : fidèle en succès, récurrent en primaire,
+// inactif en alerte. Un aperçu qui invente ses propres couleurs finit par mentir sur le produit.
 function ApercuClients() {
   const clients = [
-    { nom: "Mama Ngoua", segment: "Fidèle", ton: "#0f9d58", achats: 8, ca: 449000 },
-    { nom: "Papa Obame", segment: "Fidèle", ton: "#0f9d58", achats: 6, ca: 536000 },
-    { nom: "Chez Nadège", segment: "Récurrent", ton: "#2563eb", achats: 3, ca: 140000 },
-    { nom: "J.-P. Ndong", segment: "Inactif", ton: "#d97706", achats: 4, ca: 204500 },
+    { nom: "Mama Ngoua", segment: "Fidèle", ton: "success" as const, achats: 8, ca: 449000 },
+    { nom: "Papa Obame", segment: "Fidèle", ton: "success" as const, achats: 6, ca: 536000 },
+    { nom: "Chez Nadège", segment: "Récurrent", ton: "primary" as const, achats: 3, ca: 140000 },
+    { nom: "J.-P. Ndong", segment: "Inactif", ton: "warning" as const, achats: 4, ca: 204500 },
   ];
+
+  const TON_CLASSES = {
+    success: "bg-success/15 text-success",
+    primary: "bg-primary/15 text-primary",
+    warning: "bg-warning/15 text-warning",
+  } satisfies Record<string, string>;
 
   return (
     <div className="space-y-2">
-      <p className="text-xs font-bold uppercase tracking-wider text-[#5b6b62]">Vos clients</p>
+      <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Vos clients</p>
       {clients.map((c, i) => (
         <div
           key={c.nom}
-          className="flex items-center justify-between rounded-lg border border-[#e2e6df] px-3 py-2"
+          className="flex items-center justify-between rounded-lg bg-muted/60 px-3 py-2"
           style={{ animation: `slideIn .35s ease-out ${i * 70}ms both` }}
         >
           <div className="min-w-0">
             <p className="truncate text-sm font-bold">{c.nom}</p>
             <span
-              className="mt-0.5 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold"
-              style={{ background: `${c.ton}20`, color: c.ton }}
+              className={cn(
+                "mt-0.5 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold",
+                TON_CLASSES[c.ton]
+              )}
             >
               {c.segment}
             </span>
           </div>
           <div className="ml-2 shrink-0 text-right">
             <p className="text-sm font-extrabold">{c.ca.toLocaleString("fr-FR")}</p>
-            <p className="text-[11px] text-[#5b6b62]">{c.achats} achats</p>
+            <p className="text-[11px] text-muted-foreground">{c.achats} achats</p>
           </div>
         </div>
       ))}
@@ -172,23 +183,23 @@ function ApercuRapports() {
         ].map((k, i) => (
           <div
             key={k.label}
-            className="rounded-lg border border-[#e2e6df] p-2"
+            className="rounded-lg bg-muted/60 p-2"
             style={{ animation: `slideIn .35s ease-out ${i * 70}ms both` }}
           >
-            <p className="text-[10px] text-[#5b6b62]">{k.label}</p>
+            <p className="text-[10px] text-muted-foreground">{k.label}</p>
             <p className="text-sm font-extrabold">{k.valeur}</p>
           </div>
         ))}
       </div>
 
-      <div className="flex h-36 items-end justify-between gap-1.5 rounded-lg border border-[#e2e6df] p-3">
+      <div className="flex h-36 items-end justify-between gap-1.5 rounded-lg bg-muted/60 p-3">
         {barres.map((b, i) => (
           <div key={b.jour} className="flex flex-1 flex-col items-center gap-1">
             <div
-              className="w-full rounded-t bg-[#0f9d58]"
+              className="w-full rounded-t bg-primary"
               style={{ height: `${b.valeur}%`, animation: `growBar .5s ease-out ${i * 60}ms both` }}
             />
-            <span className="text-[10px] text-[#5b6b62]">{b.jour}</span>
+            <span className="text-[10px] text-muted-foreground">{b.jour}</span>
           </div>
         ))}
       </div>

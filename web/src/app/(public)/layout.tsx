@@ -18,22 +18,24 @@ export default async function PublicLayout({ children }: { children: React.React
 
       <main className="flex-1">{children}</main>
 
-      <footer className="border-t border-border bg-card">
-        <div className="mx-auto grid w-full max-w-6xl gap-8 px-4 py-10 sm:grid-cols-2 lg:grid-cols-4">
+      {/* Le fond blanc (bg-card) sur le crème du corps de page suffit à marquer la coupure : une
+          bordure aurait doublé l'effet pour rien, alors que la charte demande moins de traits. */}
+      <footer className="bg-card">
+        <div className="mx-auto grid w-full max-w-6xl gap-10 px-4 py-14 sm:grid-cols-2 sm:px-6 lg:grid-cols-4 lg:py-16">
           <div>
             <div className="flex items-center gap-2">
               <Image src="/brand/nzilabiz-icone-transparent.png" alt="" width={28} height={28} />
-              <span className="font-extrabold">{r.nomApplication}</span>
+              <span className="text-lg font-extrabold">{r.nomApplication}</span>
             </div>
-            <p className="mt-2 text-sm text-muted-foreground">
+            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
               La gestion de boutique pensée pour les commerçants d&apos;Afrique centrale. Caisse, stock,
               créances et rapports — même sans réseau.
             </p>
           </div>
 
           <div>
-            <p className="mb-2 text-sm font-bold">Produit</p>
-            <ul className="space-y-1.5 text-sm text-muted-foreground">
+            <p className="mb-3 text-sm font-extrabold">Produit</p>
+            <ul className="space-y-2 text-sm text-muted-foreground">
               <li>
                 <Link href="/#fonctionnalites" className="hover:text-foreground">
                   Fonctionnalités
@@ -58,8 +60,8 @@ export default async function PublicLayout({ children }: { children: React.React
           </div>
 
           <div>
-            <p className="mb-2 text-sm font-bold">Légal</p>
-            <ul className="space-y-1.5 text-sm text-muted-foreground">
+            <p className="mb-3 text-sm font-extrabold">Légal</p>
+            <ul className="space-y-2 text-sm text-muted-foreground">
               <li>
                 <Link href="/conditions" className="hover:text-foreground">
                   Conditions d&apos;utilisation
@@ -84,8 +86,8 @@ export default async function PublicLayout({ children }: { children: React.React
           </div>
 
           <div>
-            <p className="mb-2 text-sm font-bold">Contact</p>
-            <ul className="space-y-1.5 text-sm text-muted-foreground">
+            <p className="mb-3 text-sm font-extrabold">Contact</p>
+            <ul className="space-y-2 text-sm text-muted-foreground">
               {r.supportEmail ? (
                 <li>
                   <a href={`mailto:${r.supportEmail}`} className="hover:text-foreground">
@@ -120,7 +122,7 @@ export default async function PublicLayout({ children }: { children: React.React
           </div>
         </div>
 
-        <div className="border-t border-border py-4 text-center text-xs text-muted-foreground">
+        <div className="mx-auto w-full max-w-6xl px-4 pb-8 text-center text-xs text-muted-foreground sm:px-6">
           © {new Date().getFullYear()} {r.nomApplication}. Tous droits réservés.
         </div>
       </footer>

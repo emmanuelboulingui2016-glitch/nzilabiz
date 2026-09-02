@@ -23,11 +23,20 @@
   --accent: var(--color-clair);
   --muted: #eef1ec;
   --muted-foreground: #5b6b62;
-  --border: #e2e6df;
+  --border: #e6eae3;
   --success: #16a34a;
   --warning: #d97706;
   --danger: #dc2626;
-  --radius: 0.75rem;
+
+  /* Refonte 2026 : plus d'air, des angles plus francs, des ombres qui portent au lieu de cerner.
+     Les noms de jetons existants sont conservés — rien ne casse, tout respire davantage. */
+  --radius: 1rem;
+
+  /* Ombres douces et colorées par le vert de la marque plutôt qu'un gris neutre : une ombre
+     grise sur un fond crème vire au sale. */
+  --ombre-carte: 0 1px 2px rgba(11, 90, 56, 0.04), 0 4px 16px rgba(11, 90, 56, 0.06);
+  --ombre-relief: 0 2px 4px rgba(11, 90, 56, 0.06), 0 12px 32px rgba(11, 90, 56, 0.10);
+  --ombre-vedette: 0 8px 24px rgba(15, 157, 88, 0.24);
 }
 
 .dark {
@@ -44,6 +53,9 @@
   --muted: #1c2921;
   --muted-foreground: #9db3a8;
   --border: #24352c;
+  --ombre-carte: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.25);
+  --ombre-relief: 0 2px 4px rgba(0, 0, 0, 0.35), 0 12px 32px rgba(0, 0, 0, 0.35);
+  --ombre-vedette: 0 8px 24px rgba(63, 190, 125, 0.20);
   --success: #22c55e;
   --warning: #f59e0b;
   --danger: #ef4444;
@@ -77,6 +89,11 @@
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 0.25rem);
   --radius-sm: calc(var(--radius) - 0.5rem);
+  --radius-xl: calc(var(--radius) + 0.5rem);
+
+  --shadow-carte: var(--ombre-carte);
+  --shadow-relief: var(--ombre-relief);
+  --shadow-vedette: var(--ombre-vedette);
 }
 
 * {

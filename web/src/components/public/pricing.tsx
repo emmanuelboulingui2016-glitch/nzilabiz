@@ -84,7 +84,7 @@ export function Pricing({ contact, grille }: { contact: ContactCommercial; grill
     <>
       {/* L'essai est annoncé par la section qui enveloppe ce bloc : le répéter ici faisait deux
           fois la même phrase à trois lignes d'intervalle. */}
-      <div className="mt-6 inline-flex rounded-full bg-muted p-1">
+      <div className="mt-7 inline-flex rounded-full bg-muted p-1">
         {CYCLES.map((c) => {
           const remise = economiePourcent(grille, "PREMIUM", c);
           return (
@@ -93,9 +93,11 @@ export function Pricing({ contact, grille }: { contact: ContactCommercial; grill
               onClick={() => setPeriode(c)}
               aria-pressed={periode === c}
               className={cn(
-                "relative rounded-full px-4 py-2 text-sm font-bold transition-colors sm:px-5",
+                // py-3 plutôt que py-2 : à cette taille de texte, py-2 laissait une zone tactile
+                // sous les 44 px recommandés — un doigt rate facilement le bouton sur mobile.
+                "relative rounded-full px-4 py-3 text-sm font-bold transition-colors sm:px-5",
                 periode === c
-                  ? "bg-primary text-primary-foreground shadow-sm"
+                  ? "bg-primary text-primary-foreground shadow-carte"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
@@ -116,7 +118,7 @@ export function Pricing({ contact, grille }: { contact: ContactCommercial; grill
       </div>
 
       {/* La carte du milieu est décollée : il lui faut de la place au-dessus et en dessous. */}
-      <div className="mt-8 grid items-start gap-6 text-left lg:grid-cols-3 lg:gap-5 lg:py-4">
+      <div className="mt-9 grid items-start gap-6 text-left lg:grid-cols-3 lg:gap-6 lg:py-4">
         {PLANS.map((p) => {
           const entreprise = p === "ENTREPRISE";
           const montant = entreprise ? grille.ENTREPRISE.annuel : grille[p][periode];
@@ -130,8 +132,8 @@ export function Pricing({ contact, grille }: { contact: ContactCommercial; grill
               className={cn(
                 "relative flex flex-col rounded-2xl p-6 transition-shadow sm:p-7",
                 vedette
-                  ? "bg-primary text-primary-foreground shadow-xl lg:-translate-y-4"
-                  : "border border-border bg-card shadow-sm hover:shadow-md"
+                  ? "bg-primary text-primary-foreground shadow-vedette lg:-translate-y-4"
+                  : "bg-card shadow-carte hover:shadow-relief"
               )}
             >
               {vedette ? (

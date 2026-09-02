@@ -12,21 +12,24 @@ export function Faq({ items }: { items: { question: string; reponse: string }[] 
   const [ouvert, setOuvert] = useState<number | null>(0);
 
   return (
-    <div className="mt-8 space-y-3">
+    <div className="mt-9 space-y-3">
       {items.map((item, index) => {
         const estOuvert = ouvert === index;
         return (
           <div
             key={item.question}
             className={cn(
-              "overflow-hidden rounded-xl border bg-background transition-colors",
-              estOuvert ? "border-primary/40" : "border-border"
+              // La section qui entoure cet accordéon reste sur le fond crème par défaut : chaque
+              // question a donc besoin d'un fond blanc (bg-card) pour se détacher, l'ombre seule
+              // ne suffirait pas sur une couleur identique à celle du dessous.
+              "overflow-hidden rounded-2xl bg-card transition-shadow",
+              estOuvert ? "shadow-relief" : "shadow-carte"
             )}
           >
             <button
               onClick={() => setOuvert(estOuvert ? null : index)}
               aria-expanded={estOuvert}
-              className="flex w-full items-center justify-between gap-4 p-4 text-left"
+              className="flex min-h-14 w-full items-center justify-between gap-4 p-4 text-left"
             >
               <span className="text-base font-bold">{item.question}</span>
               <ChevronDown

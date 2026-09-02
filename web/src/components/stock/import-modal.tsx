@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Papa from "papaparse";
 import { toast } from "sonner";
 import { Dialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -12,22 +11,46 @@ const TEMPLATE_CSV =
   "nom,categorie,codeBarres,prixAchat,prixVente,unite,quantiteStock,seuilAlerte\n" +
   "Riz 5kg,Alimentation,1234567890123,4500,5500,unité,20,5\n";
 
+// Doit rester cohérent avec les bornes serveur (route d'import) : elles seules font foi, ceci n'est
+// qu'un message d'avertissement immédiat pour éviter à l'utilisateur d'attendre l'aller-retour.
+const TAILLE_MAX_OCTETS = 5_000_000;
+
+/** Lit le fichier choisi et renvoie son contenu en base64 pur (sans le préfixe "data:...;base64,"). */
+function lireFichierEnBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const resultat = reader.result as string;
+      const virgule = resultat.indexOf(",");
+      resolve(virgule >= 0 ? resultat.slice(virgule + 1) : resultat);
+    };
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
 export function ImportModal({ open, onClose, onImported }: { open: boolean; onClose: () => void; onImported: () => void }) {
-  const [rows, setRows] = useState<Record<string, unknown>[]>([]);
-  const [fileName, setFileName] = useState("");
+  const [file, setFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<ImportResult | null>(null);
 
-  const handleFile = (file: File | null) => {
-    if (!file) return;
-    setFileName(file.name);
+  const handleFile = (selected: File | null) => {
     setResult(null);
-    Papa.parse<Record<string, unknown>>(file, {
-      header: true,
-      skipEmptyLines: true,
-      complete: (res) => setRows(res.data),
-      error: () => toast.error("Impossible de lire ce fichier CSV."),
-    });
+    if (!selected) {
+      setFile(null);
+      return;
+    }
+    if (!/\.(csv|xlsx)$/i.test(selected.name)) {
+      toast.error("Choisissez un fichier .csv ou .xlsx.");
+      setFile(null);
+      return;
+    }
+    if (selected.size > TAILLE_MAX_OCTETS) {
+      toast.error("Ce fichier est trop volumineux (5 Mo maximum). Réduisez-le et réessayez.");
+      setFile(null);
+      return;
+    }
+    setFile(selected);
   };
 
   const downloadTemplate = () => {
@@ -41,16 +64,17 @@ export function ImportModal({ open, onClose, onImported }: { open: boolean; onCl
   };
 
   const handleImport = async () => {
-    if (rows.length === 0) {
-      toast.error("Sélectionnez un fichier CSV contenant au moins une ligne.");
+    if (!file) {
+      toast.error("Sélectionnez un fichier CSV ou Excel (.xlsx) avant d'importer.");
       return;
     }
     setImporting(true);
     try {
+      const contenu = await lireFichierEnBase64(file);
       const res = await fetch("/api/stock/products/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rows }),
+        body: JSON.stringify({ nomFichier: file.name, contenu }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -60,18 +84,21 @@ export function ImportModal({ open, onClose, onImported }: { open: boolean; onCl
       setResult(data);
       toast.success(`${data.created} créé(s), ${data.updated} mis à jour, ${data.skipped} ignoré(s).`);
       onImported();
+    } catch {
+      toast.error("Impossible de lire ce fichier.");
     } finally {
       setImporting(false);
     }
   };
 
   return (
-    <Dialog open={open} onClose={onClose} title="Importer des produits (CSV)" className="max-w-xl">
+    <Dialog open={open} onClose={onClose} title="Importer des produits (CSV ou Excel)" className="max-w-xl">
       <div className="space-y-4">
         <p className="text-xs text-muted-foreground">
-          Colonnes reconnues (insensible à la casse) : nom, catégorie, codeBarres, prixAchat, prixVente, prixGros,
-          unité, quantiteStock, seuilAlerte. Les produits déjà connus (même code-barres) sont mis à jour, les autres
-          sont créés avec une référence générée automatiquement.
+          Fichier CSV (.csv) ou classeur Excel (.xlsx), 5 Mo et 5 000 lignes maximum. Colonnes reconnues (insensible
+          à la casse) : nom, catégorie, codeBarres, prixAchat, prixVente, prixGros, unité, quantiteStock,
+          seuilAlerte. Les produits déjà connus (même code-barres) sont mis à jour, les autres sont créés avec une
+          référence générée automatiquement.
         </p>
 
         <Button type="button" variant="outline" size="sm" onClick={downloadTemplate}>
@@ -81,13 +108,13 @@ export function ImportModal({ open, onClose, onImported }: { open: boolean; onCl
         <div>
           <input
             type="file"
-            accept=".csv,text/csv"
+            accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             onChange={(e) => handleFile(e.target.files?.[0] ?? null)}
             className="block w-full text-sm text-muted-foreground file:mr-3 file:rounded-lg file:border-0 file:bg-muted file:px-3 file:py-1.5 file:text-sm"
           />
-          {fileName && (
+          {file && (
             <p className="mt-1 text-xs text-muted-foreground">
-              {fileName} — {rows.length} ligne(s) détectée(s)
+              {file.name} — {(file.size / 1024).toFixed(0)} Ko
             </p>
           )}
         </div>
@@ -111,8 +138,8 @@ export function ImportModal({ open, onClose, onImported }: { open: boolean; onCl
           <Button variant="outline" onClick={onClose} disabled={importing}>
             Fermer
           </Button>
-          <Button onClick={handleImport} disabled={importing || rows.length === 0}>
-            {importing ? "Import en cours…" : `Importer (${rows.length})`}
+          <Button onClick={handleImport} disabled={importing || !file}>
+            {importing ? "Import en cours…" : "Importer"}
           </Button>
         </div>
       </div>
