@@ -13,7 +13,7 @@ import {
   getOrCreateDeviceId,
   type OfflineSale,
 } from "@/lib/offline/db";
-import { runSync, startAutoSync } from "@/lib/offline/sync-engine";
+import { runSync } from "@/lib/offline/sync-engine";
 import { amorcerCacheLocal, toVendreProduct } from "./cache-local";
 import { ProductGrid } from "./product-grid";
 import { CartPanel } from "./cart-panel";
@@ -83,11 +83,14 @@ export function VendreScreen({
     const onOffline = () => setOnline(false);
     window.addEventListener("online", onOnline);
     window.addEventListener("offline", onOffline);
-    const stopSync = startAutoSync();
+    // Le moteur de synchronisation démarre désormais dans `AppShell`, au-dessus de toutes les
+    // pages. Le lancer ici seulement laissait sans synchro le vendeur qui saisissait une vente
+    // hors connexion puis quittait la caisse : ses ventes restaient dans le téléphone, y compris
+    // après le retour du réseau. C'est le défaut qui coûtait le plus cher — il perdait des ventes
+    // déjà encaissées, sans rien dire.
     return () => {
       window.removeEventListener("online", onOnline);
       window.removeEventListener("offline", onOffline);
-      stopSync();
     };
   }, []);
 
