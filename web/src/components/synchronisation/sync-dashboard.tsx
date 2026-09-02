@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { runSync } from "@/lib/offline/sync-engine";
 import { entiteLabel, actionLabel, attributionLabel } from "./labels";
 import { DeviceManager } from "./device-manager";
+import { EtatHorsLigne } from "./etat-hors-ligne";
 import type { DeviceEntry, SyncLogEntry, SyncStatus } from "./queries";
 
 function statutBadge(statut: SyncLogEntry["statut"]) {
@@ -91,6 +92,10 @@ export function SyncDashboard({
 
   return (
     <div className="space-y-4 pb-20 md:pb-0">
+      {/* Placé en tête : savoir si l'appareil peut travailler sans réseau prime sur l'historique
+          des synchronisations passées, surtout au moment de partir en tournée. */}
+      <EtatHorsLigne />
+
       {/* Statut header */}
       <Card>
         <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
