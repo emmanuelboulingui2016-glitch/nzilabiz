@@ -69,8 +69,12 @@ export function EtatHorsLigne() {
     }
   }, []);
 
+  // Différé d'un tour de boucle : la première branche de `lire` peut répondre sans attendre (quand
+  // l'API Cache n'existe pas), et poser l'état pendant le corps de l'effet déclenche un rendu en
+  // cascade que React signale à juste titre.
   useEffect(() => {
-    void lire();
+    const t = setTimeout(() => void lire(), 0);
+    return () => clearTimeout(t);
   }, [lire]);
 
   /** Redemande le préchargement, puis relit — le temps que le service worker fasse son travail. */
