@@ -155,18 +155,25 @@ self.addEventListener("fetch", (event) => {
   // Les fichiers de `/_next/static` portent une empreinte dans leur nom : ils sont immuables, les
   // garder ne risque pas de servir une version périmée. C'est ce qui permet à l'application de
   // démarrer sans réseau — sans son JavaScript, une page en cache n'est qu'un décor.
+  // On ne garde que `/_next/static` : ces fichiers portent une empreinte dans leur nom, ils sont
+  // immuables et en nombre fini. Mettre en cache tout le reste laissait entrer `/_next/image`, qui
+  // produit une entrée par photo, par taille et par qualité — un cache sans fond sur un téléphone
+  // qui a déjà peu de place, et rien ne l'évinçait jamais.
+  if (!url.pathname.startsWith("/_next/static/")) return;
+
   event.respondWith(
     caches.match(request, { ignoreVary: true }).then((cached) => {
       if (cached) return cached;
-      return fetch(request)
-        .then((response) => {
-          if (cacheable(response)) {
-            const copie = response.clone();
-            event.waitUntil(caches.open(CACHE_COQUILLE).then((cache) => cache.put(request, copie)));
-          }
-          return response;
-        })
-        .catch(() => cached);
+      return fetch(request).then((response) => {
+        if (cacheable(response)) {
+          const copie = response.clone();
+          event.waitUntil(caches.open(CACHE_COQUILLE).then((cache) => cache.put(request, copie)));
+        }
+        return response;
+      });
+      // Pas de `.catch` ici : on n'arrive dans cette branche que si le cache était vide, un repli
+      // n'aurait donc rien à renvoyer. L'ancien `.catch(() => cached)` avait l'air d'un filet et
+      // renvoyait toujours `undefined` — un faux-semblant vaut moins que rien du tout.
     })
   );
 });
@@ -198,7 +205,23 @@ self.addEventListener("fetch", (event) => {
  * disponible. Le `fetch` d'un service worker vers sa propre origine emporte les cookies : la page
  * revient telle que le commerçant la verrait, session comprise.
  */
+// Un réseau qui va et vient — le cas normal en Afrique centrale — déclenche un `online` à chaque
+// retour. Sans ce verrou, chaque bascule relançait un cycle complet : cinq pages et tous leurs
+// fichiers, en parallèle des cycles précédents. On consommait les données du commerçant pour
+// retélécharger ce qu'on avait déjà.
+let prechargementEnCours = false;
+
 async function precharger(urls) {
+  if (prechargementEnCours) return;
+  prechargementEnCours = true;
+  try {
+    await prechargerVraiment(urls);
+  } finally {
+    prechargementEnCours = false;
+  }
+}
+
+async function prechargerVraiment(urls) {
   const cachePages = await caches.open(CACHE_PAGES);
   const cacheStatique = await caches.open(CACHE_COQUILLE);
   const scripts = new Set();
@@ -207,6 +230,24 @@ async function precharger(urls) {
     try {
       const reponse = await fetch(url, { credentials: "same-origin" });
       if (!cacheable(reponse)) continue;
+
+      // Le piège de ce préchargement, et il est vicieux.
+      //
+      // `fetch` suit les redirections par défaut. Or une page demandée sans session valide répond
+      // 307 vers /connexion (voir `src/proxy.ts`), et une boutique dont l'échéance est passée est
+      // renvoyée vers /abonnement-expire. Le `fetch` suit, la réponse finale est un HTML valide en
+      // 200 — et on rangeait tranquillement le formulaire de connexion sous la clé « /dashboard ».
+      //
+      // Le vendeur rouvrait alors son application hors réseau et tombait sur un écran de connexion
+      // qu'il était impossible de soumettre. Pire que la page « hors connexion » : un cul-de-sac
+      // déguisé en écran normal, qui laisse croire qu'une reconnexion suffirait.
+      //
+      // Le gestionnaire de navigation, lui, n'a jamais eu ce défaut : une requête de navigation
+      // interceptée porte `redirect: "manual"`, et une redirection y devient une réponse opaque
+      // que `cacheable()` écarte. Seul ce chemin-ci, qui reconstruit un `fetch` de toutes pièces,
+      // était exposé.
+      if (reponse.redirected || new URL(reponse.url).pathname !== url) continue;
+
       await cachePages.put(new Request(url), reponse.clone());
 
       // Une page sans son JavaScript n'est qu'un décor : elle s'affiche et ne répond à rien. On
@@ -240,14 +281,8 @@ self.addEventListener("message", (event) => {
     event.waitUntil(precharger(event.data.urls));
     return;
   }
-  if (event.data && event.data.type === "VIDER_CACHE") {
-    event.waitUntil(
-      caches
-        .keys()
-        .then((keys) => Promise.all(keys.map((k) => caches.delete(k))))
-        .then(() => {
-          if (event.ports && event.ports[0]) event.ports[0].postMessage({ ok: true });
-        })
-    );
-  }
+  // Le vidage à la déconnexion se fait depuis la page, pas ici : l'API Cache lui est accessible
+  // directement, ce qui évite un message dont on ne saurait pas s'il est arrivé — et qui n'était
+  // même pas envoyé quand le service worker ne contrôlait pas encore la page. Voir
+  // `viderCachePages` dans `src/components/layout/app-shell.tsx`.
 });

@@ -45,19 +45,33 @@ function prechargerEcrans() {
     });
 }
 
+/** Préfixe des caches de pages, tenu en accord avec `public/sw.js`. */
+const PREFIXE_CACHE_PAGES = "nzilabiz-pages-";
+
 /**
- * Vide les caches du service worker à la déconnexion.
+ * Vide le cache des pages à la déconnexion.
  *
- * Depuis que le mode hors connexion fonctionne, le cache contient le HTML des pages visitées —
- * `/dashboard` et ses chiffres d'affaires compris. Sur le téléphone d'une boutique, que plusieurs
+ * Depuis que le mode hors connexion fonctionne, ce cache contient le HTML des pages visitées —
+ * `/dashboard` et ses chiffres d'affaires compris. Sur le téléphone d'une boutique que plusieurs
  * vendeurs se passent, la personne suivante ne doit pas les retrouver en revenant en arrière.
- * L'échec n'est pas bloquant : on ne va pas retenir quelqu'un sur sa session parce qu'un cache
- * refuse de se vider.
+ *
+ * Le vidage se fait **depuis la page**, pas par un message au service worker. La version
+ * précédente lui envoyait `postMessage` sans canal de retour : rien n'était réellement attendu, et
+ * surtout, si le service worker ne contrôlait pas encore la page — juste après une installation,
+ * par exemple — le message n'était jamais envoyé, en silence. L'API Cache est accessible depuis la
+ * page : autant s'en servir et savoir quand c'est fait.
+ *
+ * Seul le cache des pages est concerné. La coquille ne contient que des fichiers publics, et
+ * l'effacer emporterait `/offline.html` — le filet de sécurité lui-même.
+ *
+ * L'échec n'est pas bloquant : on ne retient personne sur sa session parce qu'un cache refuse de
+ * se vider.
  */
 async function viderCachePages() {
   try {
-    const sw = navigator.serviceWorker?.controller;
-    if (sw) sw.postMessage({ type: "VIDER_CACHE" });
+    if (typeof caches === "undefined") return;
+    const noms = await caches.keys();
+    await Promise.all(noms.filter((n) => n.startsWith(PREFIXE_CACHE_PAGES)).map((n) => caches.delete(n)));
   } catch (e) {
     console.error("déconnexion : vidage du cache impossible —", e instanceof Error ? e.message : e);
   }
