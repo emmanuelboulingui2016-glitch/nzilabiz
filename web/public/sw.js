@@ -134,9 +134,14 @@ self.addEventListener("fetch", (event) => {
           // La page demandée, sinon la dernière page connue de l'application, sinon l'écran
           // d'excuse. Servir « une » page de l'application vaut mieux qu'un cul-de-sac : le
           // vendeur peut de là rejoindre la caisse, qui lit ses ventes dans IndexedDB.
+          // `ignoreVary` : Next.js renvoie ses pages avec
+          // `Vary: rsc, next-router-state-tree, next-router-prefetch, …`. Sans cette option, le
+          // navigateur compare ces en-têtes entre la requête stockée et la requête courante, et
+          // refuse la correspondance à la moindre différence — une page pourtant présente dans le
+          // cache serait déclarée absente.
           return (
-            (await cache.match(request)) ||
-            (await cache.match(CLE_DERNIERE_PAGE)) ||
+            (await cache.match(request, { ignoreVary: true })) ||
+            (await cache.match(CLE_DERNIERE_PAGE, { ignoreVary: true })) ||
             (await caches.match("/offline.html"))
           );
         })
@@ -151,7 +156,7 @@ self.addEventListener("fetch", (event) => {
   // garder ne risque pas de servir une version périmée. C'est ce qui permet à l'application de
   // démarrer sans réseau — sans son JavaScript, une page en cache n'est qu'un décor.
   event.respondWith(
-    caches.match(request).then((cached) => {
+    caches.match(request, { ignoreVary: true }).then((cached) => {
       if (cached) return cached;
       return fetch(request)
         .then((response) => {
@@ -173,7 +178,68 @@ self.addEventListener("fetch", (event) => {
 // le téléphone d'une boutique, que plusieurs vendeurs se passent, la personne suivante ne doit pas
 // retrouver ces pages en revenant en arrière. Réparer le mode hors connexion ne doit pas ouvrir
 // une fuite au passage.
+/**
+ * Met en cache des pages que l'utilisateur n'a pas chargées lui-même.
+ *
+ * C'est la pièce qui manquait, et l'erreur de raisonnement qu'elle corrige mérite d'être écrite.
+ *
+ * On croyait qu'il suffisait de garder une copie de chaque page visitée. Mais dans l'App Router de
+ * Next.js, **une seule page est réellement « visitée » au sens du navigateur** : celle par laquelle
+ * on entre. Tous les changements d'écran qui suivent sont des navigations côté client — l'adresse
+ * change, le contenu est remplacé, mais aucune requête de navigation n'est émise : Next récupère
+ * un fragment RSC et met le DOM à jour.
+ *
+ * Concrètement : un commerçant qui se connecte sur `/connexion` puis se retrouve sur `/dashboard`
+ * n'a jamais fait charger `/dashboard` au navigateur. Le cache ne contenait donc que la page de
+ * connexion, et rouvrir l'application hors réseau la ramenait — ce qui ressemble beaucoup à un
+ * mode hors connexion qui ne marche pas.
+ *
+ * On va donc chercher ces pages nous-mêmes, une fois l'application chargée et le réseau
+ * disponible. Le `fetch` d'un service worker vers sa propre origine emporte les cookies : la page
+ * revient telle que le commerçant la verrait, session comprise.
+ */
+async function precharger(urls) {
+  const cachePages = await caches.open(CACHE_PAGES);
+  const cacheStatique = await caches.open(CACHE_COQUILLE);
+  const scripts = new Set();
+
+  for (const url of urls) {
+    try {
+      const reponse = await fetch(url, { credentials: "same-origin" });
+      if (!cacheable(reponse)) continue;
+      await cachePages.put(new Request(url), reponse.clone());
+
+      // Une page sans son JavaScript n'est qu'un décor : elle s'affiche et ne répond à rien. On
+      // relève donc les fichiers de `/_next/static` qu'elle référence pour les garder aussi. Ils
+      // portent une empreinte dans leur nom, donc les conserver ne risque pas de servir une
+      // version périmée.
+      const html = await reponse.text();
+      const trouves = html.match(/\/_next\/static\/[^"'\s>]+/g) || [];
+      for (const chemin of trouves) scripts.add(chemin);
+    } catch {
+      // Hors réseau ou page refusée : ce n'est pas une erreur, c'est le cas normal quand on
+      // précharge. On garde ce qu'on a déjà.
+    }
+  }
+
+  for (const chemin of scripts) {
+    try {
+      if (await cacheStatique.match(chemin, { ignoreVary: true })) continue;
+      const r = await fetch(chemin, { credentials: "same-origin" });
+      if (cacheable(r)) await cacheStatique.put(new Request(chemin), r);
+    } catch {
+      // Idem : un fichier manquant se rattrapera au prochain passage en ligne.
+    }
+  }
+
+  await bornerCache(CACHE_PAGES, MAX_PAGES);
+}
+
 self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "PRECHARGER" && Array.isArray(event.data.urls)) {
+    event.waitUntil(precharger(event.data.urls));
+    return;
+  }
   if (event.data && event.data.type === "VIDER_CACHE") {
     event.waitUntil(
       caches
