@@ -47,11 +47,6 @@ export default async function PublicLayout({ children }: { children: React.React
                 </Link>
               </li>
               <li>
-                <Link href="/#faq" className="hover:text-foreground">
-                  Questions fréquentes
-                </Link>
-              </li>
-              <li>
                 <Link href="/inscription" className="hover:text-foreground">
                   Créer une boutique
                 </Link>
