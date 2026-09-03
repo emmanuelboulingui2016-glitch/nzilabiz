@@ -193,7 +193,7 @@ export default async function VitrinePage() {
 
       {/* Hero ------------------------------------------------------------- */}
       <section className="px-3 pt-4 sm:px-4">
-        <div className="fond-trame relative mx-auto max-w-[1400px] overflow-hidden rounded-[2rem] bg-encre text-encre-foreground">
+        <div className="relative mx-auto max-w-[1400px] overflow-hidden rounded-[2rem] bg-encre text-encre-foreground">
           <div
             aria-hidden
             className="pointer-events-none absolute -left-40 -top-40 h-96 w-96 rounded-full bg-primary/25 blur-3xl"
@@ -343,7 +343,7 @@ export default async function VitrinePage() {
                   reste à synchroniser — rien ne se perd en silence.
                 </p>
               </div>
-              <div className="fond-trame rounded-[1.4rem] bg-white/5 p-5 ring-1 ring-white/10">
+              <div className="rounded-[1.4rem] bg-white/5 p-5 ring-1 ring-white/10">
                 <div className="space-y-2.5">
                   {[
                     { t: "Vente V-0148 · 46 000 FCFA", s: "Synchronisée", ok: true },
@@ -373,7 +373,7 @@ export default async function VitrinePage() {
 
           <Reveal delay={100}>
             <div className="grid items-center gap-8 rounded-[2rem] bg-gradient-to-br from-primary to-[#0b6e3d] p-7 text-white sm:p-10 lg:grid-cols-2">
-              <div className="fond-trame order-2 rounded-[1.4rem] bg-white/10 p-5 ring-1 ring-white/15 lg:order-1">
+              <div className="order-2 rounded-[1.4rem] bg-white/10 p-5 ring-1 ring-white/15 lg:order-1">
                 <div className="space-y-2.5">
                   {[
                     { m: "Airtel Money", r: "Réf. AM-7742", v: "25 000" },
@@ -472,7 +472,7 @@ export default async function VitrinePage() {
 
       {/* CTA final — grand mot-symbole serif ------------------------------- */}
       <section className="px-3 pb-6 sm:px-4">
-        <div className="fond-trame relative mx-auto max-w-[1400px] overflow-hidden rounded-[2rem] bg-encre px-5 py-20 text-center text-encre-foreground sm:py-24">
+        <div className="relative mx-auto max-w-[1400px] overflow-hidden rounded-[2rem] bg-encre px-5 py-20 text-center text-encre-foreground sm:py-24">
           <div
             aria-hidden
             className="pointer-events-none absolute left-1/2 top-0 h-72 w-72 -translate-x-1/2 rounded-full bg-primary/25 blur-3xl"

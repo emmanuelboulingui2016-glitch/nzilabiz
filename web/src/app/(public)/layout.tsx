@@ -13,7 +13,7 @@ export const revalidate = 3600;
 export default async function PublicLayout({ children }: { children: React.ReactNode }) {
   const r = await getPlatformSettings();
   return (
-    <div className="cadre-vitrine flex min-h-dvh flex-col bg-background">
+    <div className="vitrine-claire cadre-vitrine flex min-h-dvh flex-col bg-background text-foreground">
       <PublicHeader />
 
       <main className="flex-1">{children}</main>

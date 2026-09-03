@@ -153,12 +153,33 @@ body {
   }
 }
 
-/* Trame discrète pour les panneaux encre (hero, aperçus). */
-.fond-trame {
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
-  background-size: 56px 56px;
+/* La trame quadrillée des panneaux encre a été retirée : ce motif de grille est devenu la
+   signature visuelle des maquettes générées, et le commerçant le lisait comme tel. Les aplats
+   d'encre se suffisent. */
+
+/* La vitrine ne suit pas le mode sombre.
+   Le fournisseur de thème pose `.dark` sur `<html>` d'après la préférence du système, ce qui est
+   juste pour l'application — un commerçant qui travaille le soir — mais pas pour une page de
+   vente : elle doit se présenter à tous de la même façon, et son panneau d'accueil en encre perd
+   tout contraste sur un fond déjà sombre.
+   On redéclare donc les jetons clairs sur le calque public, ce qui l'emporte sur `.dark` par
+   simple spécificité. Pas de retrait de classe en JavaScript : rien à synchroniser, rien qui
+   clignote au chargement. */
+.vitrine-claire {
+  color-scheme: light;
+  --background: var(--color-creme);
+  --foreground: #14261d;
+  --card: #ffffff;
+  --card-foreground: #14261d;
+  --primary: var(--color-emeraude);
+  --primary-foreground: #ffffff;
+  --accent: var(--color-clair);
+  --muted: #eef1ec;
+  --muted-foreground: #5b6b62;
+  --border: #e6eae3;
+  --success: #16a34a;
+  --warning: #d97706;
+  --danger: #dc2626;
 }
 
 /* RTL — support complet arabe (§18 exigences non-fonctionnelles) */
