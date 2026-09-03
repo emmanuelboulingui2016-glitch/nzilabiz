@@ -130,7 +130,7 @@ export function Pricing({ contact, grille }: { contact: ContactCommercial; grill
             <article
               key={p}
               className={cn(
-                "relative flex flex-col rounded-2xl p-6 transition-shadow sm:p-7",
+                "relative flex flex-col rounded-[1.5rem] p-6 transition-shadow sm:p-7",
                 vedette
                   ? "bg-primary text-primary-foreground shadow-vedette lg:-translate-y-4"
                   : "bg-card shadow-carte hover:shadow-relief"
@@ -151,10 +151,10 @@ export function Pricing({ contact, grille }: { contact: ContactCommercial; grill
                 >
                   <Icone size={20} className={vedette ? "text-white" : "text-primary"} />
                 </span>
-                <h3 className="text-xl font-extrabold">{LIBELLE_PLAN[p]}</h3>
+                <h3 className="titre-serif text-2xl">{LIBELLE_PLAN[p]}</h3>
               </div>
 
-              <p className="mt-6 text-4xl font-extrabold tabular-nums">
+              <p className="titre-serif mt-6 text-4xl tabular-nums">
                 {montant ? (
                   <>
                     {nombre(montant)}

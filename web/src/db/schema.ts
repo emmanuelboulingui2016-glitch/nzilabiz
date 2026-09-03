@@ -1,7 +1,7 @@
 // NzilaBiz — schéma de données Drizzle ORM
 // Traduit de §15 "Modèle de données" du cahier des charges (sahilleypromptconstruction.md).
 //
-// 🔧 Écart documenté (voir README « Écarts vs cahier des charges ») : le cahier des charges
+// Écart documenté (voir README « Écarts vs cahier des charges ») : le cahier des charges
 // recommandait Postgres via une couche ORM classique. Nous avions initialement écrit ce schéma
 // avec Prisma, mais le téléchargement des binaires moteur de Prisma (binaries.prisma.sh) est
 // bloqué par le pare-feu sortant de cet environnement de build (hors-liste blanche). Nous sommes
@@ -272,7 +272,7 @@ export const saleItems = pgTable("sale_items", {
   productId: text("product_id").notNull().references(() => products.id),
   quantite: numeric("quantite", { precision: 14, scale: 2 }).notNull(),
   prixUnitaire: money("prix_unitaire").notNull(),
-  // 🔧 Prix d'achat figé au moment de la vente (§13 : la marge brute doit être calculée sur ce prix,
+  // Prix d'achat figé au moment de la vente (§13 : la marge brute doit être calculée sur ce prix,
   // pas sur le prix d'achat courant du produit qui peut changer après coup).
   prixAchatUnitaire: money("prix_achat_unitaire").notNull().default("0"),
   sousTotal: money("sous_total").notNull(),

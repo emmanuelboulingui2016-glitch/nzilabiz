@@ -1,6 +1,6 @@
 // NzilaBiz — service worker minimal, écrit à la main.
 //
-// 🔧 Écart documenté (voir README « Écarts vs cahier des charges ») : le plugin `next-pwa`
+// Écart documenté (voir README « Écarts vs cahier des charges ») : le plugin `next-pwa`
 // s'appuie sur une configuration Webpack (workbox-webpack-plugin). Next.js 16 utilise Turbopack
 // par défaut pour `next build`, et un `build` avec configuration Webpack personnalisée échoue
 // volontairement pour éviter les erreurs silencieuses. Plutôt que de forcer `--webpack` (perdant

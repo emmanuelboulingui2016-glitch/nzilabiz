@@ -1,5 +1,5 @@
 // Créances — fiche client : historique des ventes à crédit + remboursements, et mise à jour des
-// conditions de crédit personnalisées (limite de crédit / échéance de paiement — 🔧 amélioration).
+// conditions de crédit personnalisées (limite de crédit / échéance de paiement — amélioration).
 
 import { NextResponse } from "next/server";
 import { eq, and } from "drizzle-orm";

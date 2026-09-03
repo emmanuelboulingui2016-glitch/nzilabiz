@@ -1,6 +1,6 @@
 "use client";
 
-// « Transformer en vente » (§12 🔧 Amélioration) : étape de mapping explicite entre chaque ligne
+// « Transformer en vente » (§12 Amélioration) : étape de mapping explicite entre chaque ligne
 // brouillon de la Proforma et un vrai Product du catalogue (obligatoire, cf. commentaire détaillé
 // dans /api/documents/[id]/convertir/route.ts). Pré-sélectionne automatiquement le produit dont le
 // nom correspond exactement (insensible à la casse) au nom saisi sur la ligne brouillon, sinon

@@ -1,14 +1,15 @@
 "use client";
 
-// Aperçu de l'application dans la page d'accueil : trois écrans représentatifs, en onglets, avec
-// rotation automatique interrompue dès que le visiteur clique (il prend la main, on ne la lui
-// reprend pas).
+// Aperçu de l'application dans le hero : trois écrans représentatifs, en onglets, avec rotation
+// automatique interrompue dès que le visiteur clique (il prend la main, on ne la lui reprend pas).
 //
-// Les aperçus sont dessinés en HTML plutôt qu'avec des captures d'écran : ils suivent la palette
-// et le thème clair/sombre, restent nets sur tous les écrans et ne pèsent rien à charger.
+// Refonte « éditoriale » : la maquette est désormais une carte blanche flottante posée sur le
+// panneau encre du hero, entourée de pastilles vertes qui nomment ce que fait l'application —
+// exactement le motif de la référence. Les aperçus restent dessinés en HTML (pas de captures) :
+// ils suivent la palette, restent nets sur tous les écrans et ne pèsent rien à charger.
 
 import { useEffect, useState } from "react";
-import { BarChart3, ShoppingCart, Users } from "lucide-react";
+import { BarChart3, Package, ShoppingCart, Users, WifiOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const ONGLETS = [
@@ -20,6 +21,14 @@ const ONGLETS = [
 type OngletId = (typeof ONGLETS)[number]["id"];
 
 const ROTATION_MS = 6000;
+
+// Pastilles flottantes autour de la carte : positionnées en absolu, masquées sous `sm` pour ne
+// pas déborder sur les petits écrans.
+const PASTILLES = [
+  { texte: "Fonctionne hors ligne", icon: WifiOff, pos: "-left-4 top-10 sm:-left-10" },
+  { texte: "Stock à jour", icon: Package, pos: "-right-3 top-1/3 sm:-right-8" },
+  { texte: "Rapports auto", icon: BarChart3, pos: "-right-2 bottom-16 sm:-right-6" },
+] as const;
 
 export function AppPreview() {
   const [actif, setActif] = useState<OngletId>("vendre");
@@ -38,35 +47,58 @@ export function AppPreview() {
   }, [auto]);
 
   return (
-    <div className="rounded-2xl bg-white/5 p-3 ring-1 ring-white/10 sm:p-4">
-      <div className="mb-3 flex gap-1 rounded-lg bg-black/20 p-1">
-        {ONGLETS.map(({ id, label, icon: Icone }) => (
-          <button
-            key={id}
-            onClick={() => {
-              setActif(id);
-              setAuto(false);
-            }}
-            aria-pressed={actif === id}
-            className={cn(
-              "flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-2 text-xs font-bold transition-colors sm:text-sm",
-              actif === id ? "bg-white/15 text-white" : "text-sidebar-muted hover:bg-white/10"
-            )}
-          >
-            <Icone size={14} /> {label}
-          </button>
-        ))}
-      </div>
+    <div className="relative">
+      {PASTILLES.map(({ texte, icon: Icone, pos }) => (
+        <span
+          key={texte}
+          className={cn(
+            "absolute z-10 hidden items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground shadow-vedette sm:inline-flex",
+            pos,
+          )}
+          style={{ animation: "floatSoft 7s ease-in-out infinite" }}
+        >
+          <Icone size={13} /> {texte}
+        </span>
+      ))}
 
-      <div className="min-h-72 rounded-xl bg-card/95 p-3 text-card-foreground shadow-inner sm:min-h-80">
-        {actif === "vendre" ? <ApercuVendre /> : actif === "clients" ? <ApercuClients /> : <ApercuRapports />}
-      </div>
+      <div className="rounded-[1.6rem] bg-white p-3 shadow-relief ring-1 ring-black/5 sm:p-4">
+        <div className="mb-3 flex gap-1 rounded-xl bg-muted p-1">
+          {ONGLETS.map(({ id, label, icon: Icone }) => (
+            <button
+              key={id}
+              onClick={() => {
+                setActif(id);
+                setAuto(false);
+              }}
+              aria-pressed={actif === id}
+              className={cn(
+                "flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-bold transition-colors sm:text-sm",
+                actif === id
+                  ? "bg-white text-foreground shadow-carte"
+                  : "text-muted-foreground hover:bg-white/60",
+              )}
+            >
+              <Icone size={14} /> {label}
+            </button>
+          ))}
+        </div>
 
-      {auto ? (
-        <p className="mt-2 text-center text-[11px] text-sidebar-muted">
-          Aperçu — cliquez un onglet pour explorer
-        </p>
-      ) : null}
+        <div className="min-h-72 rounded-2xl bg-white p-3 text-card-foreground sm:min-h-80">
+          {actif === "vendre" ? (
+            <ApercuVendre />
+          ) : actif === "clients" ? (
+            <ApercuClients />
+          ) : (
+            <ApercuRapports />
+          )}
+        </div>
+
+        {auto ? (
+          <p className="mt-2 text-center text-[11px] text-muted-foreground">
+            Aperçu — cliquez un onglet pour explorer
+          </p>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -104,7 +136,7 @@ function ApercuVendre() {
             key={mode}
             className={cn(
               "rounded-lg px-2 py-2 text-center text-[11px] font-bold",
-              i === 0 ? "bg-primary text-primary-foreground" : "bg-muted/60 text-muted-foreground"
+              i === 0 ? "bg-primary text-primary-foreground" : "bg-muted/60 text-muted-foreground",
             )}
           >
             {mode}
@@ -146,7 +178,7 @@ function ApercuClients() {
             <span
               className={cn(
                 "mt-0.5 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold",
-                TON_CLASSES[c.ton]
+                TON_CLASSES[c.ton],
               )}
             >
               {c.segment}

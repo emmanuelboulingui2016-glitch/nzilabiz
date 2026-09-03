@@ -1,6 +1,6 @@
 // Créances — §9 du cahier des charges.
 // GET  : liste des clients de la boutique avec solde créance calculé + jours de retard.
-// POST : création d'un client (avec limite de crédit / échéance personnalisées — 🔧 amélioration).
+// POST : création d'un client (avec limite de crédit / échéance personnalisées — amélioration).
 //
 // La règle de calcul du solde et du retard vit dans lib/creances/solde.ts (partagée avec le
 // centre de notifications).

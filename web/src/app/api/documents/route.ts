@@ -3,7 +3,7 @@
 // POST /api/documents — création d'un document :
 //      - type=FACTURE : générée depuis une vente existante (saleId), numéro auto, statut EMISE.
 //      - type=PROFORMA : créée indépendamment d'une vente (client existant OU nom libre + lignes
-//        brouillon libres, non liées à de vrais Product), statut BROUILLON. 🔧 Amélioration §12 :
+//        brouillon libres, non liées à de vrais Product), statut BROUILLON. Amélioration §12 :
 //        clarifie le parcours devis → vente → facture (voir /api/documents/[id]/convertir).
 //      - type=REMBOURSEMENT : non pris en charge ici pour l'instant — ces documents ne sont générés
 //        automatiquement nulle part encore dans ce build (voir résumé final : futur point de

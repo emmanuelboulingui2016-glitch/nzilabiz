@@ -7,7 +7,7 @@ import { getSession } from "@/lib/auth/session";
 import { can } from "@/lib/auth/rbac";
 import { bloquerSiExpiree, bloquerSiHorsFormule } from "@/lib/abonnement";
 
-// Onglet Devise — §14 "🔧 Amélioration" du cahier des charges : sélection réelle de la devise
+// Onglet Devise — §14 "Amélioration" du cahier des charges : sélection réelle de la devise
 // (FCFA par défaut, options hors zone CEMAC pour une future expansion).
 //
 // La devise ET le taux de change manuel sont persistés en base (`stores.devise`,

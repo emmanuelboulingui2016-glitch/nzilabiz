@@ -1,4 +1,4 @@
-// POST /api/stock/ajustement — ajustement manuel de stock avec motif obligatoire (§8 🔧).
+// POST /api/stock/ajustement — ajustement manuel de stock avec motif obligatoire (§8).
 // N'insère PAS de dépense (simple correction de quantité, pas un achat).
 
 import { NextResponse } from "next/server";

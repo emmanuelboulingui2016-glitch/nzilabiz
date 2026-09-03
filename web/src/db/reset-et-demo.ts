@@ -5,7 +5,7 @@
  *   npm run db:reset-demo          base locale (web/.env)
  *   npm run db:reset-demo:prod     base en ligne (web/.env.deploy)
  *
- * ⚠️ Destructif : toutes les boutiques, tous les comptes et toutes leurs données sont effacés.
+ * Destructif : toutes les boutiques, tous les comptes et toutes leurs données sont effacés.
  * Une sauvegarde complète est écrite dans sauvegardes/ avant la moindre suppression.
  *
  * Le mot de passe du compte administrateur est tiré au hasard et écrit dans

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CheckCircle2, XCircle } from "lucide-react";
+import { Check, CheckCircle2, XCircle } from "lucide-react";
 import { RegisterForm } from "@/components/auth/register-form";
 import { verifierCodeTest, messageRefus } from "@/lib/test-access";
 import { Button } from "@/components/ui/button";
@@ -57,7 +57,7 @@ export default async function TesteurPage({ params }: { params: Promise<{ code: 
         <ul className="mt-2.5 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-muted-foreground">
           {MODULES.map((m) => (
             <li key={m} className="flex items-center gap-1.5">
-              <span className="text-primary">✓</span> {m}
+              <Check size={13} className="shrink-0 text-primary" aria-hidden="true" /> {m}
             </li>
           ))}
         </ul>

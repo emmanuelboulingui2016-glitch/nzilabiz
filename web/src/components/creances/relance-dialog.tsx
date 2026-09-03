@@ -7,7 +7,7 @@ import { Textarea, Label } from "@/components/ui/input";
 import { formatFcfa } from "@/lib/currency";
 import { toWhatsAppPhone, type ClientCreance } from "./types";
 
-// 🔧 Relances automatiques par WhatsApp/SMS (§9) : sans API SMS/WhatsApp Business configurée,
+// Relances automatiques par WhatsApp/SMS (§9) : sans API SMS/WhatsApp Business configurée,
 // on ouvre un lien wa.me avec un message pré-rempli et modifiable par l'utilisateur.
 function buildDefaultMessage(client: ClientCreance): string {
   const montant = formatFcfa(client.solde);

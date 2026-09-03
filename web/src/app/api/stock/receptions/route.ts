@@ -1,4 +1,4 @@
-// POST /api/stock/receptions — « Réceptionner une livraison » (§8 🔧 amélioration principale).
+// POST /api/stock/receptions — « Réceptionner une livraison » (§8 amélioration principale).
 //
 // Unifie en une seule transaction ce qui était deux actions manuelles déconnectées dans l'app
 // d'origine : (1) la dépense « Rachats de stock » et (2) la mise à jour des quantités en stock.

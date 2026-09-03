@@ -7,7 +7,18 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { format, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
 import { toast } from "sonner";
-import { Check, Copy, LifeBuoy, Mail, MessageCircle, Pencil, Phone, Send, Smartphone } from "lucide-react";
+import {
+  Check,
+  Copy,
+  LifeBuoy,
+  Mail,
+  MessageCircle,
+  MoreVertical,
+  Pencil,
+  Phone,
+  Send,
+  Smartphone,
+} from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -213,9 +224,15 @@ export function AideView({
               <li>Ouvrez l&apos;appareil photo du téléphone et visez le code.</li>
               <li>Touchez la notification pour ouvrir l&apos;application.</li>
               <li>
-                Dans le navigateur : menu <strong>⋮</strong> → <strong>Ajouter à l&apos;écran
-                d&apos;accueil</strong> (Android) ou <strong>Partager</strong> → <strong>Sur l&apos;écran
-                d&apos;accueil</strong> (iPhone).
+                Dans le navigateur : menu{" "}
+                <MoreVertical
+                  size={14}
+                  className="inline-block align-[-2px]"
+                  aria-label="menu du navigateur"
+                />{" "}
+                → <strong>Ajouter à l&apos;écran d&apos;accueil</strong> (Android) ou{" "}
+                <strong>Partager</strong> → <strong>Sur l&apos;écran d&apos;accueil</strong>{" "}
+                (iPhone).
               </li>
               <li>Connectez-vous une fois : l&apos;application reste ouverte ensuite.</li>
             </ol>

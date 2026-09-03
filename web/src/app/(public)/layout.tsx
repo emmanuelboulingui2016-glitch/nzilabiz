@@ -13,19 +13,19 @@ export const revalidate = 3600;
 export default async function PublicLayout({ children }: { children: React.ReactNode }) {
   const r = await getPlatformSettings();
   return (
-    <div className="flex min-h-dvh flex-col bg-background">
+    <div className="cadre-vitrine flex min-h-dvh flex-col bg-background">
       <PublicHeader />
 
       <main className="flex-1">{children}</main>
 
-      {/* Le fond blanc (bg-card) sur le crème du corps de page suffit à marquer la coupure : une
-          bordure aurait doublé l'effet pour rien, alors que la charte demande moins de traits. */}
+      {/* Le fond blanc (bg-card) sur le presque-blanc du corps de page suffit à marquer la coupure :
+          une bordure aurait doublé l'effet pour rien, alors que la charte demande moins de traits. */}
       <footer className="bg-card">
         <div className="mx-auto grid w-full max-w-6xl gap-10 px-4 py-14 sm:grid-cols-2 sm:px-6 lg:grid-cols-4 lg:py-16">
           <div>
-            <div className="flex items-center gap-2">
-              <Image src="/brand/nzilabiz-icone-transparent.png" alt="" width={28} height={28} />
-              <span className="text-lg font-extrabold">{r.nomApplication}</span>
+            <div className="flex items-center gap-2.5">
+              <Image src="/brand/nzilabiz-icone-transparent.png" alt="" width={36} height={36} className="shrink-0" />
+              <span className="font-serif text-2xl font-semibold">{r.nomApplication}</span>
             </div>
             <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
               La gestion de boutique pensée pour les commerçants d&apos;Afrique centrale. Caisse, stock,

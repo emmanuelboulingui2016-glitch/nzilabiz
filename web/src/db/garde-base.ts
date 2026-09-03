@@ -33,7 +33,7 @@ export function refuserSiBaseDistante(url: string, nomScript: string): void {
   const aveu =
     process.argv.includes("--je-sais-ce-que-je-fais") || process.env.AUTORISER_BASE_DISTANTE === "1";
   if (aveu) {
-    console.warn(`⚠  ${nomScript} : exécution sur une base DISTANTE, à votre demande explicite.`);
+    console.warn(`${nomScript} : exécution sur une base DISTANTE, à votre demande explicite.`);
     return;
   }
 

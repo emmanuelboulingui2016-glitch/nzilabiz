@@ -1,4 +1,4 @@
-// POST /api/stock/products/import — import CSV/Excel en masse (§8 🔧).
+// POST /api/stock/products/import — import CSV/Excel en masse (§8).
 //
 // Le client envoie le fichier brut (encodé en base64, comme les photos de produit ailleurs dans
 // l'app) plutôt que des lignes déjà parsées : c'est cette route, et elle seule, qui sait lire un

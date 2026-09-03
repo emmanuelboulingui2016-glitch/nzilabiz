@@ -1,4 +1,4 @@
-// Partage WhatsApp par document individuel (§12 🔧 Amélioration).
+// Partage WhatsApp par document individuel (§12 Amélioration).
 // Même stratégie que src/components/vendre/receipt-view.tsx et
 // src/components/creances/relance-dialog.tsx : lien https://wa.me/?text=... pré-rempli, sans API tierce.
 

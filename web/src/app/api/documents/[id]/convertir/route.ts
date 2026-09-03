@@ -1,7 +1,7 @@
 // POST /api/documents/[id]/convertir — transforme une Proforma (statut BROUILLON) en une vraie
-// Vente, "sans ressaisie" (§12 🔧 Amélioration : parcours devis → vente → facture).
+// Vente, "sans ressaisie" (§12 Amélioration : parcours devis → vente → facture).
 //
-// ⚙️ Point structurellement délicat de ce module : Sale/SaleItem exigent un `productId` réel
+// Point structurellement délicat de ce module : Sale/SaleItem exigent un `productId` réel
 // (contrainte du schéma), alors qu'une Proforma autonome est créée avec des lignes brouillon
 // libres (`itemsBrouillon`, simple texte JSON — nom/quantité/prix saisis à la main, qui ne
 // correspondent pas forcément à un Product existant). On ne peut donc PAS convertir automatiquement

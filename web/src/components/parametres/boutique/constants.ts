@@ -19,7 +19,7 @@ export function indicatifForPays(pays: string): string {
 }
 
 // Mêmes idées de catégories que les modèles de catalogue d'onboarding (src/lib/onboarding/templates.ts).
-// ⚠️ La pharmacie est explicitement hors périmètre (cahier des charges §20) — ne pas l'ajouter ici.
+// Attention : la pharmacie est explicitement hors périmètre (cahier des charges §20) — ne pas l'ajouter ici.
 export const TYPE_COMMERCE_OPTIONS: string[] = [
   "Épicerie",
   "Quincaillerie",

@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
-// "Sessions actives" — §14 🔧. Ne réimplémente PAS le stockage des appareils : consomme
+// "Sessions actives" — §14 . Ne réimplémente PAS le stockage des appareils : consomme
 // `GET /api/synchronisation/devices` (construit par l'agent Synchronisation) et
 // `POST /api/synchronisation/devices/[id]/revoke`. Défensif : si l'endpoint n'existe pas encore
 // (404) ou si l'accès est refusé (403), affiche un état informatif plutôt que de planter.

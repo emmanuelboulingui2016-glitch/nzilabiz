@@ -6,7 +6,7 @@
 // Principe : chaque écran qui doit fonctionner hors-ligne (Vendre, Stock, Dépenses...) écrit
 // D'ABORD dans ces tables locales (source de vérité pendant l'usage hors-ligne), puis pousse une
 // entrée dans `syncQueue`. Le moteur de synchronisation (sync-engine.ts) rejoue la file dès que la
-// connexion revient, avec attribution utilisateur/appareil sur chaque mutation (🔧 amélioration §2).
+// connexion revient, avec attribution utilisateur/appareil sur chaque mutation (amélioration §2).
 
 import Dexie, { type EntityTable } from "dexie";
 

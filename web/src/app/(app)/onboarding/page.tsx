@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { CATALOG_TEMPLATES } from "@/lib/onboarding/templates";
 import { useTranslations } from "@/lib/i18n/provider";
 import { cn } from "@/lib/utils";
-import { Check } from "lucide-react";
+import { Check, PartyPopper } from "lucide-react";
 
 export default function OnboardingPage() {
   const { t } = useTranslations();
@@ -61,7 +61,10 @@ export default function OnboardingPage() {
       {step === 1 && (
         <Card>
           <CardContent className="space-y-4 p-6">
-            <h2 className="text-lg font-semibold">Votre boutique est créée 🎉</h2>
+            <h2 className="flex items-center gap-2 text-lg font-semibold">
+              Votre boutique est créée
+              <PartyPopper size={18} className="text-primary" aria-hidden="true" />
+            </h2>
             <p className="text-sm text-muted-foreground">
               Ajoutons maintenant quelques produits pour démarrer plus vite. Vous pourrez tout modifier ensuite dans Stock.
             </p>

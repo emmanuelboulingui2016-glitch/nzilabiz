@@ -1,6 +1,6 @@
 "use client";
 
-// Vue détail imprimable + partage WhatsApp individuel (§12 🔧 Amélioration). Vue print-optimisée
+// Vue détail imprimable + partage WhatsApp individuel (§12 Amélioration). Vue print-optimisée
 // via @media print (même approche que src/components/vendre/receipt-view.tsx) — pas de librairie
 // PDF nécessaire, window.print() suffit.
 

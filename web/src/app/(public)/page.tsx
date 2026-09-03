@@ -1,7 +1,5 @@
-import Link from "next/link";
 import type { Metadata } from "next";
 import {
-  ArrowRight,
   BarChart3,
   FileText,
   HandCoins,
@@ -19,6 +17,7 @@ import { AppPreview } from "@/components/public/app-preview";
 import { Pricing } from "@/components/public/pricing";
 import { Faq } from "@/components/public/faq";
 import { BackToTop, ScrollProgress } from "@/components/public/scroll-helpers";
+import { BoutonCta } from "@/components/public/bouton-cta";
 import { getPlatformSettings, contactCommercial } from "@/lib/platform-settings";
 import { lireTarifs } from "@/lib/tarifs-serveur";
 
@@ -28,6 +27,9 @@ export const metadata: Metadata = {
     "Caisse, stock, créances, clients fidèles et rapports pour les commerçants d'Afrique centrale. Fonctionne hors connexion, en FCFA, sur téléphone comme sur ordinateur. 15 jours d'essai gratuit.",
 };
 
+// Cartes de fonctionnalités : dans la refonte éditoriale, la carte n'est qu'un aplat coloré qui
+// porte le picto ; le titre et le texte vivent en dessous, sur le blanc. Les aplats alternent
+// encre et vert, comme dans la référence.
 const MODULES = [
   {
     icon: ShoppingCart,
@@ -82,15 +84,18 @@ const MODULES = [
 const ROLES = [
   {
     titre: "Patron",
-    texte: "Accès complet : chiffres, rapports, paramètres, gestion des employés, validation des annulations.",
+    texte:
+      "Accès complet : chiffres, rapports, paramètres, gestion des employés, validation des annulations.",
   },
   {
     titre: "Gérant",
-    texte: "Gestion quotidienne : caisse, stock, créances, dépenses et documents, sans les réglages sensibles.",
+    texte:
+      "Gestion quotidienne : caisse, stock, créances, dépenses et documents, sans les réglages sensibles.",
   },
   {
     titre: "Vendeur",
-    texte: "Caisse et ses propres ventes uniquement. Une annulation demande la validation du patron.",
+    texte:
+      "Caisse et ses propres ventes uniquement. Une annulation demande la validation du patron.",
   },
 ];
 
@@ -145,17 +150,36 @@ const FAQ_ITEMS = [
   },
 ];
 
-// Petite étiquette au-dessus d'un titre de section : donne un repère de lecture avant le h2, sans
-// ajouter de niveau de titre supplémentaire (elle n'est pas un <h*>, seulement une amorce visuelle).
-function Amorce({ children }: { children: React.ReactNode }) {
+// Pastille d'amorce au-dessus d'un titre de section : un repère de lecture, pas un niveau de
+// titre. Reprend la pastille grise centrée de la référence.
+function Etiquette({ children }: { children: React.ReactNode }) {
   return (
-    <span className="text-xs font-extrabold uppercase tracking-[0.14em] text-primary">{children}</span>
+    <span className="inline-flex items-center rounded-full bg-muted px-3.5 py-1.5 text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
+      {children}
+    </span>
   );
 }
 
-// Les coordonnées de contact viennent des réglages de la plateforme. La page reste pré-générée :
-// le calque public la revalide déjà toutes les heures et purge son cache à l'enregistrement des
-// réglages.
+// Intro de section centrée : étiquette + titre serif + accroche. Le motif éditorial de la
+// référence — tout est aligné au centre, le titre respire.
+function IntroSection({
+  etiquette,
+  titre,
+  accroche,
+}: {
+  etiquette: string;
+  titre: React.ReactNode;
+  accroche?: string;
+}) {
+  return (
+    <Reveal className="mx-auto max-w-2xl text-center">
+      <Etiquette>{etiquette}</Etiquette>
+      <h2 className="titre-serif mt-5 text-4xl sm:text-[2.75rem]">{titre}</h2>
+      {accroche ? <p className="mt-4 text-base text-muted-foreground">{accroche}</p> : null}
+    </Reveal>
+  );
+}
+
 export default async function VitrinePage() {
   const contact = contactCommercial(await getPlatformSettings());
   // Enchaînée, jamais en parallèle : le pooler en mode transaction ne rend pas la main quand
@@ -168,78 +192,69 @@ export default async function VitrinePage() {
       <BackToTop />
 
       {/* Hero ------------------------------------------------------------- */}
-      <section className="relative overflow-hidden bg-sidebar text-sidebar-foreground">
-        {/* Halos décoratifs : donnent de la profondeur sans image à charger. */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -left-32 -top-32 h-96 w-96 rounded-full bg-primary/20 blur-3xl"
-          style={{ animation: "floatSoft 9s ease-in-out infinite" }}
-        />
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -bottom-40 right-0 h-96 w-96 rounded-full bg-accent/10 blur-3xl"
-          style={{ animation: "floatSoft 11s ease-in-out infinite reverse" }}
-        />
+      <section className="px-3 pt-4 sm:px-4">
+        <div className="fond-trame relative mx-auto max-w-[1400px] overflow-hidden rounded-[2rem] bg-encre text-encre-foreground">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -left-40 -top-40 h-96 w-96 rounded-full bg-primary/25 blur-3xl"
+            style={{ animation: "floatSoft 10s ease-in-out infinite" }}
+          />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -bottom-48 right-0 h-96 w-96 rounded-full bg-primary/10 blur-3xl"
+            style={{ animation: "floatSoft 12s ease-in-out infinite reverse" }}
+          />
 
-        <div className="relative mx-auto grid w-full max-w-6xl items-center gap-12 px-4 py-20 sm:px-6 lg:grid-cols-2 lg:py-28">
-          <Reveal>
-            <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-bold uppercase tracking-wider">
-              <WifiOff size={13} /> Fonctionne sans réseau
-            </span>
-            <h1 className="mt-5 text-4xl font-extrabold leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl">
-              Gérez votre boutique, simplement, au quotidien
-            </h1>
-            <p className="mt-5 max-w-xl text-lg text-sidebar-muted">
-              Caisse, stock, crédits clients, dépenses et rapports — en FCFA, sur votre téléphone, même
-              quand la connexion coupe. Pensé pour les commerçants d&apos;Afrique centrale.
-            </p>
-            <div className="mt-9 flex flex-wrap gap-3">
-              <Link
-                href="/inscription"
-                className="group inline-flex h-12 items-center gap-2 rounded-full bg-primary px-7 text-base font-bold text-primary-foreground shadow-vedette transition-all hover:opacity-90"
-              >
-                Essayer 15 jours gratuitement
-                <ArrowRight size={18} className="transition-transform group-hover:translate-x-1" />
-              </Link>
-              <Link
-                href="/connexion"
-                className="inline-flex h-12 items-center rounded-full border border-white/25 px-7 text-base font-bold transition-colors hover:bg-white/10"
-              >
-                J&apos;ai déjà un compte
-              </Link>
-            </div>
-            <p className="mt-3 text-sm text-sidebar-muted">Sans carte bancaire. Sans engagement.</p>
+          <div className="relative mx-auto grid w-full max-w-6xl items-center gap-14 px-5 py-16 sm:px-8 lg:grid-cols-[1.05fr_1fr] lg:py-24">
+            <Reveal>
+              <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-xs font-bold uppercase tracking-wider">
+                <WifiOff size={13} /> Fonctionne sans réseau
+              </span>
+              <h1 className="titre-serif mt-6 text-5xl sm:text-6xl lg:text-[4.25rem]">
+                Gérez votre <span className="text-primary">boutique</span>, sans prise de tête
+              </h1>
+              <p className="mt-6 max-w-xl text-lg text-white/70">
+                Caisse, stock, crédits clients, dépenses et rapports — en FCFA, sur votre téléphone,
+                même quand la connexion coupe. Pensé pour les commerçants d&apos;Afrique centrale.
+              </p>
+              <div className="mt-9 flex flex-wrap items-center gap-4">
+                <BoutonCta href="/inscription" ton="clair" taille="lg">
+                  Essayer 15 jours gratuitement
+                </BoutonCta>
+                <span className="text-sm text-white/55">Sans carte bancaire. Sans engagement.</span>
+              </div>
 
-            <dl className="mt-11 grid max-w-md grid-cols-3 gap-3 text-center">
-              {[
-                { valeur: 11, suffixe: "", libelle: "modules métier" },
-                { valeur: 100, suffixe: " %", libelle: "utilisable hors ligne" },
-                { valeur: 3, suffixe: "", libelle: "rôles d'utilisateur" },
-              ].map((s) => (
-                <div key={s.libelle} className="rounded-2xl bg-white/5 p-3 ring-1 ring-white/10">
-                  <dt className="text-2xl font-extrabold tabular-nums">
-                    <AnimatedCounter value={s.valeur} suffix={s.suffixe} />
-                  </dt>
-                  <dd className="text-xs text-sidebar-muted">{s.libelle}</dd>
-                </div>
-              ))}
-            </dl>
-          </Reveal>
+              <dl className="mt-12 grid max-w-md grid-cols-3 gap-3 text-center">
+                {[
+                  { valeur: 11, suffixe: "", libelle: "modules métier" },
+                  { valeur: 100, suffixe: " %", libelle: "utilisable hors ligne" },
+                  { valeur: 3, suffixe: "", libelle: "rôles d'utilisateur" },
+                ].map((s) => (
+                  <div key={s.libelle} className="rounded-2xl bg-white/5 p-3 ring-1 ring-white/10">
+                    <dt className="titre-serif text-3xl tabular-nums">
+                      <AnimatedCounter value={s.valeur} suffix={s.suffixe} />
+                    </dt>
+                    <dd className="mt-1 text-xs text-white/55">{s.libelle}</dd>
+                  </div>
+                ))}
+              </dl>
+            </Reveal>
 
-          <Reveal delay={150} className="mx-auto w-full max-w-md lg:max-w-none">
-            <AppPreview />
-          </Reveal>
+            <Reveal delay={150} className="mx-auto w-full max-w-md lg:max-w-none">
+              <AppPreview />
+            </Reveal>
+          </div>
         </div>
       </section>
 
       {/* Problème → solution ---------------------------------------------- */}
-      <section className="mx-auto w-full max-w-6xl px-4 py-20 sm:px-6 lg:py-24">
-        <Reveal>
-          <Amorce>Le constat</Amorce>
-          <h2 className="mt-2 text-3xl font-extrabold tracking-tight">Ce que vous vivez tous les jours</h2>
-        </Reveal>
+      <section className="mx-auto w-full max-w-6xl px-4 py-20 sm:px-6 lg:py-28">
+        <IntroSection
+          etiquette="Le constat"
+          titre={<>Ce que vous vivez tous les jours</>}
+        />
 
-        <div className="mt-9 grid gap-6 md:grid-cols-3">
+        <div className="mt-14 grid gap-6 md:grid-cols-3">
           {[
             {
               titre: "Le cahier ne suit plus",
@@ -258,128 +273,173 @@ export default async function VitrinePage() {
             },
           ].map((p, i) => (
             <Reveal key={p.titre} delay={i * 100}>
-              <div className="h-full rounded-2xl bg-card p-6 shadow-carte transition-shadow hover:shadow-relief">
-                <h3 className="text-base font-bold">{p.titre}</h3>
-                <p className="mt-2 text-sm text-muted-foreground">{p.texte}</p>
+              <div className="h-full rounded-[1.5rem] bg-card p-7 shadow-carte transition-shadow hover:shadow-relief">
+                <h3 className="titre-serif text-xl">{p.titre}</h3>
+                <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{p.texte}</p>
               </div>
             </Reveal>
           ))}
         </div>
 
         <Reveal delay={200}>
-          <div className="mt-8 rounded-2xl bg-primary/5 p-8 text-center shadow-carte">
-            <p className="text-lg font-bold">
-              NzilaBiz fait le travail à votre place : vous encaissez, l&apos;application tient les comptes.
+          <div className="mt-8 rounded-[1.5rem] bg-encre p-9 text-center text-encre-foreground">
+            <p className="titre-serif mx-auto max-w-2xl text-2xl sm:text-[1.75rem]">
+              NzilaBiz fait le travail à votre place : vous encaissez,{" "}
+              <span className="text-primary">l&apos;application tient les comptes.</span>
             </p>
           </div>
         </Reveal>
       </section>
 
       {/* Fonctionnalités --------------------------------------------------- */}
-      <section id="fonctionnalites" className="bg-card py-20 lg:py-24">
-        <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">
-          <Reveal>
-            <Amorce>Fonctionnalités</Amorce>
-            <h2 className="mt-2 text-3xl font-extrabold tracking-tight">Tout ce dont une boutique a besoin</h2>
-            <p className="mt-3 max-w-2xl text-muted-foreground">
-              Pas de fonctionnalité décorative : chaque écran répond à une question que vous vous posez
-              réellement dans la journée.
-            </p>
-          </Reveal>
+      <section id="fonctionnalites" className="mx-auto w-full max-w-6xl px-4 py-20 sm:px-6 lg:py-28">
+        <IntroSection
+          etiquette="Fonctionnalités"
+          titre={<>Tout ce dont une boutique a besoin</>}
+          accroche="Pas de fonctionnalité décorative : chaque écran répond à une question que vous vous posez réellement dans la journée."
+        />
 
-          <div className="mt-11 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            {MODULES.map(({ icon: Icone, titre, texte }, i) => (
-              <Reveal key={titre} delay={(i % 4) * 80}>
-                <div className="group h-full rounded-2xl bg-background p-6 shadow-carte transition-all duration-300 hover:-translate-y-1 hover:shadow-relief">
-                  <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary transition-transform duration-300 group-hover:scale-110">
-                    <Icone size={20} />
-                  </span>
-                  <h3 className="mt-4 text-base font-bold">{titre}</h3>
-                  <p className="mt-1.5 text-sm text-muted-foreground">{texte}</p>
+        <div className="mt-14 grid gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-4">
+          {MODULES.map(({ icon: Icone, titre, texte }, i) => (
+            <Reveal key={titre} delay={(i % 4) * 80}>
+              <div className="group">
+                <div
+                  className={`flex aspect-square items-center justify-center rounded-[1.6rem] transition-transform duration-300 group-hover:-translate-y-1 ${
+                    i % 2 === 0
+                      ? "bg-encre text-white"
+                      : "bg-gradient-to-br from-primary to-[#0c7d45] text-white"
+                  }`}
+                >
+                  <Icone size={44} strokeWidth={1.5} />
                 </div>
-              </Reveal>
-            ))}
-          </div>
+                <h3 className="titre-serif mt-5 text-xl">{titre}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{texte}</p>
+              </div>
+            </Reveal>
+          ))}
         </div>
       </section>
 
-      {/* Hors ligne + Mobile Money ----------------------------------------- */}
-      <section className="mx-auto w-full max-w-6xl px-4 py-20 sm:px-6 lg:py-24">
-        <Reveal>
-          <Amorce>Le détail qui compte</Amorce>
-          <h2 className="mt-2 text-3xl font-extrabold tracking-tight">
-            Deux automatismes qui changent le quotidien
-          </h2>
-        </Reveal>
+      {/* Hors ligne + Mobile Money — deux mises en avant en bandeau ------- */}
+      <section className="mx-auto w-full max-w-6xl px-4 py-20 sm:px-6 lg:py-28">
+        <IntroSection
+          etiquette="Le détail qui compte"
+          titre={<>Deux automatismes qui changent le quotidien</>}
+        />
 
-        <div className="mt-9 grid gap-6 md:grid-cols-2">
+        <div className="mt-14 space-y-8">
           <Reveal>
-            <div className="h-full rounded-2xl bg-card p-7 shadow-carte transition-shadow hover:shadow-relief">
-              <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                <WifiOff size={20} />
-              </span>
-              <h3 className="mt-4 text-xl font-bold">La coupure de réseau n&apos;arrête pas la vente</h3>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Les ventes enregistrées hors connexion sont stockées sur l&apos;appareil et remontent
-                automatiquement dès le retour du réseau. Vous voyez à tout moment ce qui reste à
-                synchroniser — rien ne se perd en silence.
-              </p>
+            <div className="grid items-center gap-8 rounded-[2rem] bg-encre p-7 text-encre-foreground sm:p-10 lg:grid-cols-2">
+              <div>
+                <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/15 text-primary">
+                  <WifiOff size={22} />
+                </span>
+                <h3 className="titre-serif mt-5 text-3xl">
+                  La coupure de réseau n&apos;arrête pas la vente
+                </h3>
+                <p className="mt-4 text-sm leading-relaxed text-white/70">
+                  Les ventes enregistrées hors connexion sont stockées sur l&apos;appareil et
+                  remontent automatiquement dès le retour du réseau. Vous voyez à tout moment ce qui
+                  reste à synchroniser — rien ne se perd en silence.
+                </p>
+              </div>
+              <div className="fond-trame rounded-[1.4rem] bg-white/5 p-5 ring-1 ring-white/10">
+                <div className="space-y-2.5">
+                  {[
+                    { t: "Vente V-0148 · 46 000 FCFA", s: "Synchronisée", ok: true },
+                    { t: "Vente V-0149 · 12 500 FCFA", s: "Synchronisée", ok: true },
+                    { t: "Vente V-0150 · 8 000 FCFA", s: "En attente de réseau", ok: false },
+                  ].map((r) => (
+                    <div
+                      key={r.t}
+                      className="flex items-center justify-between rounded-xl bg-white/5 px-4 py-3 text-xs"
+                    >
+                      <span className="font-semibold text-white/90">{r.t}</span>
+                      <span
+                        className={
+                          r.ok
+                            ? "rounded-full bg-primary/20 px-2 py-0.5 font-bold text-primary"
+                            : "rounded-full bg-white/10 px-2 py-0.5 font-bold text-white/60"
+                        }
+                      >
+                        {r.s}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </Reveal>
-          <Reveal delay={120}>
-            <div className="h-full rounded-2xl bg-card p-7 shadow-carte transition-shadow hover:shadow-relief">
-              <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                <Smartphone size={20} />
-              </span>
-              <h3 className="mt-4 text-xl font-bold">Airtel Money et Moov Money</h3>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Enregistrez vos encaissements Mobile Money avec leur référence, à côté des espèces et du
-                crédit, pour un point de caisse juste en fin de journée. La configuration des opérateurs
-                est partagée par toute la boutique.
-              </p>
+
+          <Reveal delay={100}>
+            <div className="grid items-center gap-8 rounded-[2rem] bg-gradient-to-br from-primary to-[#0b6e3d] p-7 text-white sm:p-10 lg:grid-cols-2">
+              <div className="fond-trame order-2 rounded-[1.4rem] bg-white/10 p-5 ring-1 ring-white/15 lg:order-1">
+                <div className="space-y-2.5">
+                  {[
+                    { m: "Airtel Money", r: "Réf. AM-7742", v: "25 000" },
+                    { m: "Moov Money", r: "Réf. MM-1108", v: "9 500" },
+                    { m: "Espèces", r: "Caisse", v: "14 000" },
+                  ].map((r) => (
+                    <div
+                      key={r.m}
+                      className="flex items-center justify-between rounded-xl bg-white/10 px-4 py-3 text-xs"
+                    >
+                      <span>
+                        <span className="font-bold">{r.m}</span>
+                        <span className="ml-2 text-white/60">{r.r}</span>
+                      </span>
+                      <span className="font-extrabold tabular-nums">{r.v} FCFA</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="order-1 lg:order-2">
+                <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 text-white">
+                  <Smartphone size={22} />
+                </span>
+                <h3 className="titre-serif mt-5 text-3xl">Airtel Money et Moov Money</h3>
+                <p className="mt-4 text-sm leading-relaxed text-white/80">
+                  Enregistrez vos encaissements Mobile Money avec leur référence, à côté des espèces
+                  et du crédit, pour un point de caisse juste en fin de journée. La configuration des
+                  opérateurs est partagée par toute la boutique.
+                </p>
+              </div>
             </div>
           </Reveal>
         </div>
       </section>
 
       {/* Démarrage ---------------------------------------------------------- */}
-      <section className="bg-card py-20 lg:py-24">
-        <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">
-          <Reveal>
-            <Amorce>Mise en route</Amorce>
-            <h2 className="mt-2 text-3xl font-extrabold tracking-tight">Opérationnel le jour même</h2>
-          </Reveal>
-          <div className="mt-11 grid gap-6 md:grid-cols-3">
-            {ETAPES.map((e, i) => (
-              <Reveal key={e.numero} delay={i * 120}>
-                <div className="relative h-full rounded-2xl bg-background p-6 pt-7 shadow-carte">
-                  <span className="absolute -top-4 left-6 flex h-9 w-9 items-center justify-center rounded-full bg-primary text-base font-extrabold text-primary-foreground shadow-vedette">
-                    {e.numero}
-                  </span>
-                  <h3 className="mt-3 text-base font-bold">{e.titre}</h3>
-                  <p className="mt-1.5 text-sm text-muted-foreground">{e.texte}</p>
-                </div>
-              </Reveal>
-            ))}
-          </div>
+      <section className="mx-auto w-full max-w-6xl px-4 py-20 sm:px-6 lg:py-28">
+        <IntroSection etiquette="Mise en route" titre={<>Opérationnel le jour même</>} />
+        <div className="mt-14 grid gap-6 md:grid-cols-3">
+          {ETAPES.map((e, i) => (
+            <Reveal key={e.numero} delay={i * 120}>
+              <div className="h-full rounded-[1.5rem] bg-card p-8 shadow-carte">
+                <span className="titre-serif flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-2xl text-primary">
+                  {e.numero}
+                </span>
+                <h3 className="titre-serif mt-5 text-xl">{e.titre}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{e.texte}</p>
+              </div>
+            </Reveal>
+          ))}
         </div>
       </section>
 
       {/* Rôles -------------------------------------------------------------- */}
-      <section className="mx-auto w-full max-w-6xl px-4 py-20 sm:px-6 lg:py-24">
-        <Reveal>
-          <Amorce>Équipe</Amorce>
-          <h2 className="mt-2 text-3xl font-extrabold tracking-tight">Chacun voit ce qui le concerne</h2>
-          <p className="mt-3 max-w-2xl text-muted-foreground">
-            Vos vendeurs encaissent sans avoir accès à vos marges ni à vos rapports.
-          </p>
-        </Reveal>
-        <div className="mt-9 grid gap-6 md:grid-cols-3">
+      <section className="mx-auto w-full max-w-6xl px-4 py-20 sm:px-6 lg:py-28">
+        <IntroSection
+          etiquette="Équipe"
+          titre={<>Chacun voit ce qui le concerne</>}
+          accroche="Vos vendeurs encaissent sans avoir accès à vos marges ni à vos rapports."
+        />
+        <div className="mt-14 grid gap-6 md:grid-cols-3">
           {ROLES.map((r, i) => (
             <Reveal key={r.titre} delay={i * 100}>
-              <div className="h-full rounded-2xl bg-card p-6 shadow-carte transition-all duration-300 hover:-translate-y-1 hover:shadow-relief">
-                <h3 className="text-base font-bold">{r.titre}</h3>
-                <p className="mt-1.5 text-sm text-muted-foreground">{r.texte}</p>
+              <div className="h-full rounded-[1.5rem] bg-card p-7 shadow-carte transition-all duration-300 hover:-translate-y-1 hover:shadow-relief">
+                <h3 className="titre-serif text-xl">{r.titre}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{r.texte}</p>
               </div>
             </Reveal>
           ))}
@@ -387,55 +447,55 @@ export default async function VitrinePage() {
       </section>
 
       {/* Tarifs ------------------------------------------------------------- */}
-      <section id="tarifs" className="bg-card py-20 lg:py-24">
-        <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">
-          <Reveal>
-            <Amorce>Tarifs</Amorce>
-            <h2 className="mt-2 text-3xl font-extrabold tracking-tight">Des formules claires</h2>
-            <p className="mt-3 max-w-2xl text-muted-foreground">
-              15 jours pour essayer, sans carte bancaire et avec toutes les fonctionnalités. Ensuite, deux
-              formules selon vos besoins — et une troisième si vous gérez plusieurs boutiques.
-            </p>
-            <Pricing contact={contact} grille={grille} />
-            <p className="mt-5 text-xs text-muted-foreground">
-              Les paiements par Mobile Money sont en cours de mise en service : en attendant, l&apos;équipe
-              NzilaBiz vous accompagne par WhatsApp pour activer votre abonnement.
-            </p>
-          </Reveal>
-        </div>
+      <section id="tarifs" className="mx-auto w-full max-w-6xl px-4 py-20 sm:px-6 lg:py-28">
+        <IntroSection
+          etiquette="Tarifs"
+          titre={<>Des formules claires</>}
+          accroche="15 jours pour essayer, sans carte bancaire et avec toutes les fonctionnalités. Ensuite, deux formules selon vos besoins — et une troisième si vous gérez plusieurs boutiques."
+        />
+        <Reveal>
+          <Pricing contact={contact} grille={grille} />
+          <p className="mt-6 text-center text-xs text-muted-foreground">
+            Les paiements par Mobile Money sont en cours de mise en service : en attendant,
+            l&apos;équipe NzilaBiz vous accompagne par WhatsApp pour activer votre abonnement.
+          </p>
+        </Reveal>
       </section>
 
       {/* FAQ ---------------------------------------------------------------- */}
-      <section id="faq" className="mx-auto w-full max-w-3xl px-4 py-20 sm:px-6 lg:py-24">
+      <section id="faq" className="mx-auto w-full max-w-3xl px-4 py-20 sm:px-6 lg:py-28">
+        <IntroSection etiquette="Questions fréquentes" titre={<>Ce qu&apos;on nous demande le plus</>} />
         <Reveal>
-          <Amorce>Questions fréquentes</Amorce>
-          <h2 className="mt-2 text-3xl font-extrabold tracking-tight">Ce qu&apos;on nous demande le plus</h2>
           <Faq items={FAQ_ITEMS} />
         </Reveal>
       </section>
 
-      {/* CTA final ----------------------------------------------------------- */}
-      <section className="relative overflow-hidden bg-sidebar py-20 text-sidebar-foreground lg:py-24">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute left-1/2 top-0 h-72 w-72 -translate-x-1/2 rounded-full bg-primary/20 blur-3xl"
-        />
-        <div className="relative mx-auto w-full max-w-3xl px-4 text-center sm:px-6">
-          <Reveal>
-            <h2 className="text-3xl font-extrabold tracking-tight sm:text-4xl">
+      {/* CTA final — grand mot-symbole serif ------------------------------- */}
+      <section className="px-3 pb-6 sm:px-4">
+        <div className="fond-trame relative mx-auto max-w-[1400px] overflow-hidden rounded-[2rem] bg-encre px-5 py-20 text-center text-encre-foreground sm:py-24">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute left-1/2 top-0 h-72 w-72 -translate-x-1/2 rounded-full bg-primary/25 blur-3xl"
+          />
+          <Reveal className="relative">
+            <h2 className="titre-serif text-3xl sm:text-4xl">
               Votre boutique mérite mieux qu&apos;un cahier
             </h2>
-            <p className="mt-4 text-sidebar-muted">
-              Créez votre compte, choisissez un catalogue de départ, et encaissez votre première vente
-              aujourd&apos;hui.
+            <p className="mx-auto mt-4 max-w-lg text-white/65">
+              Créez votre compte, choisissez un catalogue de départ, et encaissez votre première
+              vente aujourd&apos;hui.
             </p>
-            <Link
-              href="/inscription"
-              className="group mt-9 inline-flex h-12 items-center gap-2 rounded-full bg-primary px-8 text-base font-bold text-primary-foreground shadow-vedette transition-all hover:opacity-90"
+            <div className="mt-9 flex justify-center">
+              <BoutonCta href="/inscription" ton="clair" taille="lg">
+                Créer ma boutique
+              </BoutonCta>
+            </div>
+            <p
+              aria-hidden
+              className="titre-serif pointer-events-none mt-14 select-none text-[19vw] leading-none text-white/[0.06] sm:text-[15rem]"
             >
-              Créer ma boutique
-              <ArrowRight size={18} className="transition-transform group-hover:translate-x-1" />
-            </Link>
+              NzilaBiz
+            </p>
           </Reveal>
         </div>
       </section>

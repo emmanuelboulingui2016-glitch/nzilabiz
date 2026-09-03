@@ -76,8 +76,8 @@ export function Sidebar({
           <Image
             src="/brand/nzilabiz-icone-transparent.png"
             alt="NzilaBiz"
-            width={32}
-            height={32}
+            width={38}
+            height={38}
             className="shrink-0"
           />
           {collapsed || reseau ? null : (

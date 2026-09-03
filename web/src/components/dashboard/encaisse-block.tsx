@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatFcfa } from "@/lib/currency";
 import type { DashboardData } from "./types";
 
-// §5 Bloc "Encaissé aujourd'hui" + 🔧 Reste en caisse (fond d'ouverture + espèces − dépenses espèces)
+// §5 Bloc "Encaissé aujourd'hui" + Reste en caisse (fond d'ouverture + espèces − dépenses espèces)
 export function EncaisseBlock({ encaisse, caisse }: { encaisse: DashboardData["encaisse"]; caisse: DashboardData["caisse"] }) {
   const rows = [
     { label: "Espèces", value: encaisse.especes, icon: Banknote },

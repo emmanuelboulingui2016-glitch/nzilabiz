@@ -1,4 +1,4 @@
-// Export CSV/PDF de l'historique des ventes — §7 🔧 "bouton d'export direct (CSV/PDF)... filtré
+// Export CSV/PDF de l'historique des ventes — §7 "bouton d'export direct (CSV/PDF)... filtré
 // selon les critères actifs". Les deux fonctions travaillent sur la liste déjà filtrée côté client.
 
 import { PAIEMENT_LABELS, type SaleRow } from "./types";

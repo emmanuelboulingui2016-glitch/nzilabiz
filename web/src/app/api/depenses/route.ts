@@ -15,7 +15,7 @@ import { refusJustificatif } from "@/lib/validation/fichier";
 export { SUGGESTED_CATEGORIES } from "@/components/depenses/get-depenses-data";
 
 /**
- * 🔧 Dépenses récurrentes — génération pragmatique sans scheduler.
+ * Dépenses récurrentes — génération pragmatique sans scheduler.
  *
  * Il n'y a pas de job en arrière-plan dans cet environnement de build. À la place, à chaque
  * chargement de la liste (GET), on regarde les dépenses marquées `recurrente=true` pour cette
@@ -149,7 +149,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Mode de règlement invalide" }, { status: 400 });
   }
 
-  // 🔧 Écart documenté : le schéma partagé (`src/db/schema.ts`) n'a pas de colonne dédiée pour la
+  // Écart documenté : le schéma partagé (`src/db/schema.ts`) n'a pas de colonne dédiée pour la
   // « Note » du formulaire (seulement `description`). On la concatène donc à la suite du libellé,
   // séparée par un saut de ligne, et on la ressépare côté affichage (premier segment = libellé,
   // reste = note). Alternative éditer schema.ts non retenue (fichier partagé hors périmètre).

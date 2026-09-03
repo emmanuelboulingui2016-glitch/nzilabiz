@@ -22,7 +22,7 @@ export function Faq({ items }: { items: { question: string; reponse: string }[] 
               // La section qui entoure cet accordéon reste sur le fond crème par défaut : chaque
               // question a donc besoin d'un fond blanc (bg-card) pour se détacher, l'ombre seule
               // ne suffirait pas sur une couleur identique à celle du dessous.
-              "overflow-hidden rounded-2xl bg-card transition-shadow",
+              "overflow-hidden rounded-[1.25rem] bg-card transition-shadow",
               estOuvert ? "shadow-relief" : "shadow-carte"
             )}
           >

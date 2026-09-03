@@ -69,7 +69,7 @@ export function AdminSidebar({ email }: { email: string }) {
     >
       <div className={cn("flex items-center gap-2 px-4 py-5", replie && "flex-col gap-3 px-2")}>
         <Link href="/superadmin" className="flex min-w-0 items-center gap-2" title="Administration">
-          <Image src="/brand/nzilabiz-icone-transparent.png" alt="" width={30} height={30} className="shrink-0" />
+          <Image src="/brand/nzilabiz-icone-transparent.png" alt="" width={38} height={38} className="shrink-0" />
           {replie ? null : (
             <span className="min-w-0">
               <span className="block truncate text-base font-extrabold leading-tight">NzilaBiz</span>

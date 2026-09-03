@@ -1,17 +1,19 @@
 "use client";
 
-// En-tête des pages publiques. Il se densifie au défilement (ombre et fond opaque) pour rester
-// lisible par-dessus le contenu, et le menu mobile évite d'écraser les liens sur petit écran.
+// En-tête des pages publiques, refonte « éditoriale ».
 //
-// Refonte : les liens de navigation sont regroupés dans une pastille (fond `bg-muted`) plutôt que
-// posés à plat — c'est ce qui donne l'air « logiciel soigné » aux en-têtes actuels, sans ajouter
-// de bordure. Les boutons d'action passent en pilule (`rounded-full`), conformément à la charte.
+// Fond blanc franc, mot-symbole en serif à gauche, liens de navigation posés à plat au centre
+// (plus de pastille : la référence les laisse respirer), et à droite un lien discret « Se
+// connecter » suivi du bouton signature (pilule encre + carré vert). L'en-tête se densifie
+// légèrement au défilement — une simple bordure basse et une ombre ténue — pour rester lisible
+// par-dessus le contenu.
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Menu, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { BoutonCta } from "./bouton-cta";
 
 const LIENS = [
   { href: "/#fonctionnalites", label: "Fonctionnalités" },
@@ -33,54 +35,42 @@ export function PublicHeader() {
   return (
     <header
       className={cn(
-        "sticky top-0 z-40 border-b transition-all duration-300",
+        "sticky top-0 z-40 transition-all duration-300",
         defile
-          ? "border-border bg-background/95 shadow-carte backdrop-blur"
-          : "border-transparent bg-background"
+          ? "border-b border-border bg-background/90 shadow-carte backdrop-blur"
+          : "border-b border-transparent bg-background",
       )}
     >
       <div className="mx-auto flex h-16 w-full max-w-6xl items-center gap-3 px-4 md:h-20 sm:px-6">
-        <Link href="/" className="flex shrink-0 items-center gap-2">
-          <Image src="/brand/nzilabiz-icone-transparent.png" alt="" width={32} height={32} />
-          <span className="text-lg font-extrabold tracking-tight">NzilaBiz</span>
+        <Link href="/" className="flex shrink-0 items-center gap-2.5">
+          <Image src="/brand/nzilabiz-icone-transparent.png" alt="" width={42} height={42} className="shrink-0" />
+          <span className="font-serif text-2xl font-semibold tracking-tight sm:text-[1.7rem]">NzilaBiz</span>
         </Link>
 
-        {/* Pastille de navigation : les liens vivent ensemble dans un même fond, plutôt qu'à plat
-            sur l'en-tête — moins de bordures, plus de structure visuelle. */}
-        <nav className="ml-auto hidden items-center gap-1 rounded-full bg-muted/70 p-1 md:flex">
+        <nav className="ml-auto hidden items-center gap-7 md:flex">
           {LIENS.map((l) => (
             <Link
               key={l.href}
               href={l.href}
-              className="flex min-h-10 items-center rounded-full px-4 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
+              className="text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground"
             >
               {l.label}
             </Link>
           ))}
         </nav>
 
-        <div className="hidden items-center gap-2 md:flex">
+        <div className="ml-auto hidden items-center gap-4 md:ml-7 md:flex">
           <Link
             href="/connexion"
-            className="flex min-h-10 items-center rounded-full px-4 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground"
           >
             Se connecter
           </Link>
-          <Link
-            href="/inscription"
-            className="inline-flex h-11 items-center rounded-full bg-primary px-5 text-sm font-bold text-primary-foreground shadow-carte transition-all hover:opacity-90 hover:shadow-vedette"
-          >
-            Essai gratuit
-          </Link>
+          <BoutonCta href="/inscription">Essai gratuit</BoutonCta>
         </div>
 
         <div className="ml-auto flex items-center gap-2 md:hidden">
-          <Link
-            href="/inscription"
-            className="inline-flex h-11 items-center rounded-full bg-primary px-4 text-sm font-bold text-primary-foreground shadow-carte"
-          >
-            Essai gratuit
-          </Link>
+          <BoutonCta href="/inscription">Essai</BoutonCta>
           <button
             onClick={() => setMenuOuvert((v) => !v)}
             aria-label={menuOuvert ? "Fermer le menu" : "Ouvrir le menu"}
@@ -95,7 +85,7 @@ export function PublicHeader() {
       <div
         className={cn(
           "grid overflow-hidden border-t border-border transition-all duration-300 md:hidden",
-          menuOuvert ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] border-transparent opacity-0"
+          menuOuvert ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] border-transparent opacity-0",
         )}
       >
         <div className="overflow-hidden">

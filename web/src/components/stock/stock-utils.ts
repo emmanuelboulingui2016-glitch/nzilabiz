@@ -57,7 +57,7 @@ export const MOVEMENT_TYPE_TONES: Record<string, "success" | "warning" | "danger
 };
 
 // ---------------------------------------------------------------------------
-// Import CSV — mapping de colonnes tolérant (§8 🔧 Import CSV/Excel en masse)
+// Import CSV — mapping de colonnes tolérant (§8 Import CSV/Excel en masse)
 // ---------------------------------------------------------------------------
 
 const DIACRITICS_RE = new RegExp("[\\u0300-\\u036f]", "g");

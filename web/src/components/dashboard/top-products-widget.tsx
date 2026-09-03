@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatFcfa } from "@/lib/currency";
 import type { TopProductRow } from "./types";
 
-// §5 🔧 Mini-widget "Top produits du jour"
+// §5 Mini-widget "Top produits du jour"
 export function TopProductsWidget({ items }: { items: TopProductRow[] }) {
   return (
     <Card>

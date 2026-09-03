@@ -1,6 +1,6 @@
 "use client";
 
-// Dialog d'annulation d'une vente — §7 🔧 "motif obligatoire pour toute annulation".
+// Dialog d'annulation d'une vente — §7 "motif obligatoire pour toute annulation".
 // Sélection d'un motif prédéfini (+ champ libre si "autre"), puis appel à
 // POST /api/ventes/[id]/annuler. Le comportement (annulation immédiate ou demande d'approbation)
 // est décidé côté serveur selon la permission de l'utilisateur.

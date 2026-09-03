@@ -1,6 +1,6 @@
 "use client";
 
-// Panneau "Demandes en attente" — §7 🔧 workflow d'approbation. Visible uniquement pour les
+// Panneau "Demandes en attente" — §7 workflow d'approbation. Visible uniquement pour les
 // utilisateurs disposant de la permission approbations.decider (Patron/Gérant). Liste les
 // ApprovalRequest de type ANNULATION_VENTE en attente pour cette boutique, avec actions
 // Approuver/Rejeter.

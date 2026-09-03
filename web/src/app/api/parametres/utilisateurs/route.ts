@@ -11,7 +11,7 @@ import { bloquerSiExpiree, bloquerSiPlafondComptes, etatBoutiqueCourante } from 
 import { normaliserTelephone } from "@/lib/telephone";
 
 // Onglet Utilisateurs — §14 du cahier des charges.
-// 🔧 Simplification documentée (voir résumé de tâche / README) : il n'y a pas de service d'envoi
+// Simplification documentée (voir résumé de tâche / README) : il n'y a pas de service d'envoi
 // d'e-mail configuré dans ce build. "Inviter un employé" crée donc directement la ligne `users`
 // avec un mot de passe temporaire généré côté serveur, renvoyé UNE SEULE FOIS dans la réponse pour
 // que le Patron le relaie manuellement (SMS/WhatsApp/oral) à l'employé. Un vrai flux d'invitation

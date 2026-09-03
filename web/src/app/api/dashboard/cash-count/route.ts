@@ -6,7 +6,7 @@ import { cashCounts } from "@/db/schema";
 import { getDashboardData } from "@/components/dashboard/get-dashboard-data";
 import { bloquerSiExpiree } from "@/lib/abonnement";
 
-// POST /api/dashboard/cash-count — §5 🔧 fond de caisse d'ouverture / comptage de fermeture.
+// POST /api/dashboard/cash-count — §5 fond de caisse d'ouverture / comptage de fermeture.
 // body: { type: "OUVERTURE" | "FERMETURE", montantSaisi: number }
 export async function POST(request: Request) {
   const session = await getSession();

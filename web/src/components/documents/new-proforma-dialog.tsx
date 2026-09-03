@@ -1,6 +1,6 @@
 "use client";
 
-// « Nouvelle proforma » (§12 🔧 Amélioration) : créée indépendamment d'une vente, pour un client
+// « Nouvelle proforma » (§12 Amélioration) : créée indépendamment d'une vente, pour un client
 // professionnel qui n'a pas encore payé. Client existant (recherché via GET /api/creances/clients,
 // module Créances) OU nom libre. Lignes libres (nom / quantité / prix), pas liées à un vrai Product
 // — c'est l'étape de conversion qui exigera cette association, voir ConvertProformaDialog.

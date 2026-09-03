@@ -9,7 +9,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { Input, Label } from "@/components/ui/input";
 import { parseFcfaInput } from "@/lib/currency";
 
-// §5 🔧 Fond de caisse d'ouverture — si aucun comptage OUVERTURE n'existe pour la journée en
+// §5 Fond de caisse d'ouverture — si aucun comptage OUVERTURE n'existe pour la journée en
 // cours, on invite l'utilisateur à le saisir avant d'afficher les chiffres de caisse.
 export function CashCountOpeningBanner() {
   const router = useRouter();

@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatFcfa, parseFcfaInput } from "@/lib/currency";
 import type { CashCountSummary } from "./types";
 
-// §5 🔧 Comptage de caisse de fermeture (optionnel) — écart = montant compté − montant théorique.
+// §5 Comptage de caisse de fermeture (optionnel) — écart = montant compté − montant théorique.
 export function CashCountClosingWidget({
   resteEnCaisse,
   cashCountFermeture,

@@ -1,6 +1,6 @@
 "use client";
 
-// Petite bulle d'aide pédagogique sur les cartes KPI — §13 "🔧 Amélioration" : rendre la
+// Petite bulle d'aide pédagogique sur les cartes KPI — §13 "Amélioration" : rendre la
 // distinction bénéfice comptable / argent réellement en caisse plus visible qu'une simple note en
 // bas de page, pour des commerçants pas forcément familiers avec la comptabilité.
 // Pas de librairie externe : clic pour ouvrir/fermer + fermeture au clic extérieur ou Échap.
