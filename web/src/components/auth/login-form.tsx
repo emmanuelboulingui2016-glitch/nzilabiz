@@ -10,6 +10,8 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { useTranslations } from "@/lib/i18n/provider";
+import { Loader2 } from "lucide-react";
+import { BoutonGoogle } from "@/components/auth/bouton-google";
 
 /** Traduit le motif renvoyé par /api/auth/google/callback en une phrase utile au visiteur. */
 function messageGoogle(raison: string): string {
@@ -123,7 +125,8 @@ export function LoginForm({
             {t("auth.forgotPassword")}
           </Link>
         </div>
-        <Button type="submit" className="w-full" disabled={loading}>
+        <Button type="submit" className="h-12 w-full rounded-full" disabled={loading}>
+          {loading ? <Loader2 size={16} className="animate-spin" /> : null}
           {loading ? t("common.loading") : t("auth.loginButton")}
         </Button>
       </form>
@@ -135,11 +138,7 @@ export function LoginForm({
             {t("auth.or")}
             <div className="h-px flex-1 bg-border" />
           </div>
-          <a href="/api/auth/google">
-            <Button type="button" variant="outline" className="w-full">
-              {t("auth.continueWithGoogle")}
-            </Button>
-          </a>
+          <BoutonGoogle libelle={t("auth.continueWithGoogle")} />
         </>
       ) : null}
 
