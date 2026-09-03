@@ -7,10 +7,6 @@ import { Button } from "@/components/ui/button";
 
 type ImportResult = { created: number; updated: number; skipped: number; errors: string[] };
 
-const TEMPLATE_CSV =
-  "nom,categorie,codeBarres,prixAchat,prixVente,unite,quantiteStock,seuilAlerte\n" +
-  "Riz 5kg,Alimentation,1234567890123,4500,5500,unité,20,5\n";
-
 // Doit rester cohérent avec les bornes serveur (route d'import) : elles seules font foi, ceci n'est
 // qu'un message d'avertissement immédiat pour éviter à l'utilisateur d'attendre l'aller-retour.
 const TAILLE_MAX_OCTETS = 5_000_000;
@@ -40,8 +36,8 @@ export function ImportModal({ open, onClose, onImported }: { open: boolean; onCl
       setFile(null);
       return;
     }
-    if (!/\.(csv|xlsx)$/i.test(selected.name)) {
-      toast.error("Choisissez un fichier .csv ou .xlsx.");
+    if (!/\.xlsx$/i.test(selected.name)) {
+      toast.error("Choisissez un classeur Excel (.xlsx).");
       setFile(null);
       return;
     }
@@ -53,19 +49,9 @@ export function ImportModal({ open, onClose, onImported }: { open: boolean; onCl
     setFile(selected);
   };
 
-  const downloadTemplate = () => {
-    const blob = new Blob([TEMPLATE_CSV], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "modele-produits.csv";
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
   const handleImport = async () => {
     if (!file) {
-      toast.error("Sélectionnez un fichier CSV ou Excel (.xlsx) avant d'importer.");
+      toast.error("Sélectionnez un classeur Excel (.xlsx) avant d'importer.");
       return;
     }
     setImporting(true);
@@ -92,23 +78,31 @@ export function ImportModal({ open, onClose, onImported }: { open: boolean; onCl
   };
 
   return (
-    <Dialog open={open} onClose={onClose} title="Importer des produits (CSV ou Excel)" className="max-w-xl">
+    <Dialog open={open} onClose={onClose} title="Importer des produits depuis Excel" className="max-w-xl">
       <div className="space-y-4">
         <p className="text-xs text-muted-foreground">
-          Fichier CSV (.csv) ou classeur Excel (.xlsx), 5 Mo et 5 000 lignes maximum. Colonnes reconnues (insensible
+          Classeur Excel (.xlsx), 5 Mo et 5 000 lignes maximum. Colonnes reconnues (insensible
           à la casse) : nom, catégorie, codeBarres, prixAchat, prixVente, prixGros, unité, quantiteStock,
           seuilAlerte. Les produits déjà connus (même code-barres) sont mis à jour, les autres sont créés avec une
           référence générée automatiquement.
         </p>
 
-        <Button type="button" variant="outline" size="sm" onClick={downloadTemplate}>
-          Télécharger un modèle CSV
-        </Button>
+        {/* Un lien de téléchargement, pas un bouton qui déplace la page : le modèle est fabriqué
+            par le serveur, qui possède déjà la bibliothèque Excel. L'embarquer dans le navigateur
+            pour produire un fichier d'exemple de deux lignes aurait alourdi le paquet envoyé à un
+            commerçant en 3G. */}
+        <a
+          href="/api/stock/products/import"
+          download="modele-produits.xlsx"
+          className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-border px-4 text-sm font-semibold transition-colors hover:bg-muted"
+        >
+          Télécharger le modèle Excel
+        </a>
 
         <div>
           <input
             type="file"
-            accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             onChange={(e) => handleFile(e.target.files?.[0] ?? null)}
             className="block w-full text-sm text-muted-foreground file:mr-3 file:rounded-lg file:border-0 file:bg-muted file:px-3 file:py-1.5 file:text-sm"
           />

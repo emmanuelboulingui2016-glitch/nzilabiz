@@ -15,7 +15,6 @@ import { Reveal } from "@/components/public/reveal";
 import { AnimatedCounter } from "@/components/public/animated-counter";
 import { AppPreview } from "@/components/public/app-preview";
 import { Pricing } from "@/components/public/pricing";
-import { Faq } from "@/components/public/faq";
 import { BackToTop, ScrollProgress } from "@/components/public/scroll-helpers";
 import { BoutonCta } from "@/components/public/bouton-cta";
 import { getPlatformSettings, contactCommercial } from "@/lib/platform-settings";
@@ -117,38 +116,6 @@ const ETAPES = [
   },
 ];
 
-const FAQ_ITEMS = [
-  {
-    question: "Est-ce que ça marche vraiment sans internet ?",
-    reponse:
-      "Oui. Les ventes, le stock et les clients restent utilisables hors connexion : tout est enregistré sur l'appareil, puis synchronisé automatiquement dès que le réseau revient. C'est le cas d'usage pour lequel NzilaBiz a été conçu.",
-  },
-  {
-    question: "Faut-il un ordinateur ?",
-    reponse:
-      "Non. NzilaBiz s'installe sur un téléphone Android comme une application, depuis le navigateur, sans passer par un magasin d'applications. Ça marche aussi sur tablette et sur ordinateur.",
-  },
-  {
-    question: "Mes données m'appartiennent-elles ?",
-    reponse:
-      "Oui. Vous exportez à tout moment vos produits, clients, ventes et rapports en CSV ou PDF. Si vous supprimez votre compte, la boutique et ses données sont effacées.",
-  },
-  {
-    question: "Est-ce adapté à une boutique qui vend à crédit ?",
-    reponse:
-      "C'est prévu pour. Chaque client peut avoir sa limite de crédit et son délai de paiement, et l'application vous signale les retards avant qu'ils ne deviennent des pertes.",
-  },
-  {
-    question: "Mes vendeurs verront-ils mes marges ?",
-    reponse:
-      "Non. Un vendeur accède à la caisse et à ses propres ventes, rien d'autre : ni les marges, ni les rapports, ni les fiches clients. C'est vous qui décidez du rôle de chacun.",
-  },
-  {
-    question: "Combien de temps pour démarrer ?",
-    reponse:
-      "Une quinzaine de minutes : vous créez votre boutique, choisissez un modèle de catalogue proche de votre activité, ajustez vos prix, et vous pouvez encaisser.",
-  },
-];
 
 // Pastille d'amorce au-dessus d'un titre de section : un repère de lecture, pas un niveau de
 // titre. Reprend la pastille grise centrée de la référence.
@@ -459,14 +426,6 @@ export default async function VitrinePage() {
             Les paiements par Mobile Money sont en cours de mise en service : en attendant,
             l&apos;équipe NzilaBiz vous accompagne par WhatsApp pour activer votre abonnement.
           </p>
-        </Reveal>
-      </section>
-
-      {/* FAQ ---------------------------------------------------------------- */}
-      <section id="faq" className="mx-auto w-full max-w-3xl px-4 py-20 sm:px-6 lg:py-28">
-        <IntroSection etiquette="Questions fréquentes" titre={<>Ce qu&apos;on nous demande le plus</>} />
-        <Reveal>
-          <Faq items={FAQ_ITEMS} />
         </Reveal>
       </section>
 

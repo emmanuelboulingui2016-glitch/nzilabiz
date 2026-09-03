@@ -1,4 +1,5 @@
-// POST /api/stock/products/import — import CSV/Excel en masse (§8).
+// GET  /api/stock/products/import — télécharge le classeur modèle
+// POST /api/stock/products/import — import de produits en masse depuis un classeur Excel (§8).
 //
 // Le client envoie le fichier brut (encodé en base64, comme les photos de produit ailleurs dans
 // l'app) plutôt que des lignes déjà parsées : c'est cette route, et elle seule, qui sait lire un
@@ -43,6 +44,36 @@ const importSchema = z.object({
  * réalité une archive ZIP et commence toujours par la signature "PK", quelle que soit l'extension
  * déclarée. Le nom de fichier ne sert que de repli si le contenu est ambigu (fichier vide, etc.).
  */
+/**
+ * Modèle à remplir, servi en .xlsx.
+ *
+ * Il était auparavant fabriqué dans le navigateur sous forme de CSV. Le proposer en CSV alors que
+ * l'import n'accepte plus que l'Excel envoyait le commerçant dans le mur : il téléchargeait un
+ * modèle, le remplissait, et se faisait refuser son fichier.
+ */
+export async function GET() {
+  const session = await getSession();
+  if (!session) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+  if (!can(session.role, "stock.edit")) {
+    return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+  }
+
+  const feuille = XLSX.utils.aoa_to_sheet([
+    ["nom", "categorie", "codeBarres", "prixAchat", "prixVente", "unite", "quantiteStock", "seuilAlerte"],
+    ["Riz 5kg", "Alimentation", "1234567890123", 4500, 5500, "unité", 20, 5],
+  ]);
+  const classeur = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(classeur, feuille, "Produits");
+  const octets = XLSX.write(classeur, { bookType: "xlsx", type: "buffer" }) as Buffer;
+
+  return new NextResponse(new Uint8Array(octets), {
+    headers: {
+      "content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "content-disposition": 'attachment; filename="modele-produits.xlsx"',
+    },
+  });
+}
+
 function detecterFormat(nomFichier: string, buffer: Buffer): "xlsx" | "csv" {
   const estArchiveZip = buffer.length >= 2 && buffer[0] === 0x50 && buffer[1] === 0x4b;
   if (estArchiveZip) return "xlsx";
@@ -108,8 +139,14 @@ export async function POST(request: Request) {
   }
   const { nomFichier, contenu } = parsed.data;
 
-  if (!/\.(csv|xlsx)$/i.test(nomFichier)) {
-    return NextResponse.json({ error: "Format non reconnu : envoyez un fichier .csv ou .xlsx." }, { status: 400 });
+  // Excel seulement. Le CSV a été retiré à la demande du commerçant : deux formats acceptés
+  // voulaient dire deux modèles à maintenir, deux façons d'échouer, et un tableur mal exporté en
+  // CSV (séparateurs, accents, points-virgules) produisait des erreurs incompréhensibles.
+  if (!/\.xlsx$/i.test(nomFichier)) {
+    return NextResponse.json(
+      { error: "Format non reconnu : envoyez un classeur Excel (.xlsx)." },
+      { status: 400 }
+    );
   }
 
   const buffer = Buffer.from(contenu, "base64");
@@ -128,7 +165,7 @@ export async function POST(request: Request) {
     );
   } catch {
     return NextResponse.json(
-      { error: "Impossible de lire ce fichier. Vérifiez qu'il s'agit bien d'un CSV ou d'un classeur Excel (.xlsx) valide." },
+      { error: "Impossible de lire ce fichier. Vérifiez qu'il s'agit bien d'un classeur Excel (.xlsx) valide." },
       { status: 400 },
     );
   }

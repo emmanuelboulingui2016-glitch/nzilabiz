@@ -18,7 +18,6 @@ import { BoutonCta } from "./bouton-cta";
 const LIENS = [
   { href: "/#fonctionnalites", label: "Fonctionnalités" },
   { href: "/#tarifs", label: "Tarifs" },
-  { href: "/#faq", label: "Questions" },
 ];
 
 export function PublicHeader() {
