@@ -134,7 +134,10 @@ async function accesRevoque(p: SessionPayload): Promise<boolean> {
 const sessionDepuisJeton = cache(async (token: string): Promise<SessionPayload | null> => {
   let payload: SessionPayload;
   try {
-    const resultat = await jwtVerify(token, getSecretKey());
+    // Algorithme épinglé à HS256 (celui utilisé par createSessionToken ci-dessus) : la clé étant
+    // symétrique, jose refuse déjà nativement `alg: none` ou une confusion RS256/HS256, mais
+    // l'épingler explicitement coûte une ligne et documente l'intention pour le prochain lecteur.
+    const resultat = await jwtVerify(token, getSecretKey(), { algorithms: ["HS256"] });
     payload = resultat.payload as unknown as SessionPayload;
   } catch {
     return null;

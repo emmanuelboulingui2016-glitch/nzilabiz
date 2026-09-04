@@ -71,11 +71,22 @@ export function SyncDashboard({
     }
     setSyncing(true);
     try {
-      const result = await runSync();
+      // `initialStatus.storeId`, pas `status.storeId` : `status` est remplacé par la réponse de
+      // `/api/synchronisation` au rafraîchissement, qui ne porte pas ce champ. `initialStatus` est
+      // la prop reçue du calque serveur au premier rendu — elle ne change pas pendant la vie de la
+      // page (changer de boutique recharge entièrement l'application), donc toujours fiable ici.
+      const result = await runSync(initialStatus.storeId);
       if (result.failed > 0) {
         toast.error(`${result.processed} élément(s) synchronisé(s), ${result.failed} échec(s).`);
       } else if (result.processed > 0) {
         toast.success(`${result.processed} élément(s) synchronisé(s).`);
+      } else if (result.ignored > 0) {
+        // Des entrées existent dans la file locale mais appartiennent à une autre boutique — cas
+        // d'un appareil partagé entre vendeurs. Ce n'est pas une erreur de cette session, mais la
+        // passer sous silence laisserait croire à tort que tout est synchronisé.
+        toast.info(
+          `Déjà à jour pour cette boutique. ${result.ignored} élément(s) en attente appartiennent à une autre boutique connectée sur cet appareil.`
+        );
       } else {
         toast.success("Déjà à jour.");
       }

@@ -121,12 +121,34 @@ export async function purgerRateLimits(): Promise<void> {
   `);
 }
 
-// Adresse de l'appelant. Derrière un reverse proxy (Caddy, Nginx, Vercel), l'IP réelle arrive
-// dans x-forwarded-for ; on prend le premier maillon de la chaîne.
+// Adresse de l'appelant — alimente toutes les clés de limitation par IP (connexion, inscription,
+// invitations, etc.), donc doit résister à la falsification : un client qui pose lui-même
+// `X-Forwarded-For` ne doit pas pouvoir se présenter sous une IP différente à chaque requête pour
+// contourner un compteur.
+//
+// Sur Vercel, `x-vercel-forwarded-for` est posé par l'edge de la plateforme et écrase toute valeur
+// envoyée par le client : c'est la seule source fiable en production, on la préfère donc. À
+// défaut, `x-real-ip` est également posé par la plateforme (reverse proxy devant l'application).
+//
+// `x-forwarded-for` ne sert qu'en dernier repli, pour le développement local sans Vercel devant —
+// et dans ce cas on prend le DERNIER maillon de la chaîne, pas le premier : chaque proxy traversé
+// ajoute son entrée à la suite de celles qui existent déjà, donc le premier maillon est celui posé
+// par le client lui-même (entièrement sous son contrôle) tandis que le dernier est ajouté par le
+// proxy le plus proche du serveur, le seul que le client ne peut pas falsifier.
 export function clientIp(request: Request): string {
+  const vercel = request.headers.get("x-vercel-forwarded-for");
+  if (vercel) return vercel.split(",")[0].trim();
+
+  const realIp = request.headers.get("x-real-ip");
+  if (realIp) return realIp.trim();
+
   const forwarded = request.headers.get("x-forwarded-for");
-  if (forwarded) return forwarded.split(",")[0].trim();
-  return request.headers.get("x-real-ip") ?? "inconnu";
+  if (forwarded) {
+    const maillons = forwarded.split(",").map((m) => m.trim()).filter(Boolean);
+    if (maillons.length) return maillons[maillons.length - 1];
+  }
+
+  return "inconnu";
 }
 
 export function tooManyRequests(retryAfter: number, message: string) {

@@ -145,7 +145,9 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       photoUrl: data.photoUrl !== undefined ? data.photoUrl : existing.photoUrl,
       misAJourLe: new Date(),
     })
-    .where(eq(products.id, id))
+    // Le SELECT préalable a déjà vérifié l'appartenance à la boutique, mais on la refiltre ici :
+    // défense en profondeur si ce SELECT venait à disparaître dans une future refactorisation.
+    .where(and(eq(products.id, id), eq(products.storeId, session.storeId)))
     .returning();
 
   return NextResponse.json({ product: updated });
@@ -170,7 +172,9 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   if (!existing) return NextResponse.json({ error: "Produit introuvable" }, { status: 404 });
 
   try {
-    await db.delete(products).where(eq(products.id, id));
+    // Le SELECT préalable a déjà vérifié l'appartenance à la boutique, mais on la refiltre ici :
+    // défense en profondeur si ce SELECT venait à disparaître dans une future refactorisation.
+    await db.delete(products).where(and(eq(products.id, id), eq(products.storeId, session.storeId)));
   } catch {
     return NextResponse.json(
       { error: "Impossible de supprimer ce produit : il est référencé par des ventes ou des mouvements de stock existants." },

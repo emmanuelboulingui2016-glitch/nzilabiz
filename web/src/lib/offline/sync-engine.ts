@@ -5,7 +5,7 @@
 // foi), avec journalisation systématique dans SyncLog (statut OK/ECHEC/EN_ATTENTE) pour permettre
 // une revue manuelle — voir §11 Amélioration "Synchronisation" (règles configurables en Phase 5).
 
-import { offlineDb, type SyncQueueEntry } from "./db";
+import { appartientALaBoutique, offlineDb, type SyncQueueEntry } from "./db";
 
 const ENDPOINTS: Record<SyncQueueEntry["entite"], string> = {
   sale: "/api/vendre/sync",
@@ -18,17 +18,36 @@ const ENDPOINTS: Record<SyncQueueEntry["entite"], string> = {
 
 let syncing = false;
 
-export async function runSync(): Promise<{ processed: number; failed: number }> {
+/**
+ * Rejoue la file vers l'API pour la boutique `storeId` — jamais pour une autre.
+ *
+ * Un appareil de boutique se partage souvent entre vendeurs : sans ce filtre, une vente encaissée
+ * hors connexion par la boutique A, encore en file au moment où la boutique B se connecte sur le
+ * même téléphone, aurait été rejouée sous la session de B dès le retour du réseau — l'argent de A
+ * attribué à B, silencieusement et définitivement (l'API fait foi de la session active au moment
+ * du rejeu, pas du contenu de la charge).
+ *
+ * Les entrées d'une autre boutique ne sont ni envoyées, ni supprimées, ni comptées en échec — ce
+ * n'est pas une erreur, ce sont des ventes qui ne sont simplement pas les nôtres. Elles restent en
+ * file, intactes, jusqu'à ce que la bonne boutique se reconnecte sur cet appareil et les
+ * synchronise elle-même.
+ */
+export async function runSync(storeId: string): Promise<{ processed: number; failed: number; ignored: number }> {
   if (syncing || typeof navigator === "undefined" || !navigator.onLine) {
-    return { processed: 0, failed: 0 };
+    return { processed: 0, failed: 0, ignored: 0 };
   }
   syncing = true;
   let processed = 0;
   let failed = 0;
+  let ignored = 0;
 
   try {
     const pending = await offlineDb.syncQueue.orderBy("createdAt").toArray();
     for (const entry of pending) {
+      if (!appartientALaBoutique(entry, storeId)) {
+        ignored += 1;
+        continue;
+      }
       const endpoint = ENDPOINTS[entry.entite];
       try {
         const res = await fetch(endpoint, {
@@ -53,15 +72,33 @@ export async function runSync(): Promise<{ processed: number; failed: number }> 
     syncing = false;
   }
 
-  return { processed, failed };
+  return { processed, failed, ignored };
 }
 
-export function startAutoSync() {
+/**
+ * Démarre la synchronisation automatique (retour réseau + toutes les 30s) pour la boutique
+ * `storeId`.
+ *
+ * `storeId` est optionnel côté signature uniquement parce que son unique appelant actuel
+ * (`app-shell.tsx`) est hors du périmètre de cette correction et ne le transmet pas encore — voir
+ * le rapport. Sans lui, impossible de filtrer `syncQueue` en toute sécurité : plutôt que de
+ * rejouer la file sans distinction de boutique (exactement le trou que ce correctif comble), on
+ * renonce à la synchronisation automatique en arrière-plan. La resynchronisation reste possible
+ * depuis un écran qui connaît sa boutique, comme Vendre (`runSync(storeId)` y est appelé après
+ * chaque vente).
+ */
+export function startAutoSync(storeId?: string) {
   if (typeof window === "undefined") return () => {};
-  const onOnline = () => void runSync();
+  if (!storeId) {
+    console.warn(
+      "[sync] startAutoSync appelé sans storeId : synchronisation automatique désactivée (voir app-shell.tsx)."
+    );
+    return () => {};
+  }
+  const onOnline = () => void runSync(storeId);
   window.addEventListener("online", onOnline);
-  const interval = window.setInterval(() => void runSync(), 30_000);
-  void runSync();
+  const interval = window.setInterval(() => void runSync(storeId), 30_000);
+  void runSync(storeId);
   return () => {
     window.removeEventListener("online", onOnline);
     window.clearInterval(interval);

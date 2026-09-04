@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { StatCard } from "@/components/ui/stat-card";
 import { Input, Select } from "@/components/ui/input";
 import { formatFcfa } from "@/lib/currency";
+import { neutraliserLigne } from "@/components/export-security";
 import { SEGMENT_LABELS, SEGMENT_DESCRIPTIONS, type ClientSegment } from "@/lib/clients/loyalty";
 import { toWhatsAppPhone } from "@/components/creances/types";
 import { SEGMENT_TONES, type ClientFiche } from "./types";
@@ -137,8 +138,11 @@ export function ClientsView({ initial, canEdit }: { initial: ClientFiche[]; canE
         c.soldeCreance,
       ]),
     ];
+    // Neutralisation anti-formule (CWE-1236) avant Papa.unparse : le nom, le téléphone, l'e-mail
+    // et l'adresse viennent tous de saisie libre côté client — voir export-security.ts pour le
+    // détail et le traitement des colonnes de montants (achats, panier moyen, solde de créance).
     downloadBlob(
-      `﻿${Papa.unparse(rows)}`,
+      `﻿${Papa.unparse(rows.map(neutraliserLigne))}`,
       `clients-${new Date().toISOString().slice(0, 10)}.csv`,
       "text/csv;charset=utf-8;"
     );

@@ -12,15 +12,14 @@
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
-import Papa from "papaparse";
 import * as XLSX from "xlsx";
 import { db } from "@/db/client";
 import { categories, products } from "@/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { can } from "@/lib/auth/rbac";
 import { genProductRef } from "@/lib/utils";
-import { CSV_FIELD_ALIASES, normalizeHeader } from "@/components/stock/stock-utils";
 import { bloquerSiExpiree } from "@/lib/abonnement";
+import { detecterFormat, ligneExploitable, lireLignes, parseNumber, pickField } from "@/lib/stock-import";
 
 // Bornes de sécurité, dans le même esprit que src/lib/validation/fichier.ts pour les images : sans
 // plafond, un classeur de plusieurs dizaines de milliers de lignes se lit intégralement et de façon
@@ -31,6 +30,11 @@ const TAILLE_MAX_OCTETS_IMPORT = 5_000_000; // 5 Mo bruts : large pour un catalo
 const TAILLE_MAX_CARACTERES_BASE64 = Math.ceil((TAILLE_MAX_OCTETS_IMPORT * 4) / 3) + 1024; // le base64 pèse ~1/3 de plus que les octets d'origine
 const LIGNES_MAX_IMPORT = 5_000;
 
+// Filet de sécurité côté plateforme (Vercel) en plus des bornes ci-dessus : même si un classeur
+// hostile faisait traîner le parsing XLSX, l'exécution de la requête est de toute façon coupée
+// après ce délai plutôt que de consommer indéfiniment un temps de fonction serverless.
+export const maxDuration = 15;
+
 const importSchema = z.object({
   nomFichier: z.string().min(1, "Nom de fichier manquant"),
   contenu: z
@@ -39,11 +43,6 @@ const importSchema = z.object({
     .max(TAILLE_MAX_CARACTERES_BASE64, "Le fichier est trop volumineux (5 Mo maximum). Réduisez-le et réessayez."),
 });
 
-/**
- * Devine le format du fichier envoyé. Le contenu prime sur le nom : un classeur Excel est en
- * réalité une archive ZIP et commence toujours par la signature "PK", quelle que soit l'extension
- * déclarée. Le nom de fichier ne sert que de repli si le contenu est ambigu (fichier vide, etc.).
- */
 /**
  * Modèle à remplir, servi en .xlsx.
  *
@@ -72,52 +71,6 @@ export async function GET() {
       "content-disposition": 'attachment; filename="modele-produits.xlsx"',
     },
   });
-}
-
-function detecterFormat(nomFichier: string, buffer: Buffer): "xlsx" | "csv" {
-  const estArchiveZip = buffer.length >= 2 && buffer[0] === 0x50 && buffer[1] === 0x4b;
-  if (estArchiveZip) return "xlsx";
-  if (/\.xlsx$/i.test(nomFichier)) return "xlsx";
-  return "csv";
-}
-
-/**
- * Étape de LECTURE, isolée de la VALIDATION métier : elle ne fait que transformer des octets bruts
- * en lignes { en-tête → valeur }, sans connaître les règles produit (champ obligatoire, prix,
- * doublon…). Ces règles restent entièrement dans la boucle d'import ci-dessous, inchangée quel que
- * soit le format d'origine du fichier.
- */
-function lireLignes(format: "xlsx" | "csv", buffer: Buffer): Record<string, unknown>[] {
-  if (format === "xlsx") {
-    const classeur = XLSX.read(buffer, { type: "buffer" });
-    const nomPremiereFeuille = classeur.SheetNames[0];
-    if (!nomPremiereFeuille) return [];
-    return XLSX.utils.sheet_to_json<Record<string, unknown>>(classeur.Sheets[nomPremiereFeuille]);
-  }
-  const texte = buffer.toString("utf-8");
-  const { data } = Papa.parse<Record<string, unknown>>(texte, { header: true, skipEmptyLines: true });
-  return data;
-}
-
-function pickField(row: Record<string, unknown>, field: keyof typeof CSV_FIELD_ALIASES): string | undefined {
-  const aliases = CSV_FIELD_ALIASES[field];
-  for (const key of Object.keys(row)) {
-    const normalized = normalizeHeader(key);
-    if (aliases.includes(normalized)) {
-      const value = row[key];
-      if (value === null || value === undefined) return undefined;
-      const str = String(value).trim();
-      return str.length > 0 ? str : undefined;
-    }
-  }
-  return undefined;
-}
-
-function parseNumber(value: string | undefined, fallback: number): number {
-  if (value === undefined) return fallback;
-  const cleaned = value.replace(/\s/g, "").replace(",", ".");
-  const n = Number(cleaned);
-  return Number.isNaN(n) ? fallback : n;
 }
 
 export async function POST(request: Request) {
@@ -160,9 +113,10 @@ export async function POST(request: Request) {
 
   let rows: Record<string, unknown>[];
   try {
-    rows = lireLignes(format, buffer).filter((row) =>
-      Object.values(row).some((v) => v !== undefined && v !== null && String(v).trim() !== ""),
-    );
+    // +2 : la ligne d'en-tête, puis une ligne de plus que la borne autorisée pour pouvoir encore
+    // distinguer « fichier trop long » d'un fichier tenant tout juste dans la limite, sans jamais
+    // demander à SheetJS de parser au-delà de ce dont on a besoin.
+    rows = lireLignes(format, buffer, LIGNES_MAX_IMPORT + 2).filter(ligneExploitable);
   } catch {
     return NextResponse.json(
       { error: "Impossible de lire ce fichier. Vérifiez qu'il s'agit bien d'un classeur Excel (.xlsx) valide." },

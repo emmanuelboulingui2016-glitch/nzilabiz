@@ -1,6 +1,7 @@
 // Export CSV/PDF de l'historique des ventes — §7 "bouton d'export direct (CSV/PDF)... filtré
 // selon les critères actifs". Les deux fonctions travaillent sur la liste déjà filtrée côté client.
 
+import { neutraliserLigne } from "@/components/export-security";
 import { PAIEMENT_LABELS, type SaleRow } from "./types";
 
 function formatDateTime(iso: string) {
@@ -60,7 +61,9 @@ function csvEscape(value: string) {
 }
 
 export function exportVentesCsv(sales: SaleRow[]) {
-  const lines = [HEADERS, ...toRows(sales)].map((row) => row.map(csvEscape).join(";"));
+  // Neutralisation anti-formule avant l'échappement CSV : voir src/components/export-security.ts
+  // pour l'ordre des deux protections et le traitement des montants négatifs.
+  const lines = [HEADERS, ...toRows(sales)].map((row) => neutraliserLigne(row).map(csvEscape).join(";"));
   const csv = "﻿" + lines.join("\n");
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   downloadBlob(blob, `ventes-${new Date().toISOString().slice(0, 10)}.csv`);

@@ -46,7 +46,10 @@ async function isValidSession(token: string | undefined): Promise<boolean> {
   const secret = process.env.AUTH_SECRET;
   if (!secret) return false;
   try {
-    await jwtVerify(token, new TextEncoder().encode(secret));
+    // Épinglé à HS256, l'algorithme utilisé par createSessionToken (src/lib/auth/session.ts) :
+    // défense en profondeur, la clé symétrique excluant déjà `alg: none` et toute confusion
+    // RS256/HS256 côté jose.
+    await jwtVerify(token, new TextEncoder().encode(secret), { algorithms: ["HS256"] });
     return true;
   } catch {
     return false;

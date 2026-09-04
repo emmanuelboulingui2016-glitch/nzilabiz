@@ -10,6 +10,7 @@ import { PwaInstallBanner } from "./pwa-install-banner";
 import { AnnouncementBanner } from "./announcement-banner";
 import type { BoutiqueOption } from "./selecteur-boutique";
 import { startAutoSync } from "@/lib/offline/sync-engine";
+import { deconnecterCompletement } from "@/lib/auth/deconnexion";
 
 /**
  * Écrans que le commerçant doit pouvoir ouvrir sans réseau. La caisse d'abord : c'est celle qui
@@ -45,38 +46,6 @@ function prechargerEcrans() {
     });
 }
 
-/** Préfixe des caches de pages, tenu en accord avec `public/sw.js`. */
-const PREFIXE_CACHE_PAGES = "nzilabiz-pages-";
-
-/**
- * Vide le cache des pages à la déconnexion.
- *
- * Depuis que le mode hors connexion fonctionne, ce cache contient le HTML des pages visitées —
- * `/dashboard` et ses chiffres d'affaires compris. Sur le téléphone d'une boutique que plusieurs
- * vendeurs se passent, la personne suivante ne doit pas les retrouver en revenant en arrière.
- *
- * Le vidage se fait **depuis la page**, pas par un message au service worker. La version
- * précédente lui envoyait `postMessage` sans canal de retour : rien n'était réellement attendu, et
- * surtout, si le service worker ne contrôlait pas encore la page — juste après une installation,
- * par exemple — le message n'était jamais envoyé, en silence. L'API Cache est accessible depuis la
- * page : autant s'en servir et savoir quand c'est fait.
- *
- * Seul le cache des pages est concerné. La coquille ne contient que des fichiers publics, et
- * l'effacer emporterait `/offline.html` — le filet de sécurité lui-même.
- *
- * L'échec n'est pas bloquant : on ne retient personne sur sa session parce qu'un cache refuse de
- * se vider.
- */
-async function viderCachePages() {
-  try {
-    if (typeof caches === "undefined") return;
-    const noms = await caches.keys();
-    await Promise.all(noms.filter((n) => n.startsWith(PREFIXE_CACHE_PAGES)).map((n) => caches.delete(n)));
-  } catch (e) {
-    console.error("déconnexion : vidage du cache impossible —", e instanceof Error ? e.message : e);
-  }
-}
-
 export function AppShell({
   children,
   role,
@@ -108,7 +77,11 @@ export function AppShell({
   // caisse. Il n'était démarré que par l'écran Vendre : un vendeur qui encaissait hors connexion
   // puis passait au stock n'avait plus rien pour renvoyer ses ventes, même une fois le réseau
   // revenu. Elles restaient indéfiniment dans le téléphone.
-  useEffect(() => startAutoSync(), []);
+  //
+  // L'identifiant de boutique n'est pas décoratif : sur un appareil partagé, la file peut contenir
+  // les ventes d'une autre boutique, qu'il ne faut surtout pas rejouer sous la session courante.
+  // Sans lui, startAutoSync refuse de démarrer — et le travail hors ligne cesse d'être renvoyé.
+  useEffect(() => startAutoSync(boutiqueActiveId), [boutiqueActiveId]);
 
   // Le cache se remplit dès que l'application est chargée et le réseau disponible, puis à chaque
   // retour du réseau : c'est le moment où l'on peut préparer la prochaine coupure.
@@ -122,8 +95,12 @@ export function AppShell({
   }, []);
 
   const onLogout = async () => {
-    await fetch("/api/auth/logout", { method: "POST" });
-    await viderCachePages();
+    // Déconnexion factorisée dans lib/auth/deconnexion.ts : session serveur, cache de pages du
+    // service worker et base hors-ligne y sont vidés ensemble, dans le bon ordre. `false` signifie
+    // que l'utilisateur a annulé après avoir été prévenu de ventes encore en attente d'envoi — il
+    // reste alors sur place, connecté.
+    const deconnecte = await deconnecterCompletement(boutiqueActiveId);
+    if (!deconnecte) return;
     router.push("/connexion");
     router.refresh();
   };

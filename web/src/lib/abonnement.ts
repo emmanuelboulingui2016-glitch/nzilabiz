@@ -24,8 +24,10 @@ import { db } from "@/db/client";
 import { getSession } from "@/lib/auth/session";
 import { isSuperAdminEmail } from "@/lib/auth/superadmin";
 import { formuleOuvre, messageHorsFormule, plafondComptes, type Fonctionnalite } from "@/lib/formules";
+import { echeanceDepassee, joursRestantsAvant, messageBlocage, type RaisonBlocage } from "@/lib/abonnement-etat";
 
-export type RaisonBlocage = "ESSAI_EXPIRE" | "ABONNEMENT_EXPIRE";
+export type { RaisonBlocage };
+export { messageBlocage };
 
 export type EtatBoutique = {
   actif: boolean;
@@ -55,8 +57,6 @@ const ACTIF_SANS_ECHEANCE: EtatBoutique = {
   contratId: null,
   rattachee: false,
 };
-
-const JOUR_MS = 24 * 60 * 60 * 1000;
 
 /**
  * État d'une boutique. Ne dépend pas de la session : appelable depuis une route qui a déjà son
@@ -108,7 +108,7 @@ export const etatBoutique = cache(async (storeId: string): Promise<EtatBoutique>
           actif: true,
           raison: null,
           expireLe: finProgramme,
-          joursRestants: finProgramme ? Math.ceil((finProgramme.getTime() - maintenant) / JOUR_MS) : null,
+          joursRestants: finProgramme ? joursRestantsAvant(finProgramme, maintenant) : null,
           plan,
           programmeTest: true,
           contratId,
@@ -124,8 +124,8 @@ export const etatBoutique = cache(async (storeId: string): Promise<EtatBoutique>
     // colonne vide serait la punir d'un défaut de configuration qui n'est pas le sien.
     if (!echeance) return { ...ACTIF_SANS_ECHEANCE, plan, programmeTest, contratId, rattachee };
 
-    const restant = Math.ceil((echeance.getTime() - maintenant) / JOUR_MS);
-    const expire = echeance.getTime() <= maintenant;
+    const restant = joursRestantsAvant(echeance, maintenant);
+    const expire = echeanceDepassee(echeance, maintenant);
 
     return {
       actif: !expire,
@@ -164,11 +164,6 @@ export async function etatBoutiqueCourante(): Promise<EtatBoutique | null> {
   return etat;
 }
 
-export function messageBlocage(raison: RaisonBlocage): string {
-  return raison === "ESSAI_EXPIRE"
-    ? "Votre période d'essai est terminée."
-    : "Votre abonnement est arrivé à échéance.";
-}
 
 /**
  * Garde pour les routes qui écrivent. Renvoie une réponse 402 si la boutique est bloquée, `null`

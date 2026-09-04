@@ -9,14 +9,25 @@
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { and, eq, sql } from "drizzle-orm";
+import { db } from "@/db/client";
+import { devices } from "@/db/schema";
 import { getSession } from "@/lib/auth/session";
 import { can } from "@/lib/auth/rbac";
 import { createSale, CreateSaleError } from "../create-sale";
 
+// Tolérance de dérive d'horloge entre l'appareil et le serveur : une petite avance de l'horloge
+// du téléphone ne doit pas faire rejeter une vente réellement passée à l'instant.
+const CLOCK_SKEW_TOLERANCE_MS = 5 * 60 * 1000; // 5 minutes
+// Une vente hors-ligne légitime a au plus quelques jours de retard avant synchro (coupure réseau
+// prolongée dans une zone mal couverte). Au-delà, la rétrodatation n'a plus de justification
+// opérationnelle plausible et sert surtout à noyer une vente dans un rapport déjà clôturé.
+const MAX_RETRODATE_MS = 30 * 24 * 60 * 60 * 1000; // 30 jours
+
 const syncPayloadSchema = z.object({
   id: z.string().min(1),
   clientId: z.string().min(1).nullable().optional(),
-  dateHeure: z.string().optional(),
+  dateHeure: z.string().datetime().optional(),
   remise: z.number().min(0).default(0),
   typeRemise: z.enum(["MONTANT", "POURCENTAGE"]).default("MONTANT"),
   userId: z.string().min(1).optional(),
@@ -60,6 +71,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Action non autorisée." }, { status: 403 });
   }
 
+  // Pas de `bloquerSiExpiree()` ici, et c'est volontaire : cette route ne crée aucune vente
+  // nouvelle, elle remonte des ventes DÉJÀ encaissées hors ligne, argent en caisse à l'appui.
+  // La bloquer à l'échéance de l'abonnement ferait perdre définitivement les ventes d'un
+  // commerçant qui a travaillé sans réseau la veille de son expiration. Une date d'abonnement
+  // ne doit jamais détruire des données déjà saisies. Ne pas « corriger » en ajoutant le garde.
+
   const body = await request.json().catch(() => null);
   const parsed = syncQueueEntrySchema.safeParse(body);
   if (!parsed.success) {
@@ -71,14 +88,71 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Entité ou action non prise en charge par /api/vendre/sync." }, { status: 400 });
   }
 
+  // Rétrodatation bornée : une vente hors-ligne légitime a au plus quelques jours de retard, et
+  // ne peut pas être datée dans le futur (au-delà d'une petite tolérance d'horloge). Sans borne,
+  // `dateHeure` non vérifiée permettait de dater une vente à volonté pour la noyer dans une
+  // période déjà close aux yeux du patron.
+  if (payload.dateHeure) {
+    const dateHeureMs = new Date(payload.dateHeure).getTime();
+    const now = Date.now();
+    if (dateHeureMs > now + CLOCK_SKEW_TOLERANCE_MS) {
+      return NextResponse.json({ error: "La date de la vente ne peut pas être dans le futur." }, { status: 400 });
+    }
+    if (dateHeureMs < now - MAX_RETRODATE_MS) {
+      return NextResponse.json(
+        { error: "La date de la vente est trop ancienne pour être synchronisée (30 jours maximum)." },
+        { status: 400 }
+      );
+    }
+  }
+
+  // Attribution à l'utilisateur/appareil qui a réellement effectué la vente hors-ligne, plutôt
+  // qu'à la session qui déclenche la synchro (peut différer, ex. resynchro tardive depuis un
+  // autre appareil). Mais `payload.userId`/`payload.deviceId` viennent du client : sans
+  // vérification, un VENDEUR pouvait imputer sa vente à n'importe quel collègue en désignant
+  // simplement son id, brouillant l'enquête du patron en cas de détournement. On ne les accepte
+  // donc que s'ils appartiennent bien à la boutique de la session ; sinon on retombe sur la
+  // session (requêtes séquentielles, pas de Promise.all — pooler en mode transaction).
+  let resolvedUserId = session.userId;
+  if (payload.userId && payload.userId !== session.userId) {
+    const [ligne] = await db.execute<{ appartient: boolean }>(sql`
+      select exists (
+        select 1 from users u
+        where u.id = ${payload.userId}
+        and (
+          u.store_id = ${session.storeId}
+          or exists (
+            select 1 from store_memberships m
+            where m.user_id = u.id and m.store_id = ${session.storeId}
+          )
+        )
+      ) as appartient
+    `);
+    if (ligne?.appartient) {
+      resolvedUserId = payload.userId;
+    }
+    // Sinon (utilisateur inexistant ou n'appartenant pas à cette boutique) : on ignore
+    // silencieusement l'attribution demandée plutôt que de faire échouer toute la synchro — la
+    // vente elle-même, bien réelle, n'est pas perdue ; elle est juste imputée à l'auteur
+    // authentifié de la requête au lieu d'un tiers désigné arbitrairement.
+  }
+
+  let resolvedDeviceId = session.deviceId ?? null;
+  if (payload.deviceId && payload.deviceId !== session.deviceId) {
+    const device = await db.query.devices.findFirst({
+      where: and(eq(devices.id, payload.deviceId), eq(devices.storeId, session.storeId)),
+    });
+    if (device) {
+      resolvedDeviceId = payload.deviceId;
+    }
+  }
+
   try {
     const { sale, alreadyExisted } = await createSale({
       id: payload.id,
       storeId: session.storeId,
-      // Attribution à l'utilisateur/appareil qui a réellement effectué la vente hors-ligne,
-      // plutôt qu'à la session qui déclenche la synchro (peut différer, ex. resynchro tardive).
-      userId: payload.userId ?? session.userId,
-      deviceId: payload.deviceId ?? session.deviceId ?? null,
+      userId: resolvedUserId,
+      deviceId: resolvedDeviceId,
       clientId: payload.clientId ?? null,
       dateHeure: payload.dateHeure ? new Date(payload.dateHeure) : undefined,
       items: payload.items,

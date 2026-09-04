@@ -11,6 +11,7 @@ import {
   offlineDb,
   enqueueMutation,
   getOrCreateDeviceId,
+  appartientALaBoutique,
   type OfflineSale,
 } from "@/lib/offline/db";
 import { runSync } from "@/lib/offline/sync-engine";
@@ -391,21 +392,42 @@ export function VendreScreen({
           remise: remiseAmount,
           typeRemise,
           userId,
-          deviceId,
+          // Pas `deviceId` ici : `getOrCreateDeviceId()` fabrique une clé purement locale
+          // (`dev_xxx`), qui ne correspond à aucune ligne réelle de `devices` côté serveur — elle
+          // ne peut donc jamais satisfaire la clé étrangère `sales.device_id → devices.id`. La
+          // laisser passer forçait `/api/vendre/sync` à interroger `devices` pour rien à chaque
+          // synchro (recherche vouée à échouer) avant de retomber sur l'appareil de la session.
+          // `null` obtient exactement le même résultat côté serveur, sans ce détour : la vente est
+          // attribuée à l'appareil de la session qui effectue réellement la synchro.
+          deviceId: null,
           items: itemsPayload,
           payments: paymentsPayload,
         },
         userId,
+        // Champ toujours requis par le schéma de /api/vendre/sync mais non lu pour l'attribution
+        // (elle se fait via `payload.deviceId`, ci-dessus) : cette clé locale suffit à satisfaire
+        // la validation sans prétendre désigner un appareil réel.
         deviceId,
+        // La vente connaît déjà sa boutique (elle vient d'être ajoutée à `offlineSaleRecord` avec
+        // ce même `storeId`) : sur un appareil que plusieurs vendeurs se partagent, c'est ce qui
+        // empêche le moteur de synchro de la rejouer plus tard sous la session d'une autre boutique.
+        storeId,
       });
       // Tentative immédiate (utile si navigator.onLine mentait, ou si la connexion vient de revenir) ;
       // sinon la vente reste en file et sera rejouée par le listener "online"/l'intervalle du moteur de synchro.
-      void runSync().then(async () => {
+      void runSync(storeId).then(async () => {
         const stillQueued = await offlineDb.syncQueue.where("entiteId").equals(saleId).count();
         if (stillQueued === 0) {
           await offlineDb.sales.update(saleId, { synced: true });
         }
-        setPendingSyncCount((await offlineDb.syncQueue.where("entite").equals("sale").count()) ?? 0);
+        // Uniquement les ventes de cette boutique : la file peut aussi contenir, sur un appareil
+        // partagé, des entrées laissées par un autre compte — elles ne concernent pas ce vendeur.
+        const enAttente = await offlineDb.syncQueue
+          .where("entite")
+          .equals("sale")
+          .and((entry) => appartientALaBoutique(entry, storeId))
+          .count();
+        setPendingSyncCount(enAttente ?? 0);
       });
     }
 

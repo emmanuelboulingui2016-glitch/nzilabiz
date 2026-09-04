@@ -6,6 +6,7 @@ import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { FileText, MessageCircle, Sheet } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { neutraliserLigne } from "@/components/export-security";
 import { formatFcfa } from "@/lib/currency";
 import type { RapportsData } from "./types";
 
@@ -120,7 +121,10 @@ export function ExportButtons({ data, storeName }: { data: RapportsData; storeNa
       ["Top produits", "Quantité", "Chiffre d'affaires"],
       ...data.topProduits.map((p) => [p.nom, p.quantite, p.montant]),
     ];
-    const csv = Papa.unparse(rows);
+    // Neutralisation anti-formule (CWE-1236) avant Papa.unparse : storeName et les noms de
+    // produit (topProduits) sont de la saisie libre — voir export-security.ts. Les colonnes de
+    // montants restent des `number` dans `rows`, jamais transformées en texte.
+    const csv = Papa.unparse(rows.map(neutraliserLigne));
     downloadBlob(`﻿${csv}`, `rapport-${data.period.type}-${new Date().toISOString().slice(0, 10)}.csv`, "text/csv;charset=utf-8;");
   };
 

@@ -95,7 +95,13 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     }
   }
 
-  const [updated] = await db.update(users).set(maj).where(eq(users.id, id)).returning();
+  // Le SELECT préalable a déjà vérifié l'appartenance à la boutique, mais on la refiltre ici :
+  // défense en profondeur si ce SELECT venait à disparaître dans une future refactorisation.
+  const [updated] = await db
+    .update(users)
+    .set(maj)
+    .where(and(eq(users.id, id), eq(users.storeId, session.storeId)))
+    .returning();
 
   return NextResponse.json({
     ok: true,
@@ -148,7 +154,9 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   }
 
   try {
-    await db.delete(users).where(eq(users.id, id));
+    // Le SELECT préalable a déjà vérifié l'appartenance à la boutique, mais on la refiltre ici :
+    // défense en profondeur si ce SELECT venait à disparaître dans une future refactorisation.
+    await db.delete(users).where(and(eq(users.id, id), eq(users.storeId, session.storeId)));
   } catch {
     // Contrainte de clé étrangère : l'utilisateur a des ventes/données associées (pas de
     // suppression en cascade prévue dans schema.ts pour ces tables). On ne fait pas de suppression

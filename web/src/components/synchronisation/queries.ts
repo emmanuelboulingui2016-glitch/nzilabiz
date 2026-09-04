@@ -19,6 +19,12 @@ export type SyncLogEntry = {
 };
 
 export type SyncStatus = {
+  /**
+   * Boutique de la session qui a demandé ce statut — simple écho du paramètre reçu, sans requête
+   * supplémentaire. Sert côté client (`sync-dashboard.tsx`) à filtrer `syncQueue` (IndexedDB) par
+   * boutique avant un `runSync()` manuel, sur un appareil que plusieurs vendeurs peuvent partager.
+   */
+  storeId: string;
   lastSyncAt: string | null;
   echecsCount: number;
   echecs: SyncLogEntry[];
@@ -73,6 +79,7 @@ export async function getSyncStatus(storeId: string): Promise<SyncStatus> {
   const echecsAll = serialized.filter((r) => r.statut === "ECHEC");
 
   return {
+    storeId,
     lastSyncAt: lastOk?.horodatage ?? null,
     echecsCount: echecsAll.length,
     echecs: echecsAll.slice(0, 30),
