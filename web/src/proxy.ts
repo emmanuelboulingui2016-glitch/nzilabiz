@@ -16,6 +16,10 @@ const AUTH_PATHS = ["/connexion", "/inscription", "/mot-de-passe-oublie"];
 // c'est précisément le cas de la personne qui découvre une session ouverte sur un appareil qu'elle
 // ne reconnaît pas et veut reprendre la main. La classer parmi les pages d'authentification la
 // renverrait vers le tableau de bord, et le lien reçu par e-mail resterait sans effet.
+// La confirmation d'adresse e-mail relève du même raisonnement que la réinitialisation, et pour la
+// même raison : le lien arrive par courrier électronique et doit aboutir dans tous les cas. Sans
+// cette ligne, le middleware renvoyait vers /connexion — un commerçant qui cliquait son lien de
+// confirmation atterrissait sur la page de connexion et son adresse ne se vérifiait jamais.
 const OPEN_PATHS = [
   "/conditions",
   "/confidentialite",
@@ -24,6 +28,7 @@ const OPEN_PATHS = [
   "/invitation/",
   "/testeur/",
   "/reinitialiser/",
+  "/verifier-email/",
 ];
 
 // HSTS ne peut pas être déclaré dans `next.config.ts` : les en-têtes y sont figés au moment de la
