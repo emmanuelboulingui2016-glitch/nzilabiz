@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/auth/session";
-import { can } from "@/lib/auth/rbac";
+import { getSession, peut } from "@/lib/auth/session";
 import { db } from "@/db/client";
 import { cashCounts } from "@/db/schema";
 import { getDashboardData } from "@/components/dashboard/get-dashboard-data";
@@ -16,7 +15,7 @@ export async function POST(request: Request) {
   // masquée dans l'interface.
   const bloque = await bloquerSiExpiree();
   if (bloque) return bloque;
-  if (!can(session.role, "dashboard.view")) {
+  if (!(await peut(session, "dashboard.view"))) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
 

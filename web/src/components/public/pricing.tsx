@@ -13,6 +13,11 @@
 // L'essai n'a plus sa colonne. Il ne s'oppose pas aux formules, il les précède toutes : en faire
 // une quatrième carte laissait croire qu'il fallait choisir entre « essai » et « premium », et
 // réduisait la place des offres réellement payantes.
+//
+// Entreprise n'affiche plus aucun montant, jamais : `grille.ENTREPRISE` est garanti vide par
+// `lireTarifs()` (voir `src/lib/tarifs-serveur.ts`), donc `montant` est toujours faux ci-dessous et
+// la branche « Sur devis » est la seule prise. Le propriétaire négocie ce prix de vive voix avec
+// chaque commerçant ; ce composant ne fait qu'inviter à le contacter.
 
 import { useState, type ComponentType } from "react";
 import Link from "next/link";
@@ -176,7 +181,7 @@ export function Pricing({ contact, grille }: { contact: ContactCommercial; grill
 
               <p className={cn("mt-2 min-h-10 text-sm", vedette ? "text-white/75" : "text-muted-foreground")}>
                 {entreprise
-                  ? "À partir de — tarif sur devis selon le nombre de boutiques."
+                  ? "Prix négocié avec vous, selon vos boutiques et vos besoins."
                   : parMois && periode !== "mensuel"
                     ? `Soit ${nombre(parMois)} FCFA par mois.`
                     : ARGUMENTAIRE[p].resume}

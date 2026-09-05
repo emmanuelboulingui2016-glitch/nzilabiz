@@ -12,8 +12,7 @@ import { NextResponse } from "next/server";
 import { and, asc, eq, isNotNull, lte, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { approvalRequests, notificationSettings, products } from "@/db/schema";
-import { getSession } from "@/lib/auth/session";
-import { can } from "@/lib/auth/rbac";
+import { getSession, peut } from "@/lib/auth/session";
 import { chargerCreances } from "@/lib/creances/solde";
 
 export type AlerteNiveau = "danger" | "warning" | "info";
@@ -39,7 +38,7 @@ export async function GET() {
   const alertes: Alerte[] = [];
 
   // --- Stock bas ---------------------------------------------------------
-  if ((reglages?.alerteStockBas ?? true) && can(session.role, "stock.view")) {
+  if ((reglages?.alerteStockBas ?? true) && (await peut(session, "stock.view"))) {
     const bas = await db
       .select({ id: products.id, nom: products.nom, quantiteStock: products.quantiteStock })
       .from(products)
@@ -67,7 +66,7 @@ export async function GET() {
   }
 
   // --- Péremption proche -------------------------------------------------
-  if ((reglages?.alertePeremption ?? true) && can(session.role, "stock.view")) {
+  if ((reglages?.alertePeremption ?? true) && (await peut(session, "stock.view"))) {
     const limite = new Date();
     limite.setDate(limite.getDate() + (reglages?.peremptionAlerteJours ?? 30));
 
@@ -99,7 +98,7 @@ export async function GET() {
   }
 
   // --- Créances en retard ------------------------------------------------
-  if ((reglages?.alerteCreanceRetard ?? true) && can(session.role, "creances.view")) {
+  if ((reglages?.alerteCreanceRetard ?? true) && (await peut(session, "creances.view"))) {
     const creances = await chargerCreances(session.storeId);
     const enRetard = creances.filter((c) => c.solde > 0 && (c.joursRetard ?? 0) > 0);
 
@@ -130,7 +129,7 @@ export async function GET() {
   }
 
   // --- Approbations en attente -------------------------------------------
-  if (can(session.role, "approbations.decider")) {
+  if (await peut(session, "approbations.decider")) {
     const attente = await db
       .select({ id: approvalRequests.id })
       .from(approvalRequests)

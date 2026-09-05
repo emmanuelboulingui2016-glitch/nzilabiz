@@ -6,7 +6,7 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 import { NAV_SECTIONS } from "./nav-config";
 import { useTranslations } from "@/lib/i18n/provider";
-import { can, type Permission, type Role } from "@/lib/auth/rbac";
+import type { Permission, Role } from "@/lib/auth/rbac";
 import { formuleOuvre } from "@/lib/formules";
 import { cn } from "@/lib/utils";
 import { LogOut, PanelLeftClose, PanelLeftOpen, Settings, ShieldCheck } from "lucide-react";
@@ -19,6 +19,7 @@ const STORAGE_KEY = "nzilabiz.sidebar.collapsed";
 
 export function Sidebar({
   role,
+  permissions,
   userName,
   storeName,
   superAdmin = false,
@@ -28,6 +29,15 @@ export function Sidebar({
   formule = "ESSAI",
 }: {
   role: Role;
+  /**
+   * Permissions effectives de la personne connectée (matrice du rôle + dérogations individuelles
+   * — §14). Décide des entrées affichées, à la place d'un simple `can(role, ...)` : un employé à
+   * qui le patron a retiré un droit ne doit plus voir l'entrée correspondante, sinon il clique et
+   * se prend un refus côté API — mauvaise expérience, impression de logiciel cassé. Calculées une
+   * fois côté serveur (voir `peut`/`getSession` dans lib/auth/session.ts) et transmises telles
+   * quelles ; ce composant ne fait plus lui-même l'hypothèse « droit = rôle seul ».
+   */
+  permissions: Permission[];
   userName: string;
   storeName: string;
   superAdmin?: boolean;
@@ -107,7 +117,7 @@ export function Sidebar({
         {NAV_SECTIONS.map((section) => {
           const items = section.items.filter(
             (item) =>
-              can(role, item.permission as Permission) &&
+              permissions.includes(item.permission) &&
               (!item.fonctionnalite || formuleOuvre(formule, item.fonctionnalite))
           );
           if (items.length === 0) return null;

@@ -3,8 +3,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { notificationSettings } from "@/db/schema";
-import { getSession } from "@/lib/auth/session";
-import { can } from "@/lib/auth/rbac";
+import { getSession, peut } from "@/lib/auth/session";
 import { bloquerSiExpiree } from "@/lib/abonnement";
 
 // Onglet Notifications — §14 du cahier des charges : seuils d'alerte + interrupteurs par type
@@ -25,7 +24,7 @@ const notificationsSchema = z.object({
 export async function GET() {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
-  if (!can(session.role, "parametres.notifications")) {
+  if (!(await peut(session, "parametres.notifications"))) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
 
@@ -63,7 +62,7 @@ export async function PUT(request: Request) {
   // masquée dans l'interface.
   const bloque = await bloquerSiExpiree();
   if (bloque) return bloque;
-  if (!can(session.role, "parametres.notifications")) {
+  if (!(await peut(session, "parametres.notifications"))) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
 

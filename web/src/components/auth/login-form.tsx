@@ -9,6 +9,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
+import { InputMotDePasse } from "@/components/ui/input-mot-de-passe";
 import { useTranslations } from "@/lib/i18n/provider";
 import { Loader2 } from "lucide-react";
 import { BoutonGoogle } from "@/components/auth/bouton-google";
@@ -108,9 +109,9 @@ export function LoginForm({
         </div>
         <div>
           <Label htmlFor="password">{t("auth.password")}</Label>
-          <Input
+          <InputMotDePasse
             id="password"
-            type="password"
+            autoComplete="current-password"
             required
             value={password}
             onChange={(e) => setPassword(e.target.value)}

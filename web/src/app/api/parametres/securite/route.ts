@@ -3,8 +3,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { users } from "@/db/schema";
-import { getSession } from "@/lib/auth/session";
-import { can } from "@/lib/auth/rbac";
+import { getSession, peut } from "@/lib/auth/session";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { bloquerSiExpiree } from "@/lib/abonnement";
 
@@ -37,7 +36,7 @@ function serializeUser(u: typeof users.$inferSelect) {
 export async function GET() {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
-  if (!can(session.role, "parametres.securite")) {
+  if (!(await peut(session, "parametres.securite"))) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
   const user = await db.query.users.findFirst({ where: eq(users.id, session.userId) });
@@ -53,7 +52,7 @@ export async function PUT(request: Request) {
   // masquée dans l'interface.
   const bloque = await bloquerSiExpiree();
   if (bloque) return bloque;
-  if (!can(session.role, "parametres.securite")) {
+  if (!(await peut(session, "parametres.securite"))) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
 

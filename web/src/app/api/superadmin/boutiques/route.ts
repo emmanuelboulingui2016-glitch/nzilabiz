@@ -5,6 +5,7 @@ import { and, eq, ilike, or, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { stores } from "@/db/schema";
 import { getSuperAdminSession } from "@/lib/auth/superadmin";
+import { interactionsDesBoutiques } from "../_lib/interactions";
 
 function n(v: string | number | null | undefined): number {
   if (v === null || v === undefined) return 0;
@@ -53,13 +54,15 @@ export async function GET(request: Request) {
       nbUtilisateurs: sql<number>`(select count(*)::int from users u where u.store_id = stores.id)`,
       nbVentes: sql<number>`(select count(*)::int from sales v where v.store_id = stores.id and v.statut = 'VALIDEE')`,
       volume: sql<string>`(select coalesce(sum(v.total), 0) from sales v where v.store_id = stores.id and v.statut = 'VALIDEE')`,
-      derniereVente: sql<Date | null>`(select max(v.date_heure) from sales v where v.store_id = stores.id)`,
-      derniereConnexion: sql<Date | null>`(select max(u.derniere_connexion) from users u where u.store_id = stores.id)`,
     })
     .from(stores)
     .where(conditions.length ? and(...conditions) : undefined)
     .orderBy(sql`${stores.creeLe} desc`)
     .limit(200);
+
+  // Une seule requête pour toutes les boutiques de la page (voir `interactionsDesBoutiques`) :
+  // jamais une requête par ligne, qui ferait s'effondrer l'écran à mesure que le parc grandit.
+  const interactions = await interactionsDesBoutiques(lignes.map((b) => b.id));
 
   return NextResponse.json({
     boutiques: lignes.map((b) => ({
@@ -77,8 +80,7 @@ export async function GET(request: Request) {
       nbUtilisateurs: b.nbUtilisateurs,
       nbVentes: b.nbVentes,
       volume: n(b.volume),
-      derniereVente: b.derniereVente ? new Date(b.derniereVente).toISOString() : null,
-      derniereConnexion: b.derniereConnexion ? new Date(b.derniereConnexion).toISOString() : null,
+      interactions: interactions.get(b.id) ?? { jour: 0, mois: 0, annee: 0 },
     })),
   });
 }

@@ -12,8 +12,7 @@ import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { differenceInCalendarDays } from "date-fns";
 import { db } from "@/db/client";
 import { clients, sales, saleItems, products, payments, debtRepayments } from "@/db/schema";
-import { getSession } from "@/lib/auth/session";
-import { can } from "@/lib/auth/rbac";
+import { getSession, peut } from "@/lib/auth/session";
 import { frequenceAchatJours, segmentClient } from "@/lib/clients/loyalty";
 import { bloquerSiExpiree } from "@/lib/abonnement";
 
@@ -29,7 +28,7 @@ function n(value: string | number | null | undefined): number {
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
-  if (!can(session.role, "clients.view")) {
+  if (!(await peut(session, "clients.view"))) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
 
@@ -150,7 +149,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   // masquée dans l'interface.
   const bloque = await bloquerSiExpiree();
   if (bloque) return bloque;
-  if (!can(session.role, "clients.edit")) {
+  if (!(await peut(session, "clients.edit"))) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
 

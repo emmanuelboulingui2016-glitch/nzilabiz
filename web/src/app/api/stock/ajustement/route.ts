@@ -6,8 +6,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { products, stockMovements } from "@/db/schema";
-import { getSession } from "@/lib/auth/session";
-import { can } from "@/lib/auth/rbac";
+import { getSession, peut } from "@/lib/auth/session";
 import { MOTIF_AJUSTEMENT_OPTIONS, toNumber } from "@/components/stock/stock-utils";
 import { bloquerSiExpiree } from "@/lib/abonnement";
 
@@ -28,7 +27,7 @@ export async function POST(request: Request) {
   // masquée dans l'interface.
   const bloque = await bloquerSiExpiree();
   if (bloque) return bloque;
-  if (!can(session.role, "stock.ajustement")) {
+  if (!(await peut(session, "stock.ajustement"))) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
 

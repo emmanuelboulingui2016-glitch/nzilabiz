@@ -1,12 +1,18 @@
-// Superadmin — annuaire transverse des utilisateurs de la plateforme.
+// Superadmin — annuaire des titulaires de boutique (rôle PATRON), toutes boutiques confondues.
+//
+// Cette route s'appelait à l'origine un « annuaire transverse des utilisateurs » et listait
+// nommément tout employé de toute boutique (gérants et vendeurs compris). Elle a été restreinte
+// aux titulaires : le patron d'une boutique est l'interlocuteur commercial de la plateforme —
+// c'est lui qu'on facture et qu'on rappelle en cas de support — mais ses gérants et vendeurs sont
+// les employés d'un client, la plateforme n'a pas à les connaître nommément. Le rôle n'est jamais
+// lu pour les comptes GERANT/VENDEUR : la coupure se fait dans la requête, pas seulement à
+// l'affichage.
 //
 // Lecture seule : la gestion fine d'un employé (rôle, mot de passe temporaire) reste du ressort du
-// Patron de sa boutique, dans Paramètres > Utilisateurs. L'administration de la plateforme sert à
-// diagnostiquer (« qui s'est connecté récemment ? », « ce compte est-il désactivé ? »), pas à
-// prendre la main sur les équipes de nos clients.
+// Patron de sa boutique, dans Paramètres > Utilisateurs.
 
 import { NextResponse } from "next/server";
-import { desc, eq, ilike, or, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { stores, users } from "@/db/schema";
 import { getSuperAdminSession, isSuperAdminEmail } from "@/lib/auth/superadmin";
@@ -23,7 +29,7 @@ export async function GET(request: Request) {
       id: users.id,
       nom: users.nom,
       email: users.email,
-      role: users.role,
+      telephone: users.telephone,
       creeLe: users.creeLe,
       derniereConnexion: users.derniereConnexion,
       desactiveLe: users.desactiveLe,
@@ -34,16 +40,21 @@ export async function GET(request: Request) {
     })
     .from(users)
     .innerJoin(stores, eq(stores.id, users.storeId))
-    .where(q ? or(ilike(users.nom, like), ilike(users.email, like), ilike(stores.nom, like)) : undefined)
+    .where(
+      and(
+        eq(users.role, "PATRON"),
+        q ? or(ilike(users.nom, like), ilike(users.email, like), ilike(stores.nom, like)) : undefined
+      )
+    )
     .orderBy(desc(sql`coalesce(${users.derniereConnexion}, ${users.creeLe})`))
     .limit(200);
 
   return NextResponse.json({
-    utilisateurs: lignes.map((u) => ({
+    titulaires: lignes.map((u) => ({
       id: u.id,
       nom: u.nom,
       email: u.email,
-      role: u.role,
+      telephone: u.telephone,
       superAdmin: isSuperAdminEmail(u.email),
       connexionGoogle: Boolean(u.googleId),
       desactive: Boolean(u.desactiveLe),

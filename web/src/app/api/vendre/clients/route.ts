@@ -11,8 +11,7 @@ import { and, eq, ilike } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { clients } from "@/db/schema";
-import { getSession } from "@/lib/auth/session";
-import { can } from "@/lib/auth/rbac";
+import { getSession, peut } from "@/lib/auth/session";
 import { bloquerSiExpiree } from "@/lib/abonnement";
 
 const schema = z.object({
@@ -28,7 +27,7 @@ export async function POST(request: Request) {
   // masquée dans l'interface.
   const bloque = await bloquerSiExpiree();
   if (bloque) return bloque;
-  if (!can(session.role, "vendre.use")) {
+  if (!(await peut(session, "vendre.use"))) {
     return NextResponse.json({ error: "Action non autorisée." }, { status: 403 });
   }
 

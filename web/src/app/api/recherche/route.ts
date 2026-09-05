@@ -8,8 +8,7 @@ import { NextResponse } from "next/server";
 import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { clients, products, sales } from "@/db/schema";
-import { getSession } from "@/lib/auth/session";
-import { can } from "@/lib/auth/rbac";
+import { getSession, peut } from "@/lib/auth/session";
 
 const LIMITE_PAR_SECTION = 5;
 
@@ -31,7 +30,7 @@ export async function GET(request: Request) {
   const like = `%${q}%`;
   const resultats: ResultatRecherche[] = [];
 
-  if (can(session.role, "stock.view")) {
+  if (await peut(session, "stock.view")) {
     const rows = await db
       .select({
         id: products.id,
@@ -60,7 +59,7 @@ export async function GET(request: Request) {
     }
   }
 
-  if (can(session.role, "clients.view")) {
+  if (await peut(session, "clients.view")) {
     const rows = await db
       .select({ id: clients.id, nom: clients.nom, telephone: clients.telephone, archive: clients.archive })
       .from(clients)
@@ -84,7 +83,7 @@ export async function GET(request: Request) {
   }
 
   // Un vendeur ne consulte que ses propres ventes (§7) : on restreint la requête à son identifiant.
-  const filtreVentes = can(session.role, "ventes.view.all")
+  const filtreVentes = (await peut(session, "ventes.view.all"))
     ? eq(sales.storeId, session.storeId)
     : and(eq(sales.storeId, session.storeId), eq(sales.userId, session.userId));
 

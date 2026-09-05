@@ -2,8 +2,7 @@ import { NextResponse } from "next/server";
 import { eq, and } from "drizzle-orm";
 import { db } from "@/db/client";
 import { categories, products } from "@/db/schema";
-import { getSession } from "@/lib/auth/session";
-import { can } from "@/lib/auth/rbac";
+import { getSession, peut } from "@/lib/auth/session";
 import { CATALOG_TEMPLATES } from "@/lib/onboarding/templates";
 import { genProductRef } from "@/lib/utils";
 import { bloquerSiExpiree } from "@/lib/abonnement";
@@ -20,7 +19,7 @@ export async function POST(request: Request) {
   // Cette route crée des catégories et des produits : c'est une écriture de stock, soumise au même
   // droit que toutes les autres. Elle ne le vérifiait pas — un vendeur, qui n'a pourtant que la
   // lecture du stock, pouvait injecter un catalogue entier dans la boutique de son patron.
-  if (!can(session.role, "stock.edit")) {
+  if (!(await peut(session, "stock.edit"))) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
 

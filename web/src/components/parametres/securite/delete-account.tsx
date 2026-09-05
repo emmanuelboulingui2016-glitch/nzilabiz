@@ -13,6 +13,7 @@ import { AlertTriangle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
+import { InputMotDePasse } from "@/components/ui/input-mot-de-passe";
 import { Dialog } from "@/components/ui/dialog";
 import type { Role } from "@/lib/auth/rbac";
 
@@ -117,9 +118,8 @@ export function DeleteAccount({
           {aMotDePasse ? (
             <div>
               <Label htmlFor="del-password">Votre mot de passe</Label>
-              <Input
+              <InputMotDePasse
                 id="del-password"
-                type="password"
                 value={motDePasse}
                 onChange={(e) => setMotDePasse(e.target.value)}
                 required

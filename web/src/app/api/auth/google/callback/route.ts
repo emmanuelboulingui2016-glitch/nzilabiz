@@ -121,18 +121,32 @@ export async function GET(request: Request) {
       .values({ nom: "Ma boutique", plan: "ESSAI", essaiExpireLe: new Date(Date.now() + DUREE_ESSAI_MS) })
       .returning();
     await db.insert(notificationSettings).values({ storeId: store.id });
-    [user] = await db.insert(users).values({ storeId: store.id, nom, email, googleId, role: "PATRON" }).returning();
+    // `emailVerifieLe` posé dès la création : Google vient de prouver, juste au-dessus
+    // (`email_verified`), que cette adresse appartient bien à la personne. Lui redemander une
+    // confirmation par e-mail — qu'on ne sait de toute façon pas garantir en envoi — n'apporterait
+    // rien de plus.
+    [user] = await db
+      .insert(users)
+      .values({ storeId: store.id, nom, email, googleId, role: "PATRON", emailVerifieLe: new Date() })
+      .returning();
   } else {
     // Compte supprimé par son titulaire : la ligne subsiste pour l'historique des ventes, mais elle
     // ne doit plus ouvrir de session — quel que soit le chemin emprunté.
     if (user.desactiveLe) return echec("google_compte_ferme");
 
     // Première connexion Google d'un compte créé par mot de passe : on rattache les deux. Légitime
-    // parce que Google vient de prouver, ci-dessus, que la personne possède bien cette adresse.
-    // Un seul UPDATE : le rattachement et l'horodatage partent ensemble.
+    // parce que Google vient de prouver, ci-dessus, que la personne possède bien cette adresse — au
+    // passage, si elle n'était pas encore vérifiée (inscription par mot de passe, e-mail jamais
+    // confirmé), elle l'est désormais : Google en apporte une preuve au moins aussi solide qu'un
+    // lien cliqué.
+    // Un seul UPDATE : le rattachement, la vérification et l'horodatage partent ensemble.
     await db
       .update(users)
-      .set({ derniereConnexion: new Date(), ...(user.googleId ? {} : { googleId }) })
+      .set({
+        derniereConnexion: new Date(),
+        ...(user.googleId ? {} : { googleId }),
+        emailVerifieLe: user.emailVerifieLe ?? new Date(),
+      })
       .where(eq(users.id, user.id));
   }
 

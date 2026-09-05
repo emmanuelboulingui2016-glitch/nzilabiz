@@ -9,30 +9,14 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { payments, products, saleItems, sales, stockMovements, syncLogs } from "@/db/schema";
 import { genSaleNumber } from "@/lib/utils";
+import { resolveItemPrice, CreateSaleError } from "@/lib/vendre-prix";
 
-/**
- * Écart maximal toléré entre le prix unitaire déclaré par le client (chemin hors-ligne) et le
- * prix catalogue courant du produit, en proportion du prix catalogue.
- *
- * Une vente hors-ligne rejouée plusieurs jours plus tard doit garder le prix réellement payé par
- * le client au moment de la vente (voir `CreateSaleInput.dateHeure`) : si le patron a changé ses
- * tarifs entre-temps, écraser avec le prix courant fausserait la comptabilité et le reçu déjà
- * remis. On accepte donc le prix client, mais borné : au-delà de ce seuil, ce n'est plus l'effet
- * d'une hausse ou d'une baisse tarifaire légitime, c'est un prix librement dicté par le client —
- * exactement ce qui permet à un vendeur de sous-déclarer une vente pour empocher la différence.
- * Les rabais négociés au comptoir ont déjà leur propre canal (`remise` / `typeRemise`, appliqué
- * au niveau de la vente entière) : un prix unitaire qui s'écarte fortement du catalogue n'a donc
- * aucune justification légitime restante.
- */
-const PRICE_DEVIATION_RATIO_MAX = 0.2; // 20 %
-
-export class CreateSaleError extends Error {
-  status: number;
-  constructor(message: string, status = 400) {
-    super(message);
-    this.status = status;
-  }
-}
+// Réexporté pour ne rien changer aux imports existants (`import { createSale, CreateSaleError }
+// from "./create-sale"` dans route.ts et sync/route.ts) : la classe elle-même vit désormais dans
+// `src/lib/vendre-prix.ts`, avec `resolveItemPrice` — voir ce fichier pour le raisonnement complet
+// sur l'abandon du seuil de 20 % (§ demande produit du 04/09) et pour ce qui reste refusé
+// (prix négatif/NaN/infini) quel que soit le droit de l'appelant.
+export { CreateSaleError };
 
 export type CreateSaleItemInput = {
   productId: string;
@@ -63,6 +47,19 @@ export type CreateSaleInput = {
   remise: number;
   typeRemise: "MONTANT" | "POURCENTAGE";
   payments: CreateSalePaymentInput[];
+  /**
+   * `await peut(session, "vendre.prix.modifier")` (route en ligne) ou
+   * `await peut({ userId, role }, "vendre.prix.modifier")` sur le vendeur réel (route de
+   * synchronisation) — calculé et transmis par l'appelant, jamais recalculé ici : `createSale` n'a
+   * pas accès à la session, et chacune des deux routes apprécie le droit sur la bonne personne
+   * (potentiellement différente entre la session qui a vendu hors-ligne et celle, plus tard, qui
+   * déclenche la resynchro — voir sync/route.ts, même logique que la vérification de `vendre.use`
+   * qui l'y précède déjà).
+   *
+   * Sans ce droit, toute ligne dont le prix déclaré diverge du catalogue est refusée : le prix
+   * catalogue reste alors la seule valeur possible pour cette ligne, quoi qu'envoie le client.
+   */
+  canModifierPrix: boolean;
 };
 
 export async function createSale(input: CreateSaleInput) {
@@ -113,9 +110,9 @@ export async function createSale(input: CreateSaleInput) {
     const byId = new Map(rows.map((r) => [r.id, r]));
 
     let sousTotal = 0;
-    // Lignes dont le prix client diverge (dans la tolérance) du catalogue courant — journalisées
-    // après coup dans `syncLogs` pour que le patron puisse les repasser en revue (§ audit sécurité
-    // sur /api/vendre/sync : un prix client jamais vérifié permettait une sous-déclaration propre).
+    // Lignes dont le prix pratiqué diverge du catalogue — journalisées après coup dans `syncLogs`
+    // pour que le patron les retrouve (§ demande produit du 04/09 : la protection n'est plus un
+    // seuil qui bloque, c'est une trace que rien n'efface).
     const divergences: { nom: string; catalogue: number; declare: number }[] = [];
     const resolvedItems = input.items.map((item) => {
       const product = byId.get(item.productId);
@@ -127,26 +124,14 @@ export async function createSale(input: CreateSaleInput) {
       }
 
       const catalogPrixVente = Number(product.prixVente);
-      let prixUnitaire = catalogPrixVente;
-      if (item.prixUnitaire !== undefined) {
-        // Chemin hors-ligne : prix figé au moment réel de la vente, envoyé par le client. Accepté,
-        // mais borné par rapport au catalogue courant — voir PRICE_DEVIATION_RATIO_MAX ci-dessus.
-        // catalogPrixVente === 0 : pas de référence exploitable pour borner (produit à prix nul,
-        // cas marginal) — on accepte tel quel plutôt que de bloquer une synchro légitime.
-        if (catalogPrixVente > 0) {
-          const ecart = Math.abs(item.prixUnitaire - catalogPrixVente) / catalogPrixVente;
-          if (ecart > PRICE_DEVIATION_RATIO_MAX) {
-            throw new CreateSaleError(
-              `Le prix de vente déclaré pour "${product.nom}" (${item.prixUnitaire} FCFA) s'écarte de plus de ${Math.round(
-                PRICE_DEVIATION_RATIO_MAX * 100
-              )} % du prix catalogue (${catalogPrixVente} FCFA). Synchronisation refusée — contactez le gérant si le prix a réellement changé.`
-            );
-          }
-          if (item.prixUnitaire !== catalogPrixVente) {
-            divergences.push({ nom: product.nom, catalogue: catalogPrixVente, declare: item.prixUnitaire });
-          }
-        }
-        prixUnitaire = item.prixUnitaire;
+      const { prixUnitaire, prixCatalogueUnitaire, divergence } = resolveItemPrice({
+        nomProduit: product.nom,
+        catalogPrixVente,
+        prixDeclare: item.prixUnitaire,
+        canModifierPrix: input.canModifierPrix,
+      });
+      if (divergence) {
+        divergences.push({ nom: product.nom, catalogue: catalogPrixVente, declare: prixUnitaire });
       }
 
       // Prix d'achat : donnée interne de la boutique, jamais négociée au comptoir — toujours
@@ -158,7 +143,18 @@ export async function createSale(input: CreateSaleInput) {
 
       const ligneSousTotal = Math.round(prixUnitaire * item.quantite);
       sousTotal += ligneSousTotal;
-      return { productId: item.productId, quantite: item.quantite, prixUnitaire, prixAchatUnitaire, sousTotal: ligneSousTotal };
+      return {
+        productId: item.productId,
+        quantite: item.quantite,
+        prixUnitaire,
+        // Toujours capturé, ligne modifiée ou non (§ demande produit du 04/09) : sans cette
+        // référence figée, impossible de distinguer après coup un rabais légitime d'un prix
+        // sous-déclaré, y compris pour les lignes qui semblent inchangées aujourd'hui mais dont le
+        // catalogue aura changé demain.
+        prixCatalogueUnitaire,
+        prixAchatUnitaire,
+        sousTotal: ligneSousTotal,
+      };
     });
 
     const remiseAmount =
@@ -198,11 +194,14 @@ export async function createSale(input: CreateSaleInput) {
       .returning();
 
     if (divergences.length > 0) {
-      // Vente acceptée (écart dans la tolérance) mais journalisée : le patron la retrouve dans le
-      // module Synchronisation (`getSyncStatus`, statut "OK" avec message) au lieu de découvrir
-      // l'écart en recomptant sa marge un mois plus tard.
+      // Prix modifié à la caisse (droit accordé, sinon on n'arrive jamais ici — resolveItemPrice
+      // aurait refusé la ligne) : journalisé pour que le patron le retrouve dans le module
+      // Synchronisation (`getSyncStatus`, statut "OK" avec message) sans avoir à recompter sa
+      // marge un mois plus tard. La référence structurée reste `saleItems.prixCatalogueUnitaire`
+      // sur chaque ligne ; ce message texte est un raccourci de consultation, pas la source de
+      // vérité de l'écart.
       const message = divergences
-        .map((d) => `${d.nom} : déclaré ${d.declare} FCFA vs catalogue ${d.catalogue} FCFA`)
+        .map((d) => `${d.nom} : vendu ${d.declare} FCFA vs catalogue ${d.catalogue} FCFA`)
         .join(" ; ");
       await tx.insert(syncLogs).values({
         storeId: input.storeId,
@@ -212,9 +211,7 @@ export async function createSale(input: CreateSaleInput) {
         entiteId: insertedSale.id,
         action: "create",
         statut: "OK",
-        message: `Prix de vente divergent du catalogue (dans la tolérance de ${Math.round(
-          PRICE_DEVIATION_RATIO_MAX * 100
-        )} %) : ${message}`,
+        message: `Prix de vente modifié à la caisse : ${message}`,
       });
     }
 
@@ -226,6 +223,7 @@ export async function createSale(input: CreateSaleInput) {
           productId: i.productId,
           quantite: String(i.quantite),
           prixUnitaire: String(i.prixUnitaire),
+          prixCatalogueUnitaire: String(i.prixCatalogueUnitaire),
           prixAchatUnitaire: String(i.prixAchatUnitaire),
           sousTotal: String(i.sousTotal),
         }))

@@ -44,5 +44,13 @@ export const lireTarifs = cache(async (): Promise<Grille> => {
     console.error("tarifs : grille illisible, repli sur les valeurs du code —", e instanceof Error ? e.message : e);
   }
 
+  // Entreprise n'a plus de tarif public, quoi qu'il y ait en base — une ligne historique laissée
+  // par l'ancien formulaire, un script de démonstration. On l'efface ici, à la source unique que
+  // lisent la page tarifs et l'écran Abonnement, plutôt que de compter sur chaque écran pour ne
+  // jamais l'afficher : c'est exactement le genre de champ qui resurgit un jour sans qu'on l'ait
+  // touché. Le prix Entreprise vit désormais uniquement dans `stores.tarifNegocie*`, boutique par
+  // boutique (voir `src/lib/paiements.ts`).
+  grille.ENTREPRISE = {};
+
   return grille;
 });

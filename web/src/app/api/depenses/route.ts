@@ -2,9 +2,8 @@ import { NextResponse } from "next/server";
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { expenses } from "@/db/schema";
-import { getSession } from "@/lib/auth/session";
+import { getSession, peut } from "@/lib/auth/session";
 import { chargerDepenses } from "@/components/depenses/get-depenses-data";
-import { can } from "@/lib/auth/rbac";
 import { bloquerSiExpiree, bloquerSiHorsFormule } from "@/lib/abonnement";
 import { refusJustificatif } from "@/lib/validation/fichier";
 
@@ -79,7 +78,7 @@ export async function GET(request: Request) {
   // dans le menu. Une route reste appelable même quand son bouton a disparu.
   const horsFormule = await bloquerSiHorsFormule("depenses");
   if (horsFormule) return horsFormule;
-  if (!can(session.role, "depenses.view")) {
+  if (!(await peut(session, "depenses.view"))) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
 
@@ -110,7 +109,7 @@ export async function POST(request: Request) {
   // masquée dans l'interface.
   const bloque = await bloquerSiExpiree();
   if (bloque) return bloque;
-  if (!can(session.role, "depenses.edit")) {
+  if (!(await peut(session, "depenses.edit"))) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
 

@@ -5,7 +5,8 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Input, Label } from "@/components/ui/input";
+import { Label } from "@/components/ui/input";
+import { InputMotDePasse } from "@/components/ui/input-mot-de-passe";
 
 export function ResetPasswordForm({ jeton }: { jeton: string }) {
   const router = useRouter();
@@ -51,9 +52,8 @@ export function ResetPasswordForm({ jeton }: { jeton: string }) {
       {error && <p className="rounded-lg bg-danger/10 p-2 text-xs text-danger">{error}</p>}
       <div>
         <Label htmlFor="password">Nouveau mot de passe</Label>
-        <Input
+        <InputMotDePasse
           id="password"
-          type="password"
           required
           minLength={6}
           autoComplete="new-password"
@@ -64,9 +64,8 @@ export function ResetPasswordForm({ jeton }: { jeton: string }) {
       </div>
       <div>
         <Label htmlFor="confirmation">Confirmez le mot de passe</Label>
-        <Input
+        <InputMotDePasse
           id="confirmation"
-          type="password"
           required
           minLength={6}
           autoComplete="new-password"

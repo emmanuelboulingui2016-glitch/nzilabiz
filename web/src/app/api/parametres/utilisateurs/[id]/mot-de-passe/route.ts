@@ -11,8 +11,7 @@ import { NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { users } from "@/db/schema";
-import { getSession } from "@/lib/auth/session";
-import { can } from "@/lib/auth/rbac";
+import { getSession, peut } from "@/lib/auth/session";
 import { hashPassword } from "@/lib/auth/password";
 import { generateTempPassword } from "@/lib/auth/temp-password";
 import { clientIp, rateLimit, tooManyRequests } from "@/lib/rate-limit";
@@ -26,7 +25,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // masquée dans l'interface.
   const bloque = await bloquerSiExpiree();
   if (bloque) return bloque;
-  if (!can(session.role, "parametres.utilisateurs")) {
+  if (!(await peut(session, "parametres.utilisateurs"))) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
 
@@ -47,10 +46,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   });
   if (!cible) return NextResponse.json({ error: "Utilisateur introuvable" }, { status: 404 });
 
-  // Un compte supprimé par son titulaire ne se réactive pas d'une réinitialisation : il a demandé
-  // l'effacement de ses informations personnelles.
+  // Un compte supprimé — par son titulaire, ou par le patron (restaurable sous 48h, voir
+  // .../[id]/restaurer) — ne se réactive pas d'une simple réinitialisation de mot de passe : il
+  // faut d'abord le restaurer.
   if (cible.desactiveLe) {
-    return NextResponse.json({ error: "Ce compte a été supprimé par son titulaire." }, { status: 400 });
+    return NextResponse.json({ error: "Ce compte est supprimé. Restaurez-le avant de réinitialiser son mot de passe." }, { status: 400 });
   }
 
   const tempPassword = generateTempPassword();

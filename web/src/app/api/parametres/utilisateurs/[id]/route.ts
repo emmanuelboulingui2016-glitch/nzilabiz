@@ -1,14 +1,16 @@
 import { NextResponse } from "next/server";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { users } from "@/db/schema";
-import { getSession } from "@/lib/auth/session";
-import { can } from "@/lib/auth/rbac";
+import { getSession, peut } from "@/lib/auth/session";
 import { countPatrons } from "@/components/parametres/utilisateurs/queries";
+import { calculerExpirationRestauration } from "@/components/parametres/utilisateurs/permissions-logic";
 import { bloquerSiExpiree } from "@/lib/abonnement";
 import { normaliserTelephone } from "@/lib/telephone";
-import { stores } from "@/db/schema";
+import { stores, devices } from "@/db/schema";
+import { verifyPassword } from "@/lib/auth/password";
+import { clientIp, rateLimit, tooManyRequests } from "@/lib/rate-limit";
 
 const majSchema = z
   .object({
@@ -34,7 +36,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   // masquée dans l'interface.
   const bloque = await bloquerSiExpiree();
   if (bloque) return bloque;
-  if (!can(session.role, "parametres.utilisateurs")) {
+  if (!(await peut(session, "parametres.utilisateurs"))) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
 
@@ -46,9 +48,10 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   }
 
   // Le filtre porte aussi sur la boutique : sans lui, l'identifiant d'un employé d'un autre
-  // commerçant suffirait à modifier son compte.
+  // commerçant suffirait à modifier son compte. `isNull(desactiveLe)` : un compte supprimé
+  // (chantier B) ne se modifie pas, il se restaure d'abord (.../[id]/restaurer).
   const target = await db.query.users.findFirst({
-    where: and(eq(users.id, id), eq(users.storeId, session.storeId)),
+    where: and(eq(users.id, id), eq(users.storeId, session.storeId), isNull(users.desactiveLe)),
   });
   if (!target) return NextResponse.json({ error: "Utilisateur introuvable" }, { status: 404 });
 
@@ -119,8 +122,20 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   });
 }
 
-// DELETE /api/parametres/utilisateurs/[id] — retirer un membre de la boutique.
-export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+const deleteSchema = z.object({
+  // Optionnel côté schéma : un compte connecté par Google n'a pas de mot de passe, voir plus bas.
+  motDePasse: z.string().optional(),
+});
+
+// DELETE /api/parametres/utilisateurs/[id] — supprimer le compte d'un employé.
+//
+// Toujours un UPDATE, jamais un DELETE : l'historique de ses ventes (sales.user_id) doit rester
+// intact, il appartient à la comptabilité de la boutique, pas au compte de l'employé. On réutilise
+// `desactiveLe`, déjà vérifié à la connexion (session.ts) — un second marqueur concurrent aurait fini
+// par diverger. `restaurationExpireLe` distingue cette suppression, décidée par le patron et
+// restaurable 48h, de l'auto-suppression anonymisée et définitive de /api/parametres/compte (qui,
+// elle, laisse `restaurationExpireLe` à `null`).
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
 
@@ -128,14 +143,27 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   // masquée dans l'interface.
   const bloque = await bloquerSiExpiree();
   if (bloque) return bloque;
-  if (!can(session.role, "parametres.utilisateurs")) {
+  if (!(await peut(session, "parametres.utilisateurs"))) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+  }
+
+  // Le mot de passe est vérifié ici : sans limite, l'endpoint deviendrait un oracle pour le deviner
+  // depuis une session volée — même raisonnement que /api/parametres/compte.
+  const limite = await rateLimit(`utilisateurs:suppression:${session.userId}:${clientIp(request)}`, {
+    limite: 5,
+    fenetreMs: 15 * 60_000,
+    blocageMs: 30 * 60_000,
+  });
+  if (!limite.ok) {
+    return tooManyRequests(limite.retryAfter, "Trop de tentatives. Réessayez dans un moment.");
   }
 
   const { id } = await params;
 
+  // isNull(desactiveLe) : un compte déjà supprimé ne se supprime pas une seconde fois — il se
+  // restaure, ou attend l'expiration de sa fenêtre de restauration.
   const target = await db.query.users.findFirst({
-    where: and(eq(users.id, id), eq(users.storeId, session.storeId)),
+    where: and(eq(users.id, id), eq(users.storeId, session.storeId), isNull(users.desactiveLe)),
   });
   if (!target) return NextResponse.json({ error: "Utilisateur introuvable" }, { status: 404 });
 
@@ -153,22 +181,39 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
     }
   }
 
-  try {
-    // Le SELECT préalable a déjà vérifié l'appartenance à la boutique, mais on la refiltre ici :
-    // défense en profondeur si ce SELECT venait à disparaître dans une future refactorisation.
-    await db.delete(users).where(and(eq(users.id, id), eq(users.storeId, session.storeId)));
-  } catch {
-    // Contrainte de clé étrangère : l'utilisateur a des ventes/données associées (pas de
-    // suppression en cascade prévue dans schema.ts pour ces tables). On ne fait pas de suppression
-    // en douce et on l'explique clairement plutôt que de renvoyer une erreur 500 opaque.
-    return NextResponse.json(
-      {
-        error:
-          "Impossible de supprimer cet utilisateur : il a des données associées (ventes, dépenses...). Changez plutôt son rôle, ou contactez le support pour une suppression assistée.",
-      },
-      { status: 409 }
-    );
+  const parsed = deleteSchema.safeParse(await request.json().catch(() => ({})));
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Requête invalide" }, { status: 400 });
   }
 
-  return NextResponse.json({ ok: true });
+  // Confirmation par le mot de passe de CELUI QUI AGIT (le patron), pas celui de l'employé visé —
+  // c'est le même procédé que /api/parametres/compte (voir delete-account.tsx), repris tel quel
+  // plutôt que réinventé : on authentifie la session qui déclenche l'action destructrice.
+  const acteur = await db.query.users.findFirst({ where: eq(users.id, session.userId) });
+  if (!acteur) return NextResponse.json({ error: "Utilisateur introuvable" }, { status: 404 });
+
+  // Un patron connecté par Google n'a pas de mot de passe : la présence même d'une session valide
+  // fait foi, comme pour l'auto-suppression.
+  if (acteur.motDePasseHash) {
+    if (!parsed.data.motDePasse) {
+      return NextResponse.json({ error: "Mot de passe requis pour confirmer la suppression." }, { status: 400 });
+    }
+    const valide = await verifyPassword(parsed.data.motDePasse, acteur.motDePasseHash);
+    if (!valide) return NextResponse.json({ error: "Mot de passe incorrect." }, { status: 400 });
+  }
+
+  const maintenant = new Date();
+  const restaurationExpireLe = calculerExpirationRestauration(maintenant);
+
+  await db
+    .update(users)
+    .set({ desactiveLe: maintenant, desactiveParId: session.userId, restaurationExpireLe })
+    .where(and(eq(users.id, id), eq(users.storeId, session.storeId)));
+
+  // L'accès est déjà coupé immédiatement par `desactiveLe` (vérifié à chaque requête dans
+  // session.ts), même session ouverte comprise. On révoque aussi ses appareils pour que l'écran
+  // Synchronisation reflète correctement l'état — pas pour la sécurité elle-même, déjà assurée.
+  await db.update(devices).set({ revoque: true }).where(and(eq(devices.userId, id), eq(devices.revoque, false)));
+
+  return NextResponse.json({ ok: true, restaurationExpireLe: restaurationExpireLe.toISOString() });
 }

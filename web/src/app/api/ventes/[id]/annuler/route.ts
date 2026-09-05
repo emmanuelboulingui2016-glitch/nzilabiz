@@ -6,8 +6,7 @@ import { NextResponse } from "next/server";
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { approvalRequests, products, sales, stockMovements } from "@/db/schema";
-import { getSession } from "@/lib/auth/session";
-import { can } from "@/lib/auth/rbac";
+import { getSession, peut } from "@/lib/auth/session";
 import { bloquerSiExpiree } from "@/lib/abonnement";
 
 const MOTIF_LABELS: Record<string, string> = {
@@ -53,8 +52,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "Cette vente est déjà annulée." }, { status: 400 });
   }
 
-  const canDirect = can(session.role, "ventes.annuler.direct");
-  const canDemander = can(session.role, "ventes.annuler.demander");
+  const canDirect = await peut(session, "ventes.annuler.direct");
+  const canDemander = await peut(session, "ventes.annuler.demander");
   if (!canDirect && !canDemander) {
     return NextResponse.json({ error: "Action non autorisée." }, { status: 403 });
   }

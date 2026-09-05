@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/auth/session";
-import { can } from "@/lib/auth/rbac";
+import { getSession, peut } from "@/lib/auth/session";
 import { getRapportsData } from "@/components/rapports/get-rapports-data";
 import type { PeriodType } from "@/components/rapports/types";
 import { bloquerSiHorsFormule } from "@/lib/abonnement";
@@ -15,7 +14,7 @@ export async function GET(request: Request) {
   // dans le menu. Une route reste appelable même quand son bouton a disparu.
   const horsFormule = await bloquerSiHorsFormule("rapports");
   if (horsFormule) return horsFormule;
-  if (!can(session.role, "rapports.view")) {
+  if (!(await peut(session, "rapports.view"))) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
 

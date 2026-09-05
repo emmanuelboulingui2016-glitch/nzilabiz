@@ -1,10 +1,17 @@
 "use client";
 
-// Grille tarifaire — le seul endroit où l'on fixe le prix des formules.
+// Grille tarifaire — le seul endroit où l'on fixe le prix des formules Essentiel et Premium.
 //
 // Les montants vivaient en dur dans le code, en double exemplaire : la page tarifs publique et
 // l'écran Abonnement pouvaient afficher deux prix différents, et une remise demandait un
 // déploiement. Ce formulaire écrit en base ; les deux écrans lisent la même ligne.
+//
+// Entreprise n'a plus sa place ici : son prix n'est plus public, il se négocie boutique par
+// boutique et se fixe depuis la fiche de la boutique concernée (section « Formule Entreprise »).
+// Un champ « tarif Entreprise » resté dans ce formulaire aurait continué d'écrire en base sans
+// plus jamais s'afficher nulle part — un piège pour la prochaine personne qui le retrouverait et
+// le remplirait en pensant qu'il sert à quelque chose. La route API refuse d'ailleurs désormais
+// toute écriture avec `plan: "ENTREPRISE"`, même si ce formulaire ne peut plus en envoyer.
 
 import { useEffect, useState, type FormEvent } from "react";
 import { toast } from "sonner";
@@ -14,17 +21,17 @@ import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { formatFcfa } from "@/lib/currency";
 
-const PLANS = ["ESSENTIEL", "PREMIUM", "ENTREPRISE"] as const;
+const PLANS = ["ESSENTIEL", "PREMIUM"] as const;
 const CYCLES = ["mensuel", "trimestriel", "annuel"] as const;
 
 type Plan = (typeof PLANS)[number];
 type Cycle = (typeof CYCLES)[number];
-type Grille = Record<Plan, Partial<Record<Cycle, number>>>;
+/** La grille reçue de l'API porte encore la clé ENTREPRISE (toujours vide) : on ne la lit pas ici. */
+type Grille = Record<Plan, Partial<Record<Cycle, number>>> & { ENTREPRISE?: Partial<Record<Cycle, number>> };
 
 const LIBELLE_PLAN: Record<Plan, string> = {
   ESSENTIEL: "Essentiel",
   PREMIUM: "Premium",
-  ENTREPRISE: "Entreprise",
 };
 
 const LIBELLE_CYCLE: Record<Cycle, string> = {
@@ -36,7 +43,6 @@ const LIBELLE_CYCLE: Record<Cycle, string> = {
 const AIDE_PLAN: Record<Plan, string> = {
   ESSENTIEL: "Caisse, stock, clients et créances. Jusqu'à 3 comptes.",
   PREMIUM: "Toutes les fonctionnalités, comptes illimités.",
-  ENTREPRISE: "Premium et le réseau multi-boutiques. Le tarif annuel s'affiche en « à partir de ».",
 };
 
 export function TarifsForm() {
@@ -131,6 +137,11 @@ export function TarifsForm() {
         </CardHeader>
 
         <CardContent className="space-y-5">
+          <p className="rounded-lg border border-dashed border-border bg-muted/40 p-3 text-xs text-muted-foreground">
+            La formule Entreprise n&apos;a pas de tarif public : elle se négocie boutique par
+            boutique, depuis la fiche de la boutique concernée (section « Formule Entreprise »).
+          </p>
+
           {PLANS.map((plan) => (
             <div key={plan} className="rounded-lg border border-border p-4">
               <p className="text-sm font-bold">{LIBELLE_PLAN[plan]}</p>

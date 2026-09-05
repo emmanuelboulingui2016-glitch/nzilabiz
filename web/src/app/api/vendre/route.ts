@@ -3,8 +3,7 @@
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getSession } from "@/lib/auth/session";
-import { can } from "@/lib/auth/rbac";
+import { getSession, peut } from "@/lib/auth/session";
 import { createSale, CreateSaleError } from "./create-sale";
 import { bloquerSiExpiree } from "@/lib/abonnement";
 
@@ -18,6 +17,12 @@ const saleSchema = z.object({
       z.object({
         productId: z.string().min(1),
         quantite: z.number().positive(),
+        // Prix négocié au comptoir (§ demande produit du 04/09). Optionnel : omis, le prix
+        // catalogue s'applique. Fourni, il n'est accepté que si l'appelant a le droit
+        // `vendre.prix.modifier` — vérifié côté serveur dans createSale, jamais ici seulement
+        // (voir `.finite()` : un prix qui n'est pas un nombre concret est toujours invalide, quel
+        // que soit le droit de l'appelant).
+        prixUnitaire: z.number().min(0).finite().optional(),
       })
     )
     .min(1, "Le panier est vide."),
@@ -42,9 +47,15 @@ export async function POST(request: Request) {
   // masquée dans l'interface.
   const bloque = await bloquerSiExpiree();
   if (bloque) return bloque;
-  if (!can(session.role, "vendre.use")) {
+  if (!(await peut(session, "vendre.use"))) {
     return NextResponse.json({ error: "Action non autorisée." }, { status: 403 });
   }
+  // Droit de négocier un prix au comptoir — transmis à createSale, qui refuse toute ligne dont le
+  // prix déclaré diverge du catalogue si ce droit est absent. Calculé ici et non dans createSale :
+  // createSale n'a pas accès à la session (voir son commentaire sur `canModifierPrix`). Ici, la
+  // session qui crée la vente EST celle qui l'encaisse (chemin en ligne) : contrairement à
+  // /api/vendre/sync, il n'y a pas de vendeur "réel" distinct à résoudre.
+  const canModifierPrix = await peut(session, "vendre.prix.modifier");
 
   const body = await request.json().catch(() => null);
   const parsed = saleSchema.safeParse(body);
@@ -64,6 +75,7 @@ export async function POST(request: Request) {
       remise: data.remise,
       typeRemise: data.typeRemise,
       payments: data.payments,
+      canModifierPrix,
     });
     return NextResponse.json({ sale, alreadyExisted }, { status: alreadyExisted ? 200 : 201 });
   } catch (err) {

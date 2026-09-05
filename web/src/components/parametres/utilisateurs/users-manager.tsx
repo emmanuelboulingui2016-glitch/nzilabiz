@@ -1,15 +1,45 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { fr } from "date-fns/locale";
 import { toast } from "sonner";
-import { Copy, KeyRound, Pencil, Trash2, UserPlus } from "lucide-react";
+import { Copy, KeyRound, Pencil, ShieldCheck, Trash2, Undo2, UserPlus } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Input, Label, Select } from "@/components/ui/input";
+import { InputMotDePasse } from "@/components/ui/input-mot-de-passe";
+import { PermissionsDialog } from "@/components/parametres/utilisateurs/permissions-dialog";
+import { restaurationExpiree } from "@/components/parametres/utilisateurs/permissions-logic";
+
+/**
+ * Horloge de rendu, mise à jour uniquement de façon asynchrone (jamais un `Date.now()` direct dans
+ * le corps du composant : ce serait un appel impur pendant le rendu — voir la règle
+ * `react-hooks/purity`, et le rendu concurrent de React peut réévaluer un composant plusieurs fois
+ * pour un même instant réel, ce qui rendrait le compte à rebours incohérent d'un rendu à l'autre).
+ *
+ * `null` tant que l'effet n'a pas tourné : avant montage, on considère qu'aucune fenêtre de 48h
+ * n'est expirée — c'est déjà l'hypothèse du serveur, qui ne renvoie que des suppressions encore
+ * restaurables (voir supprimesRestaurables). Rafraîchie chaque minute pour que le temps restant
+ * affiché reste juste sans re-rendre à chaque seconde.
+ */
+function useHorlogeMinute(): number | null {
+  const [maintenant, setMaintenant] = useState<number | null>(null);
+  useEffect(() => {
+    const tick = () => setMaintenant(Date.now());
+    // Première valeur posée de façon asynchrone (setTimeout 0), pas synchrone avec l'effet lui-même :
+    // c'est cette asynchronicité qui distingue ce code de l'anti-pattern que la règle interdit.
+    const demarrage = setTimeout(tick, 0);
+    const intervalle = setInterval(tick, 60_000);
+    return () => {
+      clearTimeout(demarrage);
+      clearInterval(intervalle);
+    };
+  }, []);
+  return maintenant;
+}
 
 export type Role = "PATRON" | "GERANT" | "VENDEUR";
 
@@ -27,8 +57,19 @@ export type StoreUser = {
   googleId: boolean;
 };
 
+/** Compte supprimé par le patron, encore dans sa fenêtre de restauration de 48h. */
+export type SuppressedUser = {
+  id: string;
+  nom: string;
+  email: string | null;
+  telephone: string | null;
+  role: Role;
+  desactiveLe: string;
+  restaurationExpireLe: string;
+};
+
 /** Identifiant affiché : le téléphone d'un employé prime sur l'e-mail quand les deux existent. */
-function identifiantAffiche(user: StoreUser): string {
+function identifiantAffiche(user: { telephone: string | null; email: string | null }): string {
   return user.telephone ?? user.email ?? "—";
 }
 
@@ -46,17 +87,27 @@ const ROLE_TONE: Record<Role, "info" | "success" | "neutral"> = {
 
 export function UsersManager({
   currentUserId,
+  currentUserHasPassword,
   initialUsers,
+  initialSupprimes,
 }: {
   currentUserId: string;
+  /** Le mot de passe demandé pour confirmer une suppression est celui du PATRON connecté, pas celui
+   *  de l'employé visé (voir /api/parametres/utilisateurs/[id] DELETE) — un compte Google n'en a pas. */
+  currentUserHasPassword: boolean;
   initialUsers: StoreUser[];
+  initialSupprimes: SuppressedUser[];
 }) {
   const [list, setList] = useState<StoreUser[]>(initialUsers);
+  const [supprimes, setSupprimes] = useState<SuppressedUser[]>(initialSupprimes);
+  const maintenant = useHorlogeMinute();
   const [inviteOpen, setInviteOpen] = useState(false);
   const [savingRole, setSavingRole] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
   const [resetId, setResetId] = useState<string | null>(null);
   const [tempCred, setTempCred] = useState<{ identifiant: string; password: string } | null>(null);
+  const [permissionsFor, setPermissionsFor] = useState<StoreUser | null>(null);
 
   // Réinitialisation du mot de passe d'un employé. Sans envoi d'e-mail dans le service, c'est le
   // seul recours quand un vendeur oublie le sien : le Patron lui remet le nouveau de vive voix.
@@ -175,27 +226,79 @@ export function UsersManager({
     }
   };
 
-  // -- Suppression -----------------------------------------------------
-  const removeUser = async (user: StoreUser) => {
+  // -- Suppression (restaurable 48h) --------------------------------------
+  // Le patron confirme avec SON PROPRE mot de passe de session, pas celui de l'employé visé — voir
+  // /api/parametres/utilisateurs/[id] DELETE. Même geste que "Supprimer mon compte" dans Sécurité,
+  // repris ici plutôt que réinventé.
+  const [deleteTarget, setDeleteTarget] = useState<StoreUser | null>(null);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleting, setDeleting] = useState(false);
+
+  function ouvrirSuppression(user: StoreUser) {
     if (user.id === currentUserId) {
       toast.error("Vous ne pouvez pas vous retirer vous-même.");
       return;
     }
-    if (!window.confirm(`Retirer ${user.nom} (${identifiantAffiche(user)}) de la boutique ?`)) return;
-    setRemovingId(user.id);
+    setDeletePassword("");
+    setDeleteTarget(user);
+  }
+
+  const confirmerSuppression = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!deleteTarget) return;
+    setDeleting(true);
+    setRemovingId(deleteTarget.id);
     try {
-      const res = await fetch(`/api/parametres/utilisateurs/${user.id}`, { method: "DELETE" });
+      const res = await fetch(`/api/parametres/utilisateurs/${deleteTarget.id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ motDePasse: deletePassword || undefined }),
+      });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        toast.error(data.error ?? "Impossible de retirer cet utilisateur.");
+        toast.error(data.error ?? "Impossible de supprimer cet utilisateur.");
         return;
       }
-      setList((prev) => prev.filter((u) => u.id !== user.id));
-      toast.success(`${user.nom} retiré de la boutique.`);
+      setList((prev) => prev.filter((u) => u.id !== deleteTarget.id));
+      setSupprimes((prev) => [
+        {
+          id: deleteTarget.id,
+          nom: deleteTarget.nom,
+          email: deleteTarget.email,
+          telephone: deleteTarget.telephone,
+          role: deleteTarget.role,
+          desactiveLe: new Date().toISOString(),
+          restaurationExpireLe: data.restaurationExpireLe,
+        },
+        ...prev,
+      ]);
+      toast.success(`${deleteTarget.nom} supprimé — restaurable pendant 48 h.`);
+      setDeleteTarget(null);
     } catch {
       toast.error("Erreur réseau — réessayez.");
     } finally {
+      setDeleting(false);
       setRemovingId(null);
+    }
+  };
+
+  // -- Restauration ---------------------------------------------------------
+  const restaurer = async (user: SuppressedUser) => {
+    setRestoringId(user.id);
+    try {
+      const res = await fetch(`/api/parametres/utilisateurs/${user.id}/restaurer`, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error ?? "Restauration impossible.");
+        return;
+      }
+      setSupprimes((prev) => prev.filter((u) => u.id !== user.id));
+      setList((prev) => [...prev, data.user]);
+      toast.success(`${user.nom} restauré.`);
+    } catch {
+      toast.error("Erreur réseau — réessayez.");
+    } finally {
+      setRestoringId(null);
     }
   };
 
@@ -260,6 +363,16 @@ export function UsersManager({
                     variant="outline"
                     size="icon"
                     className="h-11 w-11"
+                    onClick={() => setPermissionsFor(user)}
+                    aria-label={`Gérer les droits de ${user.nom}`}
+                    title="Gérer les droits (au-delà du rôle)"
+                  >
+                    <ShieldCheck size={16} />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-11 w-11"
                     onClick={() => ouvrirEdition(user)}
                     aria-label={`Modifier le nom et le téléphone de ${user.nom}`}
                     title="Modifier le nom et le téléphone"
@@ -282,9 +395,9 @@ export function UsersManager({
                     size="icon"
                     className="h-11 w-11"
                     disabled={removingId === user.id || user.id === currentUserId}
-                    onClick={() => removeUser(user)}
-                    aria-label={`Retirer ${user.nom} de la boutique`}
-                    title={user.id === currentUserId ? "Vous ne pouvez pas vous retirer vous-même." : undefined}
+                    onClick={() => ouvrirSuppression(user)}
+                    aria-label={`Supprimer ${user.nom} de la boutique`}
+                    title={user.id === currentUserId ? "Vous ne pouvez pas vous retirer vous-même." : "Supprimer (restaurable 48 h)"}
                   >
                     <Trash2 size={16} />
                   </Button>
@@ -295,10 +408,63 @@ export function UsersManager({
         </CardContent>
       </Card>
 
+      {supprimes.length > 0 && (
+        <Card className="border-warning/40">
+          <CardHeader>
+            <CardTitle className="text-base font-bold text-foreground">
+              Comptes supprimés récemment ({supprimes.length})
+            </CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Restaurables pendant 48 h après la suppression. Leurs ventes passées restent dans
+              l&apos;historique de la boutique, restauration ou non.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {supprimes.map((user) => {
+              const expire = new Date(user.restaurationExpireLe);
+              // `maintenant` vient de useHorlogeMinute() : jamais de Date.now() direct pendant le
+              // rendu (voir plus haut). Tant qu'il vaut `null` (avant le premier tick), on suppose
+              // « pas expiré » — hypothèse déjà faite par le serveur, qui ne renvoie que des
+              // suppressions encore restaurables (supprimesRestaurables).
+              const expiree = maintenant !== null && restaurationExpiree(expire, new Date(maintenant));
+              return (
+                <div
+                  key={user.id}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border p-3"
+                >
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-medium">{user.nom}</span>
+                      <Badge tone={ROLE_TONE[user.role]}>{ROLE_LABEL[user.role]}</Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground">{identifiantAffiche(user)}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {expiree
+                        ? "Délai de restauration dépassé"
+                        : `Restaurable encore ${formatDistanceToNow(expire, { locale: fr })}`}
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={restoringId === user.id || expiree}
+                    onClick={() => restaurer(user)}
+                  >
+                    <Undo2 size={15} />
+                    {restoringId === user.id ? "Restauration..." : "Restaurer"}
+                  </Button>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
+
       <p className="text-xs text-muted-foreground">
         Matrice de permissions (§14) : <strong>Patron</strong> — accès complet. <strong>Gérant</strong> — accès
         large, sauf abonnement/utilisateurs/sécurité. <strong>Vendeur</strong> — limité à l&apos;écran Vendre et à son
-        propre historique de ventes, sans annulation directe.
+        propre historique de ventes, sans annulation directe. Le bouclier ouvre les droits particuliers
+        accordés ou retirés à un employé en plus de son rôle.
       </p>
 
       {/* Dialog invitation */}
@@ -386,6 +552,50 @@ export function UsersManager({
           </form>
         )}
       </Dialog>
+
+      {/* Dialog suppression (mot de passe du patron connecté) */}
+      <Dialog open={deleteTarget !== null} onClose={() => setDeleteTarget(null)} title="Supprimer cet employé">
+        {deleteTarget && (
+          <form onSubmit={confirmerSuppression} className="space-y-4">
+            <p className="rounded-lg bg-danger/10 p-3 text-sm text-danger">
+              <strong>{deleteTarget.nom}</strong> perdra l&apos;accès immédiatement. Ses ventes passées restent
+              dans l&apos;historique de la boutique. Restaurable pendant 48 h, puis définitif.
+            </p>
+            {currentUserHasPassword ? (
+              <div>
+                <Label htmlFor="del-user-password">Votre mot de passe</Label>
+                <InputMotDePasse
+                  id="del-user-password"
+                  value={deletePassword}
+                  onChange={(e) => setDeletePassword(e.target.value)}
+                  required
+                  autoComplete="current-password"
+                />
+              </div>
+            ) : null}
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleting}>
+                Annuler
+              </Button>
+              <Button type="submit" variant="danger" disabled={deleting}>
+                {deleting ? "Suppression..." : "Supprimer"}
+              </Button>
+            </div>
+          </form>
+        )}
+      </Dialog>
+
+      {/* Dialog droits particuliers (dérogations à la matrice de rôle) */}
+      {permissionsFor && (
+        <PermissionsDialog
+          open={permissionsFor !== null}
+          onClose={() => setPermissionsFor(null)}
+          userId={permissionsFor.id}
+          userNom={permissionsFor.nom}
+          role={permissionsFor.role}
+          estSoi={permissionsFor.id === currentUserId}
+        />
+      )}
 
       {/* Dialog identifiants temporaires */}
       <Dialog open={tempCred !== null} onClose={() => setTempCred(null)} title="Accès créé">

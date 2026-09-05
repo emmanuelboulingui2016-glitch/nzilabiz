@@ -32,7 +32,9 @@ const SECTIONS = [
     titre: "Plateforme",
     items: [
       { href: "/superadmin/boutiques", label: "Boutiques", icon: Building2 },
-      { href: "/superadmin/utilisateurs", label: "Utilisateurs", icon: Users },
+      // Titulaires (rôle PATRON) uniquement — jamais les gérants/vendeurs des boutiques clientes,
+      // voir la justification dans `src/app/api/superadmin/utilisateurs/route.ts`.
+      { href: "/superadmin/utilisateurs", label: "Titulaires", icon: Users },
     ],
   },
   {

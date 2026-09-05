@@ -12,8 +12,8 @@ import { z } from "zod";
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { devices } from "@/db/schema";
-import { getSession } from "@/lib/auth/session";
-import { can } from "@/lib/auth/rbac";
+import { getSession, peut } from "@/lib/auth/session";
+import type { Role } from "@/lib/auth/rbac";
 import { createSale, CreateSaleError } from "../create-sale";
 
 // Tolérance de dérive d'horloge entre l'appareil et le serveur : une petite avance de l'horloge
@@ -37,7 +37,7 @@ const syncPayloadSchema = z.object({
       z.object({
         productId: z.string().min(1),
         quantite: z.number().positive(),
-        prixUnitaire: z.number().min(0),
+        prixUnitaire: z.number().min(0).finite(),
         prixAchatUnitaire: z.number().min(0),
       })
     )
@@ -67,7 +67,7 @@ const syncQueueEntrySchema = z.object({
 export async function POST(request: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
-  if (!can(session.role, "vendre.use")) {
+  if (!(await peut(session, "vendre.use"))) {
     return NextResponse.json({ error: "Action non autorisée." }, { status: 403 });
   }
 
@@ -113,29 +113,49 @@ export async function POST(request: Request) {
   // simplement son id, brouillant l'enquête du patron en cas de détournement. On ne les accepte
   // donc que s'ils appartiennent bien à la boutique de la session ; sinon on retombe sur la
   // session (requêtes séquentielles, pas de Promise.all — pooler en mode transaction).
+  //
+  // On récupère au passage le rôle réel de ce vendeur DANS CETTE BOUTIQUE (`users.role` pour sa
+  // boutique d'origine, `store_memberships.role` s'il n'y est que rattaché — voir schema.ts) : le
+  // droit de négocier un prix (`vendre.prix.modifier`, plus bas) doit s'apprécier chez celui qui a
+  // réellement négocié le prix au comptoir, pas chez celui qui, plus tard, ouvre l'app en premier
+  // et déclenche sans le savoir la resynchro d'un appareil partagé. Sur un appareil partagé entre
+  // un vendeur A (qui a le droit) et un vendeur B (qui ne l'a pas), faire dépendre l'acceptation
+  // de la vente déjà encaissée par A du rôle de B — que B se contente de relayer sans y avoir
+  // négocié quoi que ce soit — bloquerait indéfiniment une vente pourtant bien réelle : exactement
+  // le risque que ce correctif doit éviter (voir le rapport de l'agent).
   let resolvedUserId = session.userId;
+  let resolvedRole: Role = session.role;
   if (payload.userId && payload.userId !== session.userId) {
-    const [ligne] = await db.execute<{ appartient: boolean }>(sql`
-      select exists (
-        select 1 from users u
-        where u.id = ${payload.userId}
-        and (
-          u.store_id = ${session.storeId}
-          or exists (
-            select 1 from store_memberships m
+    const [ligne] = await db.execute<{ role: Role | null }>(sql`
+      select
+        case
+          when u.store_id = ${session.storeId} then u.role
+          else (
+            select m.role from store_memberships m
             where m.user_id = u.id and m.store_id = ${session.storeId}
+            limit 1
           )
-        )
-      ) as appartient
+        end as role
+      from users u
+      where u.id = ${payload.userId}
     `);
-    if (ligne?.appartient) {
+    if (ligne?.role) {
       resolvedUserId = payload.userId;
+      resolvedRole = ligne.role;
     }
     // Sinon (utilisateur inexistant ou n'appartenant pas à cette boutique) : on ignore
     // silencieusement l'attribution demandée plutôt que de faire échouer toute la synchro — la
     // vente elle-même, bien réelle, n'est pas perdue ; elle est juste imputée à l'auteur
-    // authentifié de la requête au lieu d'un tiers désigné arbitrairement.
+    // authentifié de la requête au lieu d'un tiers désigné arbitrairement, avec son propre rôle.
   }
+  // Droit de négocier un prix au comptoir — apprécié sur le vendeur réel (`resolvedUserId` /
+  // `resolvedRole`, voir juste au-dessus), jamais sur `session` : `peut({ userId, role }, ...)` va
+  // chercher fraîches les dérogations individuelles de CE vendeur, pas celles de la session qui
+  // déclenche la resynchro. Sans ce détail, un collègue qui relaie la synchro d'un appareil partagé
+  // ferait juger le droit d'après SES PROPRES dérogations plutôt que celles du vendeur qui a
+  // réellement négocié le prix — pouvant bloquer une vente déjà encaissée si ce collègue n'a pas le
+  // droit, ou au contraire laisser passer un prix modifié qu'il n'aurait pas dû pouvoir accepter.
+  const canModifierPrix = await peut({ userId: resolvedUserId, role: resolvedRole }, "vendre.prix.modifier");
 
   let resolvedDeviceId = session.deviceId ?? null;
   if (payload.deviceId && payload.deviceId !== session.deviceId) {
@@ -159,6 +179,7 @@ export async function POST(request: Request) {
       remise: payload.remise,
       typeRemise: payload.typeRemise,
       payments: payload.payments,
+      canModifierPrix,
     });
     return NextResponse.json({ sale, alreadyExisted }, { status: alreadyExisted ? 200 : 201 });
   } catch (err) {

@@ -3,8 +3,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { stores } from "@/db/schema";
-import { getSession } from "@/lib/auth/session";
-import { can } from "@/lib/auth/rbac";
+import { getSession, peut } from "@/lib/auth/session";
 import { bloquerSiExpiree, bloquerSiHorsFormule } from "@/lib/abonnement";
 
 // Onglet Devise — §14 "Amélioration" du cahier des charges : sélection réelle de la devise
@@ -29,7 +28,7 @@ export async function GET() {
   // dans le menu. Une route reste appelable même quand son bouton a disparu.
   const horsFormule = await bloquerSiHorsFormule("devise");
   if (horsFormule) return horsFormule;
-  if (!can(session.role, "parametres.devise")) {
+  if (!(await peut(session, "parametres.devise"))) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
 
@@ -55,7 +54,7 @@ export async function PUT(request: Request) {
   // masquée dans l'interface.
   const bloque = await bloquerSiExpiree();
   if (bloque) return bloque;
-  if (!can(session.role, "parametres.devise")) {
+  if (!(await peut(session, "parametres.devise"))) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
 

@@ -5,14 +5,13 @@
 // périmètre (§ voir résumé final).
 
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/auth/session";
-import { can } from "@/lib/auth/rbac";
+import { getSession, peut } from "@/lib/auth/session";
 import { chargerVendre } from "@/components/vendre/get-vendre-data";
 
 export async function GET(request: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
-  if (!can(session.role, "vendre.use")) {
+  if (!(await peut(session, "vendre.use"))) {
     return NextResponse.json({ error: "Action non autorisée." }, { status: 403 });
   }
 

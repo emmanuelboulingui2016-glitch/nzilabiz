@@ -87,6 +87,144 @@ valable et personne n'a accès à votre compte.
   return { sujet, html: gabarit(sujet, corps, o.nomApplication), texte };
 }
 
+export function emailVerificationInscription(o: {
+  nom: string;
+  lien: string;
+  nomApplication: string;
+  valableHeures: number;
+}): Omit<Message, "a"> {
+  const sujet = `Confirmez votre adresse ${o.nomApplication}`;
+
+  const corps = `
+    <p style="margin:0 0 12px;">Bonjour ${echapper(o.nom)},</p>
+    <p style="margin:0 0 16px;">
+      Bienvenue sur ${echapper(o.nomApplication)}. Confirmez votre adresse e-mail en cliquant sur le
+      bouton ci-dessous.
+    </p>
+    <p style="margin:0 0 16px;">
+      <a href="${o.lien}" style="display:inline-block;padding:12px 20px;background:${COULEUR};color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">
+        Confirmer mon adresse
+      </a>
+    </p>
+    <p style="margin:0 0 16px;font-size:13px;color:#52525b;">
+      Ce lien est valable ${o.valableHeures} heures et ne fonctionne qu'une seule fois.
+    </p>
+    <p style="margin:0 0 6px;font-size:13px;color:#52525b;">
+      Si le bouton ne fonctionne pas, copiez cette adresse dans votre navigateur :
+    </p>
+    <p style="margin:0 0 16px;font-size:12px;word-break:break-all;color:#52525b;">${o.lien}</p>
+    <p style="margin:0;padding-top:16px;border-top:1px solid #e4e4e7;font-size:13px;color:#52525b;">
+      Vous pouvez continuer à utiliser votre boutique sans confirmer tout de suite — ce lien reste
+      accessible depuis Paramètres → Mon compte.
+    </p>`;
+
+  const texte = `Bonjour ${o.nom},
+
+Bienvenue sur ${o.nomApplication}. Confirmez votre adresse e-mail en ouvrant ce lien :
+
+${o.lien}
+
+Ce lien est valable ${o.valableHeures} heures et ne fonctionne qu'une seule fois.
+
+Vous pouvez continuer à utiliser votre boutique sans confirmer tout de suite.
+
+— ${o.nomApplication}`;
+
+  return { sujet, html: gabarit(sujet, corps, o.nomApplication), texte };
+}
+
+export function emailVerificationChangement(o: {
+  nom: string;
+  lien: string;
+  nomApplication: string;
+  valableHeures: number;
+}): Omit<Message, "a"> {
+  const sujet = `Confirmez votre nouvelle adresse ${o.nomApplication}`;
+
+  const corps = `
+    <p style="margin:0 0 12px;">Bonjour ${echapper(o.nom)},</p>
+    <p style="margin:0 0 16px;">
+      Vous avez demandé à faire de cette adresse la nouvelle adresse e-mail de votre boutique sur
+      ${echapper(o.nomApplication)}. Confirmez-le en cliquant sur le bouton ci-dessous.
+    </p>
+    <p style="margin:0 0 16px;">
+      <a href="${o.lien}" style="display:inline-block;padding:12px 20px;background:${COULEUR};color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">
+        Confirmer cette adresse
+      </a>
+    </p>
+    <p style="margin:0 0 16px;font-size:13px;color:#52525b;">
+      Ce lien est valable ${o.valableHeures} heures et ne fonctionne qu'une seule fois. Tant qu'il
+      n'est pas utilisé, votre adresse actuelle reste celle de votre compte.
+    </p>
+    <p style="margin:0 0 6px;font-size:13px;color:#52525b;">
+      Si le bouton ne fonctionne pas, copiez cette adresse dans votre navigateur :
+    </p>
+    <p style="margin:0 0 16px;font-size:12px;word-break:break-all;color:#52525b;">${o.lien}</p>
+    <p style="margin:0;padding-top:16px;border-top:1px solid #e4e4e7;font-size:13px;color:#52525b;">
+      <strong>Vous n'êtes pas à l'origine de cette demande ?</strong> Ignorez ce message : votre
+      adresse actuelle reste valable et rien ne change tant que ce lien n'est pas confirmé.
+    </p>`;
+
+  const texte = `Bonjour ${o.nom},
+
+Vous avez demandé à faire de cette adresse la nouvelle adresse e-mail de votre boutique sur
+${o.nomApplication}. Confirmez-le en ouvrant ce lien :
+
+${o.lien}
+
+Ce lien est valable ${o.valableHeures} heures et ne fonctionne qu'une seule fois. Tant qu'il n'est
+pas utilisé, votre adresse actuelle reste celle de votre compte.
+
+Vous n'êtes pas à l'origine de cette demande ? Ignorez ce message : rien ne change tant que ce
+lien n'est pas confirmé.
+
+— ${o.nomApplication}`;
+
+  return { sujet, html: gabarit(sujet, corps, o.nomApplication), texte };
+}
+
+/**
+ * Avis envoyé à l'ANCIENNE adresse quand un changement est demandé — jamais de lien ici, seulement
+ * une information. C'est ce qui permet à quelqu'un dont le compte serait compromis de s'en
+ * apercevoir : si l'attaquant ne contrôle que la nouvelle adresse et pas encore celle-ci, le
+ * titulaire légitime est encore prévenu à temps.
+ */
+export function emailChangementDemande(o: {
+  nom: string;
+  nomApplication: string;
+  nouvelleAdresse: string;
+  contact: string | null;
+}): Omit<Message, "a"> {
+  const sujet = `Changement d'adresse demandé sur votre compte ${o.nomApplication}`;
+
+  const recours = o.contact
+    ? `Si ce n'est pas vous, contactez immédiatement le support : ${echapper(o.contact)}.`
+    : `Si ce n'est pas vous, contactez immédiatement le support.`;
+
+  const corps = `
+    <p style="margin:0 0 12px;">Bonjour ${echapper(o.nom)},</p>
+    <p style="margin:0 0 16px;">
+      Un changement d'adresse e-mail vient d'être demandé sur votre compte, vers
+      <strong>${echapper(o.nouvelleAdresse)}</strong>. Cette adresse-ci reste celle de votre compte
+      tant que la nouvelle n'a pas été confirmée.
+    </p>
+    <p style="margin:0;padding-top:16px;border-top:1px solid #e4e4e7;font-size:13px;color:#52525b;">
+      ${recours}
+    </p>`;
+
+  const texte = `Bonjour ${o.nom},
+
+Un changement d'adresse e-mail vient d'être demandé sur votre compte ${o.nomApplication}, vers
+${o.nouvelleAdresse}. Cette adresse-ci reste celle de votre compte tant que la nouvelle n'a pas été
+confirmée.
+
+${o.contact ? `Si ce n'est pas vous, contactez immédiatement le support : ${o.contact}.` : "Si ce n'est pas vous, contactez immédiatement le support."}
+
+— ${o.nomApplication}`;
+
+  return { sujet, html: gabarit(sujet, corps, o.nomApplication), texte };
+}
+
 export function emailMotDePasseChange(o: { nom: string; nomApplication: string; contact: string | null }): Omit<Message, "a"> {
   const sujet = `Votre mot de passe ${o.nomApplication} a été changé`;
 

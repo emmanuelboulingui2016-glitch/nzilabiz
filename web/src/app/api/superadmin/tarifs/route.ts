@@ -44,6 +44,17 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Requête invalide" }, { status: 400 });
   }
 
+  // Entreprise n'a plus de tarif public : il se négocie boutique par boutique (voir
+  // `stores.tarifNegocie*` et `src/lib/paiements.ts`). Refusé ici, à la source, même si le
+  // formulaire ne peut plus en envoyer — un appel direct à cette route ne doit pas rouvrir la
+  // porte que l'interface a fermée.
+  if (parsed.data.tarifs.some((t) => t.plan === "ENTREPRISE")) {
+    return NextResponse.json(
+      { error: "Le tarif Entreprise n'est plus public ; fixez-le depuis la fiche de la boutique concernée." },
+      { status: 400 }
+    );
+  }
+
   // Enchaînées, jamais en parallèle : le pooler en mode transaction ne rend pas la main quand
   // plusieurs requêtes partent ensemble depuis une même requête HTTP (voir README).
   for (const t of parsed.data.tarifs) {

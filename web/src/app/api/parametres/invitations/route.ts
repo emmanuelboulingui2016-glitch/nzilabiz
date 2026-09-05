@@ -10,8 +10,7 @@ import { z } from "zod";
 import { createId } from "@paralleldrive/cuid2";
 import { db } from "@/db/client";
 import { invitations, users } from "@/db/schema";
-import { getSession } from "@/lib/auth/session";
-import { can } from "@/lib/auth/rbac";
+import { getSession, peut } from "@/lib/auth/session";
 import { bloquerSiExpiree, bloquerSiPlafondComptes, etatBoutiqueCourante } from "@/lib/abonnement";
 import { normaliserTelephone } from "@/lib/telephone";
 import { stores } from "@/db/schema";
@@ -35,7 +34,7 @@ function etat(inv: typeof invitations.$inferSelect): "UTILISEE" | "REVOQUEE" | "
 export async function GET() {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
-  if (!can(session.role, "parametres.utilisateurs")) {
+  if (!(await peut(session, "parametres.utilisateurs"))) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
 
@@ -69,7 +68,7 @@ export async function POST(request: Request) {
   // masquée dans l'interface.
   const bloque = await bloquerSiExpiree();
   if (bloque) return bloque;
-  if (!can(session.role, "parametres.utilisateurs")) {
+  if (!(await peut(session, "parametres.utilisateurs"))) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
 
@@ -150,7 +149,7 @@ export async function DELETE(request: Request) {
   // masquée dans l'interface.
   const bloque = await bloquerSiExpiree();
   if (bloque) return bloque;
-  if (!can(session.role, "parametres.utilisateurs")) {
+  if (!(await peut(session, "parametres.utilisateurs"))) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
 

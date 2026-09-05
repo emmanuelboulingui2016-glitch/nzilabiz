@@ -6,8 +6,7 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { categories, products, stockMovements } from "@/db/schema";
-import { getSession } from "@/lib/auth/session";
-import { can } from "@/lib/auth/rbac";
+import { getSession, peut } from "@/lib/auth/session";
 import { genProductRef } from "@/lib/utils";
 import { chargerStock } from "@/components/stock/get-stock-data";
 import { bloquerSiExpiree } from "@/lib/abonnement";
@@ -16,7 +15,7 @@ import { imageEnvoyee } from "@/lib/validation/fichier";
 export async function GET(request: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
-  if (!can(session.role, "stock.view")) {
+  if (!(await peut(session, "stock.view"))) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
 
@@ -54,7 +53,7 @@ export async function POST(request: Request) {
   // masquée dans l'interface.
   const bloque = await bloquerSiExpiree();
   if (bloque) return bloque;
-  if (!can(session.role, "stock.edit")) {
+  if (!(await peut(session, "stock.edit"))) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
 

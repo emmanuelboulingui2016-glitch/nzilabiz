@@ -2,8 +2,7 @@ import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { devices } from "@/db/schema";
-import { getSession } from "@/lib/auth/session";
-import { can } from "@/lib/auth/rbac";
+import { getSession, peut } from "@/lib/auth/session";
 import { getDeviceForStore } from "@/components/synchronisation/queries";
 
 // POST /api/synchronisation/devices/[id]/revoke — révoque l'accès d'un appareil de la boutique
@@ -11,7 +10,7 @@ import { getDeviceForStore } from "@/components/synchronisation/queries";
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
-  if (!can(session.role, "synchronisation.view")) {
+  if (!(await peut(session, "synchronisation.view"))) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
 

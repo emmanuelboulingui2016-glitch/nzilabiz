@@ -7,15 +7,14 @@ import { NextResponse } from "next/server";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { approvalRequests, products, sales, stockMovements, users } from "@/db/schema";
-import { getSession } from "@/lib/auth/session";
-import { can } from "@/lib/auth/rbac";
+import { getSession, peut } from "@/lib/auth/session";
 import { bloquerSiExpiree } from "@/lib/abonnement";
 
 export async function GET() {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
 
-  if (!can(session.role, "approbations.decider")) {
+  if (!(await peut(session, "approbations.decider"))) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
 
@@ -63,7 +62,7 @@ export async function POST(request: Request) {
   // masquée dans l'interface.
   const bloque = await bloquerSiExpiree();
   if (bloque) return bloque;
-  if (!can(session.role, "approbations.decider")) {
+  if (!(await peut(session, "approbations.decider"))) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
 

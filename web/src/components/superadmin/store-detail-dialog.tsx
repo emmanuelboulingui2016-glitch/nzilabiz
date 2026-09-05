@@ -1,7 +1,11 @@
 "use client";
 
-// Fiche d'une boutique côté administration : son activité, son équipe, et les trois gestes
+// Fiche d'une boutique côté administration : son activité, son titulaire, et les trois gestes
 // d'exploitation courants — changer la formule, prolonger l'échéance, supprimer la boutique.
+//
+// L'équipe (gérants, vendeurs) n'est jamais affichée nommément : on vend un logiciel à ce
+// commerçant, on n'a pas à connaître qui travaille chez lui. Seul le titulaire (Patron) reste
+// identifiable, parce qu'il est l'interlocuteur commercial de la boutique.
 
 import { useCallback, useEffect, useState } from "react";
 import { format, parseISO } from "date-fns";
@@ -14,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input, Label, Select } from "@/components/ui/input";
 import { formatFcfa } from "@/lib/currency";
 import { cn } from "@/lib/utils";
+import { FormuleEntreprise, type DemandePaiementLigne } from "./formule-entreprise";
 
 type Detail = {
   boutique: {
@@ -36,6 +41,11 @@ type Detail = {
     maisonMereNom: string | null;
     /** Nombre de boutiques rattachées à celle-ci. */
     boutiquesRattachees: number;
+    /** Tarif Entreprise négocié — jamais public, fixé depuis la section « Formule Entreprise ». */
+    tarifNegocieMontant: number | null;
+    tarifNegocieCycle: string | null;
+    tarifNegocieFixeLe: string | null;
+    tarifNegocieFixePar: string | null;
   };
   modules: {
     cle: string;
@@ -44,18 +54,26 @@ type Detail = {
     detail: string | null;
     dernier: string | null;
   }[];
-  equipe: {
+  // Titulaire(s) du compte — l'interlocuteur commercial de la boutique. Les gérants et vendeurs ne
+  // sont jamais listés nommément ici, voir `effectif` pour leur nombre.
+  titulaires: {
     id: string;
     nom: string;
     email: string;
-    role: string;
+    telephone: string | null;
     superAdmin: boolean;
     derniereConnexion: string | null;
     desactive: boolean;
     creeLe: string;
   }[];
+  /** Taille de l'équipe, en comptage seulement — jamais de nom pour un gérant ou un vendeur. */
+  effectif: { total: number; actifs: number; patrons: number; gerants: number; vendeurs: number };
+  /** Interactions (ventes, dépenses, mouvements de stock, connexions), jour/mois/année. */
+  interactions: { jour: number; mois: number; annee: number };
   compteurs: { produits: number; clients: number; ventes: number; volume: number; depenses: number };
   dernieresVentes: { id: string; numero: string; total: number; dateHeure: string; statut: string }[];
+  /** Historique des demandes de paiement (formule Entreprise négociée), les plus récentes d'abord. */
+  demandesPaiement: DemandePaiementLigne[];
 };
 
 export function StoreDetailDialog({
@@ -175,6 +193,26 @@ export function StoreDetailDialog({
             </span>
           </div>
 
+          {/* Interactions : ventes, dépenses, mouvements de stock volontaires et connexions —
+              répond à « cette boutique se sert-elle du logiciel ? » sans jamais dire qui. */}
+          <div>
+            <p className="mb-2 text-sm font-bold" title="Ventes, dépenses, mouvements de stock et connexions">
+              Interactions
+            </p>
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { label: "Aujourd'hui", valeur: detail.interactions.jour },
+                { label: "Ce mois", valeur: detail.interactions.mois },
+                { label: "Cette année", valeur: detail.interactions.annee },
+              ].map((c) => (
+                <div key={c.label} className="rounded-lg border border-border p-3 text-center">
+                  <p className="text-xs text-muted-foreground">{c.label}</p>
+                  <p className="mt-0.5 text-xl font-extrabold tabular-nums tracking-tight">{c.valeur}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
             {[
               { label: "Ventes", valeur: String(detail.compteurs.ventes) },
@@ -238,29 +276,53 @@ export function StoreDetailDialog({
           </div>
 
           <div>
-            <p className="mb-2 text-sm font-bold">Équipe ({detail.equipe.length})</p>
-            <ul className="space-y-1">
-              {detail.equipe.map((u) => (
-                <li key={u.id} className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-sm">
-                  <span className="min-w-0">
-                    <span className="flex items-center gap-1.5 font-semibold">
-                      {u.nom}
-                      {u.superAdmin ? <ShieldCheck size={13} className="text-primary" /> : null}
-                      {u.desactive ? <Badge tone="neutral">désactivé</Badge> : null}
+            {/* Le titulaire du compte est l'interlocuteur commercial de la boutique : c'est lui
+                qu'on facture et qu'on rappelle en cas de support, il reste identifiable. Les
+                gérants et vendeurs, eux, n'apparaissent qu'en comptage — jamais par leur nom :
+                cette boutique n'appartient pas à la plateforme, ce sont ses employés. */}
+            <p className="mb-2 text-sm font-bold">Titulaire</p>
+            {detail.titulaires.length === 0 ? (
+              <p className="rounded-lg border border-dashed border-border px-3 py-2 text-sm text-muted-foreground">
+                Aucun compte Patron sur cette boutique.
+              </p>
+            ) : (
+              <ul className="space-y-1">
+                {detail.titulaires.map((t) => (
+                  <li key={t.id} className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-sm">
+                    <span className="min-w-0">
+                      <span className="flex items-center gap-1.5 font-semibold">
+                        {t.nom}
+                        {t.superAdmin ? <ShieldCheck size={13} className="text-primary" /> : null}
+                        {t.desactive ? <Badge tone="neutral">désactivé</Badge> : null}
+                      </span>
+                      <span className="block truncate text-xs text-muted-foreground">
+                        {t.email}
+                        {t.telephone ? ` · ${t.telephone}` : ""}
+                      </span>
                     </span>
-                    <span className="block truncate text-xs text-muted-foreground">{u.email}</span>
-                  </span>
-                  <span className="shrink-0 text-right">
-                    <Badge tone="neutral">{u.role}</Badge>
-                    <span className="mt-0.5 block text-[11px] text-muted-foreground">
-                      {u.derniereConnexion
-                        ? format(parseISO(u.derniereConnexion), "d MMM yyyy", { locale: fr })
+                    <span className="shrink-0 text-right text-[11px] text-muted-foreground">
+                      {t.derniereConnexion
+                        ? format(parseISO(t.derniereConnexion), "d MMM yyyy", { locale: fr })
                         : "jamais connecté"}
                     </span>
-                  </span>
-                </li>
-              ))}
-            </ul>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <p className="mb-2 mt-3 text-sm font-bold">
+              Effectif ({detail.effectif.total} compte{detail.effectif.total > 1 ? "s" : ""})
+            </p>
+            <p className="rounded-lg border border-border px-3 py-2 text-sm text-muted-foreground">
+              {detail.effectif.patrons} patron{detail.effectif.patrons > 1 ? "s" : ""} ·{" "}
+              {detail.effectif.gerants} gérant{detail.effectif.gerants > 1 ? "s" : ""} ·{" "}
+              {detail.effectif.vendeurs} vendeur{detail.effectif.vendeurs > 1 ? "s" : ""}
+              {" — "}
+              {detail.effectif.actifs} actif{detail.effectif.actifs > 1 ? "s" : ""}
+              {detail.effectif.total - detail.effectif.actifs > 0
+                ? `, ${detail.effectif.total - detail.effectif.actifs} désactivé(s)`
+                : ""}
+            </p>
           </div>
 
           {detail.dernieresVentes.length > 0 ? (
@@ -278,6 +340,27 @@ export function StoreDetailDialog({
                 ))}
               </ul>
             </div>
+          ) : null}
+
+          {/* Le prix Entreprise se fixe ici, et seulement ici — jamais depuis le sélecteur de
+              formule générique ci-dessous, qui ne sait rien du prix (voir la garde côté serveur).
+              Une boutique rattachée ne porte pas son propre contrat : la négociation se fait sur
+              la maison mère, pas sur elle. */}
+          {!detail.boutique.maisonMereId ? (
+            <FormuleEntreprise
+              storeId={detail.boutique.id}
+              plan={detail.boutique.plan}
+              devise={detail.boutique.devise}
+              abonnementExpireLe={detail.boutique.abonnementExpireLe}
+              tarifNegocie={{
+                montant: detail.boutique.tarifNegocieMontant,
+                cycle: detail.boutique.tarifNegocieCycle,
+                fixeLe: detail.boutique.tarifNegocieFixeLe,
+                fixePar: detail.boutique.tarifNegocieFixePar,
+              }}
+              demandesPaiement={detail.demandesPaiement}
+              onChanged={charger}
+            />
           ) : null}
 
           <div className="space-y-3 rounded-lg border border-border p-4">
@@ -313,7 +396,13 @@ export function StoreDetailDialog({
                   <option value="ESSAI">Essai</option>
                   <option value="ESSENTIEL">Essentiel</option>
                   <option value="PREMIUM">Premium</option>
-                  <option value="ENTREPRISE">Entreprise</option>
+                  {/* On ne peut pas rejoindre Entreprise depuis ce sélecteur générique : il ne
+                      porte aucun prix, et Entreprise n'en a plus de public. On ne désactive pas
+                      l'option quand la boutique y est déjà, pour qu'elle reste sélectionnable
+                      telle quelle (par ex. pour la rétrograder vers Premium). */}
+                  <option value="ENTREPRISE" disabled={detail.boutique.plan !== "ENTREPRISE"}>
+                    Entreprise{detail.boutique.plan !== "ENTREPRISE" ? " (voir ci-dessus)" : ""}
+                  </option>
                 </Select>
               </div>
               <Button

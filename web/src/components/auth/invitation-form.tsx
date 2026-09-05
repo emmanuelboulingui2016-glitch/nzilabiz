@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
+import { InputMotDePasse } from "@/components/ui/input-mot-de-passe";
 
 type Invitation = {
   role: "GERANT" | "VENDEUR";
@@ -129,9 +130,8 @@ export function InvitationForm({ token }: { token: string }) {
 
       <div>
         <Label htmlFor="inv-password">Choisissez un mot de passe</Label>
-        <Input
+        <InputMotDePasse
           id="inv-password"
-          type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required

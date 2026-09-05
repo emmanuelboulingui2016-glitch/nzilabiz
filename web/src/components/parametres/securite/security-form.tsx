@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
+import { InputMotDePasse } from "@/components/ui/input-mot-de-passe";
 import { formaterTelephone } from "@/lib/telephone";
 
 export type SecurityInitial = {
@@ -156,9 +157,9 @@ export function SecurityForm({ initial }: { initial: SecurityInitial }) {
             {aMotDePasse && (
               <div className="sm:col-span-2">
                 <Label htmlFor="sec-current">Mot de passe actuel</Label>
-                <Input
+                <InputMotDePasse
                   id="sec-current"
-                  type="password"
+                  autoComplete="current-password"
                   value={currentPassword}
                   onChange={(e) => setCurrentPassword(e.target.value)}
                   required
@@ -167,9 +168,9 @@ export function SecurityForm({ initial }: { initial: SecurityInitial }) {
             )}
             <div>
               <Label htmlFor="sec-new">Nouveau mot de passe</Label>
-              <Input
+              <InputMotDePasse
                 id="sec-new"
-                type="password"
+                autoComplete="new-password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 minLength={6}
@@ -178,9 +179,9 @@ export function SecurityForm({ initial }: { initial: SecurityInitial }) {
             </div>
             <div>
               <Label htmlFor="sec-confirm">Confirmer le mot de passe</Label>
-              <Input
+              <InputMotDePasse
                 id="sec-confirm"
-                type="password"
+                autoComplete="new-password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 minLength={6}

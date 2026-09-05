@@ -5,9 +5,10 @@ import { useRouter } from "next/navigation";
 import { Sidebar } from "./sidebar";
 import { Topbar } from "./topbar";
 import { MobileNav } from "./mobile-nav";
-import type { Role } from "@/lib/auth/rbac";
+import type { Permission, Role } from "@/lib/auth/rbac";
 import { PwaInstallBanner } from "./pwa-install-banner";
 import { AnnouncementBanner } from "./announcement-banner";
+import { EmailVerificationBanner } from "./email-verification-banner";
 import type { BoutiqueOption } from "./selecteur-boutique";
 import { startAutoSync } from "@/lib/offline/sync-engine";
 import { deconnecterCompletement } from "@/lib/auth/deconnexion";
@@ -49,22 +50,36 @@ function prechargerEcrans() {
 export function AppShell({
   children,
   role,
+  permissions,
   userName,
   storeName,
   superAdmin = false,
   annonce = null,
+  emailNonVerifie = false,
+  envoiEmailDisponible = false,
   boutiques = [],
   boutiqueActiveId,
   formule = "ESSAI",
 }: {
   children: ReactNode;
   role: Role;
+  /**
+   * Permissions effectives de la personne connectée (rôle + dérogations individuelles — §14),
+   * calculées côté serveur (voir `getSession`/`peut` dans lib/auth/session.ts) et transmises telles
+   * quelles au menu latéral et à la navigation mobile, pour qu'un droit retiré par le patron fasse
+   * disparaître l'entrée correspondante — pas seulement l'API qui la refuserait ensuite.
+   */
+  permissions: Permission[];
   userName: string;
   storeName: string;
   /** Affiche l'accès à l'administration de la plateforme. Le droit réel est revérifié côté serveur. */
   superAdmin?: boolean;
   /** Annonce publiée depuis l'administration, affichée en bandeau. */
   annonce?: string | null;
+  /** Adresse e-mail du compte non confirmée — affiche un bandeau discret, jamais bloquant. */
+  emailNonVerifie?: boolean;
+  /** L'application sait-elle envoyer l'e-mail de confirmation (voir emailConfigure()). */
+  envoiEmailDisponible?: boolean;
   /** Boutiques accessibles au compte. Une seule dans le cas courant : rien ne s'affiche alors. */
   boutiques?: BoutiqueOption[];
   boutiqueActiveId?: string;
@@ -109,6 +124,7 @@ export function AppShell({
     <div className="flex h-dvh w-full overflow-hidden bg-background">
       <Sidebar
         role={role}
+        permissions={permissions}
         userName={userName}
         storeName={storeName}
         superAdmin={superAdmin}
@@ -120,12 +136,13 @@ export function AppShell({
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar boutiques={boutiques} boutiqueActiveId={boutiqueActiveId} />
         {annonce ? <AnnouncementBanner message={annonce} /> : null}
+        {emailNonVerifie ? <EmailVerificationBanner envoiDisponible={envoiEmailDisponible} /> : null}
         <PwaInstallBanner />
         {/* Plus d'air autour du contenu sur grand écran ; sur mobile, le padding bas reste calé sur
             la hauteur de la navigation du pouce (MobileNav) pour ne jamais passer dessous. */}
         <main className="flex-1 overflow-y-auto p-4 pb-24 md:p-6 md:pb-6">{children}</main>
       </div>
-      <MobileNav role={role} formule={formule} />
+      <MobileNav permissions={permissions} formule={formule} />
     </div>
   );
 }

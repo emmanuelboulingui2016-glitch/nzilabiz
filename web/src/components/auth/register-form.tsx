@@ -18,6 +18,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
+import { InputMotDePasse } from "@/components/ui/input-mot-de-passe";
 import { BoutonGoogle } from "@/components/auth/bouton-google";
 import { useTranslations } from "@/lib/i18n/provider";
 
@@ -121,9 +122,8 @@ export function RegisterForm({
           </div>
           <div>
             <Label htmlFor="password">{t("auth.password")}</Label>
-            <Input
+            <InputMotDePasse
               id="password"
-              type="password"
               autoComplete="new-password"
               required
               minLength={6}

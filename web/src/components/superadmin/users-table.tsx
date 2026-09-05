@@ -1,7 +1,11 @@
 "use client";
 
-// Annuaire transverse des utilisateurs — lecture seule, pour diagnostiquer : qui s'est connecté,
-// quel rôle, dans quelle boutique, quel compte est désactivé.
+// Annuaire des titulaires de boutique (rôle PATRON) — lecture seule, pour diagnostiquer : qui est
+// l'interlocuteur commercial d'une boutique, s'est-il connecté récemment, son compte est-il
+// désactivé.
+//
+// Volontairement pas d'annuaire des employés : les gérants et vendeurs sont les employés d'un
+// client de la plateforme, pas les nôtres. Voir la justification dans la route API associée.
 
 import { useCallback, useEffect, useState } from "react";
 import { format, parseISO } from "date-fns";
@@ -15,7 +19,7 @@ type Ligne = {
   id: string;
   nom: string;
   email: string;
-  role: string;
+  telephone: string | null;
   superAdmin: boolean;
   connexionGoogle: boolean;
   desactive: boolean;
@@ -39,9 +43,9 @@ export function UsersTable() {
       const res = await fetch(`/api/superadmin/utilisateurs?${params.toString()}`);
       if (!res.ok) throw new Error("chargement");
       const data = await res.json();
-      setLignes(data.utilisateurs ?? []);
+      setLignes(data.titulaires ?? []);
     } catch {
-      setErreur("Impossible de charger les utilisateurs.");
+      setErreur("Impossible de charger les titulaires.");
     } finally {
       setChargement(false);
     }
@@ -55,10 +59,11 @@ export function UsersTable() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-extrabold tracking-tight">Utilisateurs</h1>
+        <h1 className="text-2xl font-extrabold tracking-tight">Titulaires</h1>
         <p className="text-sm text-muted-foreground">
-          {lignes.length} compte{lignes.length > 1 ? "s" : ""}, toutes boutiques confondues. Les rôles se
-          gèrent depuis la boutique concernée.
+          {lignes.length} boutique{lignes.length > 1 ? "s" : ""} — le patron de chaque boutique, votre
+          interlocuteur commercial. Les gérants et vendeurs ne sont pas listés ici ; ils se gèrent
+          depuis la boutique concernée.
         </p>
       </div>
 
@@ -82,18 +87,17 @@ export function UsersTable() {
       ) : lignes.length === 0 ? (
         <Card>
           <CardContent className="py-10 text-center text-sm text-muted-foreground">
-            Aucun utilisateur ne correspond à cette recherche.
+            Aucun titulaire ne correspond à cette recherche.
           </CardContent>
         </Card>
       ) : (
         <Card className="overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] text-sm">
+            <table className="w-full min-w-[720px] text-sm">
               <thead className="border-b border-border bg-muted/50 text-left">
                 <tr>
-                  <th className="px-4 py-2.5 font-bold">Utilisateur</th>
+                  <th className="px-4 py-2.5 font-bold">Titulaire</th>
                   <th className="px-4 py-2.5 font-bold">Boutique</th>
-                  <th className="px-4 py-2.5 font-bold">Rôle</th>
                   <th className="px-4 py-2.5 font-bold">Connexion</th>
                   <th className="px-4 py-2.5 font-bold">Dernière activité</th>
                 </tr>
@@ -111,14 +115,14 @@ export function UsersTable() {
                         ) : null}
                         {u.desactive ? <Badge tone="neutral">désactivé</Badge> : null}
                       </p>
-                      <p className="text-xs text-muted-foreground">{u.email}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {u.email}
+                        {u.telephone ? ` · ${u.telephone}` : ""}
+                      </p>
                     </td>
                     <td className="px-4 py-3">
                       <p className="font-semibold">{u.boutique.nom}</p>
                       <p className="text-xs text-muted-foreground">{u.boutique.plan}</p>
-                    </td>
-                    <td className="px-4 py-3">
-                      <Badge tone={u.role === "PATRON" ? "info" : "neutral"}>{u.role}</Badge>
                     </td>
                     <td className="px-4 py-3 text-xs text-muted-foreground">
                       {u.connexionGoogle ? "Google" : "Mot de passe"}

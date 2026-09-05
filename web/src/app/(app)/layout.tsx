@@ -1,10 +1,14 @@
 import { redirect } from "next/navigation";
+import { eq } from "drizzle-orm";
 import { getSession } from "@/lib/auth/session";
 import { isSuperAdminEmail } from "@/lib/auth/superadmin";
 import { getPlatformSettings } from "@/lib/platform-settings";
 import { AppShell } from "@/components/layout/app-shell";
 import { etatBoutiqueCourante } from "@/lib/abonnement";
 import { boutiquesAccessibles } from "@/lib/reseau";
+import { db } from "@/db/client";
+import { users } from "@/db/schema";
+import { emailConfigure } from "@/lib/email/envoyer";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
@@ -35,9 +39,23 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const reglages = await getPlatformSettings();
 
+  // Lecture minimale et séquentielle avec le reste (jamais en parallèle sur ce pooler, voir
+  // README) : seules l'adresse et sa date de vérification décident du bandeau, pas la ligne
+  // entière. Un compte sans adresse (employé, connecté par téléphone) ne doit jamais afficher ce
+  // bandeau : `email` conditionne la comparaison.
+  const compte = await db.query.users.findFirst({
+    where: eq(users.id, session.userId),
+    columns: { email: true, emailVerifieLe: true },
+  });
+
   return (
     <AppShell
       role={session.role}
+      // Déjà résolues par getSession() (voir accesEtPermissions dans lib/auth/session.ts) : aucun
+      // aller-retour supplémentaire ici. Décide des entrées affichées dans le menu/la navigation
+      // mobile — un droit retiré par le patron (§14) fait disparaître l'entrée, pas seulement
+      // refuser l'appel API qui la suivrait.
+      permissions={session.permissions}
       userName={session.nom}
       storeName={boutiqueActive?.nom ?? "NzilaBiz"}
       boutiques={boutiques.map((b) => ({ id: b.id, nom: b.nom }))}
@@ -45,6 +63,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       formule={etat?.plan ?? "ESSAI"}
       superAdmin={isSuperAdminEmail(session.email)}
       annonce={reglages.annonceActive ? reglages.annonce : null}
+      emailNonVerifie={Boolean(compte?.email) && !compte?.emailVerifieLe}
+      envoiEmailDisponible={emailConfigure()}
     >
       {children}
     </AppShell>

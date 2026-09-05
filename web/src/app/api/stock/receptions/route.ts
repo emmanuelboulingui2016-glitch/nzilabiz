@@ -10,8 +10,7 @@ import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { expenses, products, stockMovements, stockReceiptItems, stockReceipts } from "@/db/schema";
-import { getSession } from "@/lib/auth/session";
-import { can } from "@/lib/auth/rbac";
+import { getSession, peut } from "@/lib/auth/session";
 import { bloquerSiExpiree } from "@/lib/abonnement";
 
 const ligneSchema = z.object({
@@ -35,7 +34,7 @@ export async function POST(request: Request) {
   // masquée dans l'interface.
   const bloque = await bloquerSiExpiree();
   if (bloque) return bloque;
-  if (!can(session.role, "stock.edit")) {
+  if (!(await peut(session, "stock.edit"))) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
 

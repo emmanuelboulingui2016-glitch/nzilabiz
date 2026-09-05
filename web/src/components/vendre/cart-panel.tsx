@@ -1,6 +1,7 @@
 "use client";
 
-import { Minus, Plus, Trash2, Wallet, Smartphone, HandCoins, Split } from "lucide-react";
+import { useState } from "react";
+import { Minus, Plus, Trash2, Wallet, Smartphone, HandCoins, Split, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select } from "@/components/ui/input";
 import { formatFcfa, parseFcfaInput } from "@/lib/currency";
@@ -14,11 +15,127 @@ const MODE_OPTIONS: { value: PaymentMode; label: string; icon: typeof Wallet }[]
   { value: "CREDIT", label: "Crédit", icon: HandCoins },
 ];
 
+/**
+ * Une ligne de panier, extraite en composant à part pour le brouillon de saisie du prix.
+ *
+ * Le brouillon (`priceDraft`) est un `useState` local, initialisé une seule fois depuis
+ * `line.prixUnitaire` au montage. Sans ce composant dédié, un `Record<productId, string>` tenu
+ * dans `CartPanel` aurait dû être purgé à chaque retrait de ligne (retrait explicite, quantité
+ * tombée à zéro, panier vidé après validation) pour ne pas réafficher une vieille saisie si le
+ * même produit revient au panier plus tard — une purge qui n'a de sens que dans un effect
+ * (`useEffect(() => setPriceDrafts(...), [lines])`), exactement le anti-pattern que la règle
+ * `react-hooks/set-state-in-effect` du projet interdit (dériver un état depuis un autre au lieu de
+ * le calculer au rendu). Ici, `key={line.productId}` sur cette ligne fait tout le travail : React
+ * démonte l'instance quand la ligne quitte le panier et en remonte une neuve, avec un brouillon
+ * frais, si le produit revient — aucune purge à écrire.
+ */
+function CartLineRow({
+  line,
+  canModifierPrix,
+  onIncrement,
+  onDecrement,
+  onRemove,
+  onPriceChange,
+}: {
+  line: CartLine;
+  canModifierPrix: boolean;
+  onIncrement: (productId: string) => void;
+  onDecrement: (productId: string) => void;
+  onRemove: (productId: string) => void;
+  onPriceChange: (productId: string, prixUnitaire: number) => void;
+}) {
+  // Tenu séparément de `line.prixUnitaire` : si le champ affichait directement la valeur numérique
+  // reformatée à chaque frappe, effacer pour retaper (le vendeur négocie souvent à voix haute, en
+  // tâtonnant) ferait sauter le champ à "0" ou au prix catalogue à chaque caractère effacé —
+  // irritant au comptoir, sur un clavier tactile. Le brouillon garde exactement ce que le doigt a
+  // tapé, y compris une saisie momentanément vide en cours d'édition.
+  const [priceDraft, setPriceDraft] = useState(() => String(line.prixUnitaire));
+
+  function handlePriceInput(raw: string) {
+    setPriceDraft(raw);
+    if (raw.trim() === "") return; // Saisie en cours, rien à propager tant que le champ est vide.
+    const parsed = parseFcfaInput(raw);
+    if (Number.isFinite(parsed) && parsed >= 0) {
+      onPriceChange(line.productId, parsed);
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-2 rounded-lg border border-border bg-card p-2">
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium">{line.nom}</p>
+        {canModifierPrix ? (
+          // Champ toujours affiché (pas de bouton "modifier" à activer d'abord) : c'est le geste
+          // le plus fréquent au comptoir, il ne doit pas coûter un tap de plus. Sans le droit,
+          // aucun input ici — juste le texte figé ci-dessous, pas de bouton mort.
+          <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+            <div className="flex items-center gap-1 rounded-md border border-border bg-muted/40 pl-1.5">
+              <Pencil size={11} className="shrink-0 text-muted-foreground" aria-hidden />
+              <Input
+                type="text"
+                inputMode="decimal"
+                value={priceDraft}
+                onChange={(e) => handlePriceInput(e.target.value)}
+                onFocus={(e) => e.target.select()}
+                aria-label={`Prix de vente de ${line.nom}`}
+                className="h-7 w-20 border-0 bg-transparent px-1 text-xs font-semibold tabular-nums focus:ring-0"
+              />
+            </div>
+            <span className="text-xs text-muted-foreground">/ {line.unite}</span>
+            {line.prixUnitaire !== line.prixCatalogueUnitaire && (
+              // Écart visible d'un coup d'œil, sans être une alarme : gris et discret, comme un
+              // prix barré en vitrine, pas rouge/orange — le vendeur consent à ce prix, ce n'est
+              // pas une erreur.
+              <span className="text-[11px] text-muted-foreground line-through">
+                {formatFcfa(line.prixCatalogueUnitaire)}
+              </span>
+            )}
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            {formatFcfa(line.prixUnitaire)} / {line.unite}
+          </p>
+        )}
+      </div>
+      <div className="flex shrink-0 items-center gap-1.5">
+        <button
+          type="button"
+          onClick={() => onDecrement(line.productId)}
+          aria-label="Diminuer la quantité"
+          className="flex h-9 w-9 items-center justify-center rounded-lg border border-border text-foreground active:scale-95"
+        >
+          <Minus size={16} />
+        </button>
+        <span className="w-8 text-center text-sm font-semibold tabular-nums">{line.quantite}</span>
+        <button
+          type="button"
+          onClick={() => onIncrement(line.productId)}
+          aria-label="Augmenter la quantité"
+          className="flex h-9 w-9 items-center justify-center rounded-lg border border-border text-foreground active:scale-95"
+        >
+          <Plus size={16} />
+        </button>
+      </div>
+      <p className="w-20 shrink-0 text-right text-sm font-semibold">{formatFcfa(line.prixUnitaire * line.quantite)}</p>
+      <button
+        type="button"
+        onClick={() => onRemove(line.productId)}
+        aria-label="Retirer du panier"
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-danger hover:bg-danger/10"
+      >
+        <Trash2 size={16} />
+      </button>
+    </div>
+  );
+}
+
 export function CartPanel({
   lines,
   onIncrement,
   onDecrement,
   onRemove,
+  onPriceChange,
+  canModifierPrix,
 
   remise,
   typeRemise,
@@ -54,6 +171,10 @@ export function CartPanel({
   onIncrement: (productId: string) => void;
   onDecrement: (productId: string) => void;
   onRemove: (productId: string) => void;
+  /** Modifie le prix pratiqué d'une ligne. N'est utilisé (et le champ n'est rendu) que si `canModifierPrix`. */
+  onPriceChange: (productId: string, prixUnitaire: number) => void;
+  /** `can(session.role, "vendre.prix.modifier")` côté serveur — pas un simple style, ça décide si le champ existe. */
+  canModifierPrix: boolean;
 
   remise: number;
   typeRemise: DiscountType;
@@ -107,44 +228,15 @@ export function CartPanel({
           </p>
         ) : (
           lines.map((line) => (
-            <div key={line.productId} className="flex items-center gap-2 rounded-lg border border-border bg-card p-2">
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">{line.nom}</p>
-                <p className="text-xs text-muted-foreground">
-                  {formatFcfa(line.prixUnitaire)} / {line.unite}
-                </p>
-              </div>
-              <div className="flex shrink-0 items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => onDecrement(line.productId)}
-                  aria-label="Diminuer la quantité"
-                  className="flex h-9 w-9 items-center justify-center rounded-lg border border-border text-foreground active:scale-95"
-                >
-                  <Minus size={16} />
-                </button>
-                <span className="w-8 text-center text-sm font-semibold tabular-nums">{line.quantite}</span>
-                <button
-                  type="button"
-                  onClick={() => onIncrement(line.productId)}
-                  aria-label="Augmenter la quantité"
-                  className="flex h-9 w-9 items-center justify-center rounded-lg border border-border text-foreground active:scale-95"
-                >
-                  <Plus size={16} />
-                </button>
-              </div>
-              <p className="w-20 shrink-0 text-right text-sm font-semibold">
-                {formatFcfa(line.prixUnitaire * line.quantite)}
-              </p>
-              <button
-                type="button"
-                onClick={() => onRemove(line.productId)}
-                aria-label="Retirer du panier"
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-danger hover:bg-danger/10"
-              >
-                <Trash2 size={16} />
-              </button>
-            </div>
+            <CartLineRow
+              key={line.productId}
+              line={line}
+              canModifierPrix={canModifierPrix}
+              onIncrement={onIncrement}
+              onDecrement={onDecrement}
+              onRemove={onRemove}
+              onPriceChange={onPriceChange}
+            />
           ))
         )}
       </div>

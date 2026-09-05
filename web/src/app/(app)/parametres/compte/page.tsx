@@ -6,6 +6,8 @@ import { db } from "@/db/client";
 import { stores, users } from "@/db/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DeleteAccount } from "@/components/parametres/securite/delete-account";
+import { ChangeEmailForm } from "@/components/parametres/compte/change-email-form";
+import { emailConfigure } from "@/lib/email/envoyer";
 
 // Onglet « Mon compte » — visible par tous les rôles : chacun doit pouvoir consulter son accès
 // et le supprimer, y compris un vendeur qui n'a aucun droit sur les réglages de la boutique.
@@ -76,6 +78,18 @@ export default async function ComptePage() {
           </p>
         </CardContent>
       </Card>
+
+      {/* Un seul e-mail par boutique, celui du Patron (voir schéma `users`) : les comptes
+          d'employés se connectent par téléphone et n'ont rien à changer ici. */}
+      {session.role === "PATRON" ? (
+        <ChangeEmailForm
+          email={user.email}
+          nouvelEmail={user.nouvelEmail}
+          emailVerifie={Boolean(user.emailVerifieLe)}
+          aMotDePasse={Boolean(user.motDePasseHash)}
+          envoiDisponible={emailConfigure()}
+        />
+      ) : null}
 
       <DeleteAccount
         role={session.role}

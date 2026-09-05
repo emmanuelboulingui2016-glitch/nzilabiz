@@ -32,8 +32,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { clients, documents, payments, products, saleItems, sales, stockMovements } from "@/db/schema";
-import { getSession } from "@/lib/auth/session";
-import { can } from "@/lib/auth/rbac";
+import { getSession, peut } from "@/lib/auth/session";
 import { genSaleNumber } from "@/lib/utils";
 import { genDocumentNumero } from "@/components/documents/numero";
 import type { DraftItem } from "@/components/documents/types";
@@ -63,7 +62,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // masquée dans l'interface.
   const bloque = await bloquerSiExpiree();
   if (bloque) return bloque;
-  if (!can(session.role, "documents.edit")) {
+  if (!(await peut(session, "documents.edit"))) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
 

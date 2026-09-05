@@ -7,7 +7,7 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "@/lib/i18n/provider";
 import { NAV_SECTIONS } from "./nav-config";
-import { can, type Permission, type Role } from "@/lib/auth/rbac";
+import type { Permission } from "@/lib/auth/rbac";
 import { formuleOuvre } from "@/lib/formules";
 import { Dialog } from "@/components/ui/dialog";
 
@@ -18,7 +18,18 @@ const PRIMARY = [
   { href: "/stock", icon: Package, labelKey: "nav.stock" },
 ];
 
-export function MobileNav({ role, formule = "ESSAI" }: { role: Role; formule?: string }) {
+export function MobileNav({
+  permissions,
+  formule = "ESSAI",
+}: {
+  /**
+   * Permissions effectives (matrice du rôle + dérogations individuelles — §14) — voir le
+   * commentaire équivalent dans sidebar.tsx. Remplace l'ancien filtrage par seul rôle : un employé
+   * à qui un droit a été retiré ne doit plus voir l'entrée correspondante ici non plus.
+   */
+  permissions: Permission[];
+  formule?: string;
+}) {
   const pathname = usePathname();
   const { t } = useTranslations();
   const [open, setOpen] = useState(false);
@@ -61,7 +72,7 @@ export function MobileNav({ role, formule = "ESSAI" }: { role: Role; formule?: s
           {NAV_SECTIONS.map((section) => {
             const items = section.items.filter(
               (item) =>
-                can(role, item.permission as Permission) &&
+                permissions.includes(item.permission) &&
                 (!item.fonctionnalite || formuleOuvre(formule, item.fonctionnalite))
             );
             if (items.length === 0) return null;

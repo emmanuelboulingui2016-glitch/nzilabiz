@@ -20,7 +20,7 @@ import {
   index,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import { createId } from "@paralleldrive/cuid2";
 
 const id = () => text("id").primaryKey().$defaultFn(() => createId());
@@ -44,6 +44,10 @@ export const approvalStatusEnum = pgEnum("approval_status", ["EN_ATTENTE", "APPR
 export const documentTypeEnum = pgEnum("document_type", ["FACTURE", "PROFORMA", "REMBOURSEMENT"]);
 export const documentStatusEnum = pgEnum("document_status", ["BROUILLON", "EMISE", "CONVERTIE", "ANNULEE"]);
 export const supportStatusEnum = pgEnum("support_status", ["OUVERT", "EN_COURS", "RESOLU", "FERME"]);
+export const emailVerificationTypeEnum = pgEnum("email_verification_type", ["INSCRIPTION", "CHANGEMENT_EMAIL"]);
+export const permissionOverrideActionEnum = pgEnum("permission_override_action", ["ACCORDEE", "RETIREE"]);
+export const paymentRequestStatusEnum = pgEnum("payment_request_status", ["EN_ATTENTE", "PAYEE", "EXPIREE", "ANNULEE"]);
+export const paymentConfirmationSourceEnum = pgEnum("payment_confirmation_source", ["MANUELLE", "AGREGATEUR"]);
 
 // ---------------------------------------------------------------------------
 // Boutique / Tenant
@@ -72,6 +76,18 @@ export const stores = pgTable("stores", {
   // savoir qui prévenir quand le programme se termine.
   programmeTest: boolean("programme_test").notNull().default(false),
   abonnementExpireLe: timestamp("abonnement_expire_le"),
+  // Prix Entreprise négocié boutique par boutique : la formule n'affiche plus de prix public, le
+  // propriétaire de la plateforme fixe un montant après négociation avec le commerçant, depuis son
+  // panneau d'administration. Les quatre colonnes vivent ensemble et sont toutes nullables :
+  // « aucune négociation en cours » est l'état par défaut et ne doit rien changer à l'affichage
+  // existant (repli sur `TARIFS_DEFAUT.ENTREPRISE`, voir `src/lib/tarifs.ts`, tant qu'aucun montant
+  // n'est fixé ici). `tarifNegocieCycle` est du texte et non l'un des cycles en enum : même choix
+  // que `plan_tarifs.cycle` plus bas, pour la même raison — validé à l'écriture contre `Cycle`
+  // (src/lib/tarifs.ts), pas figé par une contrainte SQL.
+  tarifNegocieMontant: money("tarif_negocie_montant"),
+  tarifNegocieCycle: text("tarif_negocie_cycle"),
+  tarifNegocieFixeLe: timestamp("tarif_negocie_fixe_le"),
+  tarifNegocieFixeParId: text("tarif_negocie_fixe_par_id").references((): AnyPgColumn => users.id, { onDelete: "set null" }),
   // Formule Entreprise : une boutique peut être rattachée à une « maison mère ». Le contrat
   // d'abonnement est alors porté par la maison mère seule — c'est elle qu'on facture, et son
   // échéance gouverne l'accès de toutes ses boutiques (voir `src/lib/abonnement.ts`).
@@ -117,6 +133,23 @@ export const users = pgTable("users", {
   nom: text("nom").notNull(),
   email: text("email").unique(),
   telephone: text("telephone").unique(),
+  // Vérification d'adresse à l'inscription (jeton dans `emailVerificationTokens` ci-dessous) :
+  // date à laquelle l'adresse `email` courante a été confirmée, `null` tant qu'elle ne l'est pas.
+  //
+  // Décision assumée : cette date ne conditionne JAMAIS la connexion, contrairement à
+  // `desactiveLe`. L'envoi d'e-mail n'est pas encore câblé en production (aucun identifiant SMTP) —
+  // si l'accès en dépendait, plus personne ne pourrait s'inscrire. C'est un état affiché quelque
+  // part dans l'interface, pas un verrou d'accès.
+  emailVerifieLe: timestamp("email_verifie_le"),
+  // Changement d'adresse e-mail de la boutique : la nouvelle adresse saisie par le patron est
+  // stockée ici, à part de `email`, et ne remplace `email` qu'une fois son jeton de vérification
+  // (même table `emailVerificationTokens`, type CHANGEMENT_EMAIL) consommé. Sans cette séparation,
+  // une simple faute de frappe sur la nouvelle adresse fermerait l'accès au compte — c'est la seule
+  // adresse de la boutique, les employés se connectent par numéro (voir `src/lib/telephone.ts`), il
+  // n'y a personne d'autre pour la corriger. Pas de contrainte unique ici, volontairement : deux
+  // comptes peuvent avoir la même adresse « en attente » en même temps sans se gêner, seule la
+  // bascule finale vers `email` (unique, elle) tranche laquelle aboutit.
+  nouvelEmail: text("nouvel_email"),
   motDePasseHash: text("mot_de_passe_hash"),
   role: roleEnum("role").notNull().default("VENDEUR"),
   photoUrl: text("photo_url"),
@@ -125,7 +158,23 @@ export const users = pgTable("users", {
   // Suppression de compte d'un employé : on anonymise et on désactive au lieu de supprimer la
   // ligne — ses ventes passées doivent rester dans l'historique et les rapports de la boutique.
   // Un compte désactivé ne peut plus se connecter (vérifié dans /api/auth/login).
+  //
+  // Étendu ici pour la suppression déclenchée par le patron sur le compte d'un employé — distincte
+  // de l'auto-suppression ci-dessus (route /api/parametres/compte), qui reste immédiate et
+  // anonymisante. `desactiveLe` seul suffisait à couper la connexion ; il manquait la traçabilité et
+  // la fenêtre de restauration de 48h. On étend donc le même marqueur plutôt que d'en ajouter un
+  // second concurrent — deux façons de fermer un compte dans le même schéma auraient fini par
+  // diverger.
   desactiveLe: timestamp("desactive_le"),
+  /** Qui a désactivé ce compte : le patron pour une suppression d'employé, l'employé lui-même pour une auto-suppression. */
+  desactiveParId: text("desactive_par_id").references((): AnyPgColumn => users.id, { onDelete: "set null" }),
+  // Jusqu'à quand la suppression est réversible. Renseigné uniquement pour une suppression
+  // d'employé décidée par le patron (fenêtre de 48h) ; laissé `null` pour un compte actif comme
+  // pour une auto-suppression anonymisée, qui n'est jamais restaurable. Cette colonne fait donc
+  // aussi office de marqueur du type de désactivation, sans ajouter de colonne dédiée à cela.
+  restaurationExpireLe: timestamp("restauration_expire_le"),
+  restaureLe: timestamp("restaure_le"),
+  restaureParId: text("restaure_par_id").references((): AnyPgColumn => users.id, { onDelete: "set null" }),
   creeLe: timestamp("cree_le").notNull().defaultNow(),
 });
 
@@ -152,6 +201,44 @@ export const storeMemberships = pgTable("store_memberships", {
   storeIdx: index("store_memberships_store_idx").on(t.storeId),
 }));
 
+/**
+ * Dérogation individuelle à la matrice de rôles (`src/lib/auth/rbac.ts`) : le patron accorde à un
+ * employé un droit que son rôle ne donne pas (ACCORDEE), ou lui retire un droit que son rôle donne
+ * (RETIREE) — les deux sens sont modélisés, pas seulement l'ajout. La résolution finale d'une
+ * permission pour un utilisateur est donc : matrice de son rôle, puis dérogation active la plus
+ * récente sur ce couple (utilisateur, permission) si elle existe, côté application.
+ *
+ * `permission` est du texte libre et non un pgEnum Postgres : le vocabulaire qui fait autorité est
+ * le type `Permission` de rbac.ts (une trentaine de valeurs aujourd'hui, appelé à s'enrichir), validé
+ * par Zod à l'écriture. Un pgEnum aurait fallu l'élargir — donc une migration de plus — à chaque
+ * nouvelle permission ajoutée dans rbac.ts, pour une contrainte que l'application vérifie déjà à
+ * l'entrée. Même choix, pour la même raison, que `plan_tarifs.plan`/`.cycle` plus bas.
+ *
+ * Traçable et jamais réécrite : une dérogation retirée n'est pas supprimée ni mise à jour en place,
+ * elle est marquée `revoqueLe`/`revoqueParId` et une nouvelle ligne est insérée si besoin — c'est un
+ * droit d'accès, son historique doit survivre à son propre retrait.
+ */
+export const employeePermissionOverrides = pgTable("employee_permission_overrides", {
+  id: id(),
+  storeId: text("store_id").notNull().references(() => stores.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  permission: text("permission").notNull(),
+  action: permissionOverrideActionEnum("action").notNull(),
+  accordeParId: text("accorde_par_id").notNull().references(() => users.id),
+  creeLe: timestamp("cree_le").notNull().defaultNow(),
+  revoqueLe: timestamp("revoque_le"),
+  revoqueParId: text("revoque_par_id").references(() => users.id),
+}, (t) => ({
+  userIdx: index("employee_permission_overrides_user_idx").on(t.userId),
+  storeIdx: index("employee_permission_overrides_store_idx").on(t.storeId),
+}));
+
+// Un login insère une nouvelle ligne ici (voir /api/auth/login et /api/auth/register, qui ne
+// cherchent jamais un appareil existant avant d'insérer) : la table sert donc déjà de journal de
+// connexion — une ligne par connexion, pas seulement un registre d'appareils actifs. C'est ce qui
+// permet au patron de voir qui s'est connecté, quand et depuis quel appareil (`getDevices`, filtré
+// par storeId, voir src/components/synchronisation/queries.ts) sans table de journal supplémentaire
+// — en ajouter une aurait doublonné celle-ci pour la même information.
 export const devices = pgTable("devices", {
   id: id(),
   storeId: text("store_id").notNull().references(() => stores.id, { onDelete: "cascade" }),
@@ -161,7 +248,11 @@ export const devices = pgTable("devices", {
   derniereActivite: timestamp("derniere_activite").notNull().defaultNow(),
   revoque: boolean("revoque").notNull().default(false),
   creeLe: timestamp("cree_le").notNull().defaultNow(),
-});
+}, (t) => ({
+  // Requête du patron (module Synchronisation) : connexions d'une boutique, plus récentes d'abord.
+  storeActiviteIdx: index("devices_store_derniere_activite_idx").on(t.storeId, t.derniereActivite),
+  userIdx: index("devices_user_idx").on(t.userId),
+}));
 
 // ---------------------------------------------------------------------------
 // Catalogue
@@ -272,6 +363,14 @@ export const saleItems = pgTable("sale_items", {
   productId: text("product_id").notNull().references(() => products.id),
   quantite: numeric("quantite", { precision: 14, scale: 2 }).notNull(),
   prixUnitaire: money("prix_unitaire").notNull(),
+  // Prix catalogue (`products.prixVente`) au moment de la vente, capturé à côté du prix réellement
+  // pratiqué (`prixUnitaire`), que le vendeur peut désormais modifier directement à la caisse. Sans
+  // cette référence figée, impossible de distinguer après coup un rabais légitime d'un prix
+  // sous-déclaré pour empocher la différence — exactement la faille corrigée cette nuit sur
+  // /api/vendre/sync (prix client borné et journalisé en texte dans `syncLogs`, mais jamais conservé
+  // structurellement face à sa référence catalogue). Nullable et sans défaut : les lignes de vente
+  // déjà enregistrées n'ont pas cette notion et ne doivent pas se voir attribuer une valeur inventée.
+  prixCatalogueUnitaire: money("prix_catalogue_unitaire"),
   // Prix d'achat figé au moment de la vente (§13 : la marge brute doit être calculée sur ce prix,
   // pas sur le prix d'achat courant du produit qui peut changer après coup).
   prixAchatUnitaire: money("prix_achat_unitaire").notNull().default("0"),
@@ -588,6 +687,102 @@ export const passwordResetTokens = pgTable(
   },
   (t) => [index("password_reset_tokens_user_idx").on(t.userId)]
 );
+
+// Jetons de vérification d'adresse e-mail — même modèle que `passwordResetTokens` ci-dessus, et
+// volontairement : hachés en SHA-256 (jamais le jeton en clair), à usage unique, expirants. Deux
+// usages distingués par `type`, dans la même table plutôt que deux tables séparées parce que le
+// cycle de vie du jeton est identique dans les deux cas — seule l'adresse à confirmer diffère :
+//
+//   - INSCRIPTION : confirme l'adresse `users.email` courante. Ne bloque jamais la connexion (voir
+//     le commentaire sur `users.emailVerifieLe`) — l'envoi d'e-mail n'est pas encore câblé en
+//     production, un verrou aurait fermé l'inscription à tout le monde.
+//   - CHANGEMENT_EMAIL : confirme `users.nouvelEmail`, l'adresse en attente saisie par le patron.
+//     Ce cas-là conditionne bien quelque chose : c'est sa confirmation qui fait basculer
+//     `nouvelEmail` vers `email`, jamais la saisie seule — sinon une faute de frappe fermerait
+//     l'accès au compte, qui est aussi le seul e-mail de la boutique.
+//
+// `email` recopie l'adresse visée par CE jeton précis, plutôt que de la relire sur `users` au
+// moment de la vérification : si une nouvelle demande écrase `users.nouvelEmail` entre-temps, un
+// lien plus ancien encore valide ne doit pas se retrouver à confirmer la mauvaise adresse.
+export const emailVerificationTokens = pgTable(
+  "email_verification_tokens",
+  {
+    id: id(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    type: emailVerificationTypeEnum("type").notNull(),
+    email: text("email").notNull(),
+    jetonHash: text("jeton_hash").notNull().unique(),
+    expireLe: timestamp("expire_le", { withTimezone: true }).notNull(),
+    utiliseLe: timestamp("utilise_le", { withTimezone: true }),
+    demandeIp: text("demande_ip"),
+    creeLe: timestamp("cree_le", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("email_verification_tokens_user_idx").on(t.userId)]
+);
+
+/**
+ * Demande de paiement — formule Entreprise négociée (`stores.tarifNegocie*` ci-dessus) et, plus
+ * largement, toute facturation manuelle émise depuis l'administration en attendant qu'un
+ * agrégateur Mobile Money (PayDunya / CinetPay / Flutterwave — choix non arrêté) soit branché.
+ *
+ * Le circuit de confirmation est délibérément unique, qu'il soit actionné à la main aujourd'hui ou
+ * par un rappel automatique demain : `confirmeeLe` / `confirmeeSource` / `confirmeeParId` sont
+ * renseignés dans les deux cas, seule `confirmeeSource` distingue laquelle des deux voies a eu
+ * lieu. Un second circuit dédié à l'agrégateur aurait fini par diverger du premier — deux façons de
+ * dire « payé » pour une même ligne de facturation, c'est l'écart de caisse qui attend son heure.
+ *
+ * `agregateurFournisseur` est du texte libre (comme `permission` plus haut et `plan_tarifs.plan` /
+ * `.cycle` plus bas) : le fournisseur n'est pas encore choisi, un pgEnum aurait figé une valeur
+ * qu'on ne connaît pas encore et aurait exigé une migration le jour du choix.
+ *
+ * `agregateurReference` porte un index unique partiel, actif seulement quand elle est renseignée :
+ * un agrégateur rejoue ses webhooks, la même référence de transaction ne doit jamais créditer deux
+ * fois. C'est le piège classique de ce genre d'intégration — le prévoir maintenant coûte une
+ * colonne et un index, le rattraper après coûte un incident de facturation.
+ *
+ * `montant` utilise le même helper `money()` (numeric 14,2) que `sales.total` et `plan_tarifs.montant`
+ * — une seule convention de stockage de l'argent dans tout le schéma. Le FCFA n'a pas de sous-unité,
+ * mais ce n'est pas une raison de stocker les montants différemment ici : deux conventions dans une
+ * même base, c'est une erreur d'arrondi qui attend son heure. `devise` est recopiée depuis
+ * `stores.devise` au moment de l'émission plutôt que relue depuis `stores` a posteriori — la devise
+ * de la boutique pourrait changer, cette ligne de facturation ne doit pas changer de sens après coup.
+ */
+export const paymentRequests = pgTable("payment_requests", {
+  id: id(),
+  storeId: text("store_id").notNull().references(() => stores.id, { onDelete: "cascade" }),
+  plan: subscriptionPlanEnum("plan").notNull(),
+  cycle: text("cycle").notNull(),
+  montant: money("montant").notNull(),
+  devise: text("devise").notNull(),
+  // Période couverte par ce paiement (ex. le mois, le trimestre ou l'année facturé).
+  periodeDebut: timestamp("periode_debut").notNull(),
+  periodeFin: timestamp("periode_fin").notNull(),
+  statut: paymentRequestStatusEnum("statut").notNull().default("EN_ATTENTE"),
+  emiseParId: text("emise_par_id").notNull().references(() => users.id),
+  creeLe: timestamp("cree_le").notNull().defaultNow(),
+  // Confirmation : manuelle aujourd'hui (le propriétaire clique depuis l'administration,
+  // `confirmeeParId` porte son identité), automatique demain (rappel de l'agrégateur,
+  // `confirmeeParId` reste `null` — personne n'a cliqué, `confirmeeSource` vaut AGREGATEUR).
+  confirmeeLe: timestamp("confirmee_le"),
+  confirmeeSource: paymentConfirmationSourceEnum("confirmee_source"),
+  confirmeeParId: text("confirmee_par_id").references(() => users.id),
+  // Couture agrégateur : vide tant qu'aucun n'est branché, prête à être renseignée le jour venu
+  // sans nouvelle migration ni reprise de données.
+  agregateurFournisseur: text("agregateur_fournisseur"),
+  agregateurReference: text("agregateur_reference"),
+  expireLe: timestamp("expire_le"),
+  annuleeLe: timestamp("annulee_le"),
+}, (t) => ({
+  storeIdx: index("payment_requests_store_idx").on(t.storeId),
+  statutIdx: index("payment_requests_statut_idx").on(t.statut),
+  // Idempotence du rappel de l'agrégateur : partiel, actif seulement quand une référence existe —
+  // deux demandes EN_ATTENTE n'ont sinon aucune référence à comparer.
+  agregateurReferenceUnique: uniqueIndex("payment_requests_agregateur_reference_unique")
+    .on(t.agregateurFournisseur, t.agregateurReference)
+    .where(sql`${t.agregateurReference} is not null`),
+}));
 
 // ---------------------------------------------------------------------------
 // Relations (pour l'API relationnelle db.query.*)

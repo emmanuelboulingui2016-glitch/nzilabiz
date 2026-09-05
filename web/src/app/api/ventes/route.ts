@@ -3,16 +3,15 @@
 // et par ventes.view.own (Vendeur ne voit que ses propres ventes) vs ventes.view.all (Patron/Gérant).
 
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/auth/session";
-import { can } from "@/lib/auth/rbac";
+import { getSession, peut } from "@/lib/auth/session";
 import { chargerVentes } from "@/components/ventes/get-ventes-data";
 
 export async function GET(request: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
 
-  const canViewAll = can(session.role, "ventes.view.all");
-  const canViewOwn = can(session.role, "ventes.view.own");
+  const canViewAll = await peut(session, "ventes.view.all");
+  const canViewOwn = await peut(session, "ventes.view.own");
   if (!canViewAll && !canViewOwn) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }

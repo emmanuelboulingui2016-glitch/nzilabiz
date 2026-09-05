@@ -36,12 +36,21 @@ export function VendreScreen({
   storeId,
   userId,
   storeName,
+  canModifierPrix,
 }: {
   /** Catalogue, catégories et clients rendus par le serveur avec la page. */
   initial: DonneesVendre;
   storeId: string;
   userId: string;
   storeName: string;
+  /**
+   * `can(session.role, "vendre.prix.modifier")`, calculé côté serveur par la page qui rend cet
+   * écran. Une interface qui masque juste le champ ne serait pas une sécurité : le serveur revalide
+   * ce même droit à l'enregistrement (POST /api/vendre et /api/vendre/sync). Ce booléen ne pilote
+   * donc que l'affichage — s'il ment (état front désynchronisé), la pire conséquence est un champ
+   * visible pour rien, jamais un prix accepté à tort.
+   */
+  canModifierPrix: boolean;
 }) {
   // Catalogue
   const [products, setProducts] = useState<VendreProduct[]>(initial.products as VendreProduct[]);
@@ -186,6 +195,7 @@ export function VendreScreen({
           productId: product.id,
           nom: product.nom,
           prixUnitaire: Number(product.prixVente),
+          prixCatalogueUnitaire: Number(product.prixVente),
           prixAchatUnitaire: Number(product.prixAchat),
           quantite: 1,
           stockDisponible: stock,
@@ -193,6 +203,17 @@ export function VendreScreen({
         },
       ];
     });
+  }, []);
+
+  // Modification du prix d'une ligne à la caisse (§ demande produit du 04/09). N'est appelée que
+  // si `canModifierPrix` (le champ n'est même pas rendu sinon, voir cart-panel.tsx) — mais on
+  // clampe quand même ici en dernier recours : le serveur revalidera de toute façon à
+  // l'enregistrement, cette borne n'est qu'un confort d'affichage immédiat du panier.
+  const updatePrice = useCallback((productId: string, prixUnitaire: number) => {
+    if (!Number.isFinite(prixUnitaire) || prixUnitaire < 0) return;
+    setCart((prev) =>
+      prev.map((l) => (l.productId === productId ? { ...l, prixUnitaire: Math.round(prixUnitaire) } : l))
+    );
   }, []);
 
   const increment = useCallback((productId: string) => {
@@ -344,7 +365,11 @@ export function VendreScreen({
             clientId,
             remise: remiseAmount,
             typeRemise,
-            items: cart.map((l) => ({ productId: l.productId, quantite: l.quantite })),
+            // `prixUnitaire` toujours envoyé (égal au catalogue si non négocié) : le serveur ne
+            // fait la distinction qu'à la comparaison avec son propre prix catalogue, jamais sur
+            // la présence ou l'absence du champ — évite un chemin « avec prix » / « sans prix »
+            // distinct à maintenir des deux côtés.
+            items: cart.map((l) => ({ productId: l.productId, quantite: l.quantite, prixUnitaire: l.prixUnitaire })),
             payments: paymentsPayload,
           }),
         });
@@ -483,6 +508,8 @@ export function VendreScreen({
     onIncrement: increment,
     onDecrement: decrement,
     onRemove: removeLine,
+    onPriceChange: updatePrice,
+    canModifierPrix,
     remise,
     typeRemise,
     onRemiseChange: (v: number) => setRemise(v),

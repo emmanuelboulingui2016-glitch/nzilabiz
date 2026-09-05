@@ -27,8 +27,9 @@ export type BoutiqueLigne = {
   nbUtilisateurs: number;
   nbVentes: number;
   volume: number;
-  derniereVente: string | null;
-  derniereConnexion: string | null;
+  /** Interactions (ventes, dépenses, mouvements de stock, connexions) — voir la définition dans
+   * `src/app/api/superadmin/_lib/interactions.ts`. Ne dit jamais qui a fait quoi, seulement combien. */
+  interactions: { jour: number; mois: number; annee: number };
 };
 
 const TON_PLAN = { ESSAI: "warning", ESSENTIEL: "info", PREMIUM: "success", ENTREPRISE: "info" } as const;
@@ -79,11 +80,7 @@ export function StoresTable({ planInitial = "TOUS" }: { planInitial?: string }) 
     copie.sort((a, b) => {
       if (tri === "nom") return a.nom.localeCompare(b.nom, "fr");
       if (tri === "volume") return b.volume - a.volume;
-      if (tri === "activite") {
-        const da = a.derniereVente ? parseISO(a.derniereVente).getTime() : 0;
-        const db = b.derniereVente ? parseISO(b.derniereVente).getTime() : 0;
-        return db - da;
-      }
+      if (tri === "activite") return b.interactions.mois - a.interactions.mois;
       return parseISO(b.creeLe).getTime() - parseISO(a.creeLe).getTime();
     });
     return copie;
@@ -154,7 +151,9 @@ export function StoresTable({ planInitial = "TOUS" }: { planInitial?: string }) 
                   <th className="px-4 py-2.5 text-right font-bold">Équipe</th>
                   <th className="px-4 py-2.5 text-right font-bold">Ventes</th>
                   <th className="px-4 py-2.5 text-right font-bold">Volume</th>
-                  <th className="px-4 py-2.5 font-bold">Dernière activité</th>
+                  <th className="px-4 py-2.5 text-right font-bold" title="Ventes, dépenses, mouvements de stock et connexions">
+                    Interactions
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -182,10 +181,11 @@ export function StoresTable({ planInitial = "TOUS" }: { planInitial?: string }) 
                       <td className="px-4 py-3 text-right tabular-nums">{b.nbUtilisateurs}</td>
                       <td className="px-4 py-3 text-right tabular-nums">{b.nbVentes}</td>
                       <td className="px-4 py-3 text-right font-semibold tabular-nums">{formatFcfa(b.volume)}</td>
-                      <td className="px-4 py-3 text-xs text-muted-foreground">
-                        {b.derniereVente
-                          ? format(parseISO(b.derniereVente), "d MMM yyyy", { locale: fr })
-                          : "Aucune vente"}
+                      <td className="px-4 py-3 text-right tabular-nums">
+                        <p className="font-bold">{b.interactions.jour} <span className="font-normal text-muted-foreground">aujourd&apos;hui</span></p>
+                        <p className="text-xs text-muted-foreground">
+                          {b.interactions.mois} ce mois · {b.interactions.annee} cette année
+                        </p>
                       </td>
                     </tr>
                   );

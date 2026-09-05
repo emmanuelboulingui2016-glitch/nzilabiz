@@ -7,6 +7,7 @@ import { stores } from "@/db/schema";
 import { getPlatformSettings, contactCommercial } from "@/lib/platform-settings";
 import { lireTarifs } from "@/lib/tarifs-serveur";
 import { SubscriptionView } from "@/components/parametres/abonnement/subscription-view";
+import { DemandePaiement } from "@/components/abonnement/demande-paiement";
 
 // Onglet Abonnement — §14 + §16 du cahier des charges. Purement informatif côté données
 // (plan courant, dates d'expiration) : aucune mutation serveur, le paiement Mobile Money est
@@ -30,13 +31,21 @@ export default async function AbonnementPage() {
   const reglages = await getPlatformSettings();
   const grille = await lireTarifs();
 
+  const contact = contactCommercial(reglages);
+
   return (
-    <SubscriptionView
-      plan={store.plan}
-      essaiExpireLe={store.essaiExpireLe ? store.essaiExpireLe.toISOString() : null}
-      abonnementExpireLe={store.abonnementExpireLe ? store.abonnementExpireLe.toISOString() : null}
-      contact={contactCommercial(reglages)}
-      grille={grille}
-    />
+    <div className="space-y-6 pb-20 md:pb-0">
+      {/* Demande de paiement Entreprise en attente, le cas échéant — chargée côté client, ne
+          s'affiche que si elle existe. Ajoutée sans toucher à `SubscriptionView` : voir
+          `src/components/abonnement/demande-paiement.tsx`. */}
+      <DemandePaiement contact={contact} />
+      <SubscriptionView
+        plan={store.plan}
+        essaiExpireLe={store.essaiExpireLe ? store.essaiExpireLe.toISOString() : null}
+        abonnementExpireLe={store.abonnementExpireLe ? store.abonnementExpireLe.toISOString() : null}
+        contact={contact}
+        grille={grille}
+      />
+    </div>
   );
 }

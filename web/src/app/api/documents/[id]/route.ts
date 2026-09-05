@@ -8,8 +8,7 @@ import { NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { clients, documents, products, saleItems, sales, users } from "@/db/schema";
-import { getSession } from "@/lib/auth/session";
-import { can } from "@/lib/auth/rbac";
+import { getSession, peut } from "@/lib/auth/session";
 import type { DraftItem } from "@/components/documents/types";
 import { bloquerSiHorsFormule } from "@/lib/abonnement";
 
@@ -21,7 +20,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   // dans le menu. Une route reste appelable même quand son bouton a disparu.
   const horsFormule = await bloquerSiHorsFormule("documents");
   if (horsFormule) return horsFormule;
-  if (!can(session.role, "documents.view")) {
+  if (!(await peut(session, "documents.view"))) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
 

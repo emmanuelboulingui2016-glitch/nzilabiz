@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { users, stores } from "@/db/schema";
-import { getSession } from "@/lib/auth/session";
-import { can } from "@/lib/auth/rbac";
+import { getSession, peut } from "@/lib/auth/session";
 import { hashPassword } from "@/lib/auth/password";
 import { generateTempPassword } from "@/lib/auth/temp-password";
 import { bloquerSiExpiree, bloquerSiPlafondComptes, etatBoutiqueCourante } from "@/lib/abonnement";
@@ -26,12 +25,14 @@ const inviteSchema = z.object({
 export async function GET() {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
-  if (!can(session.role, "parametres.utilisateurs")) {
+  if (!(await peut(session, "parametres.utilisateurs"))) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
 
+  // Un compte supprimé par le patron (chantier B, restaurable sous 48h) ne doit plus apparaître
+  // parmi les membres actifs — il a sa propre section (voir supprimesRestaurables côté page.tsx).
   const list = await db.query.users.findMany({
-    where: eq(users.storeId, session.storeId),
+    where: and(eq(users.storeId, session.storeId), isNull(users.desactiveLe)),
     orderBy: (u, { asc }) => [asc(u.creeLe)],
   });
 
@@ -58,7 +59,7 @@ export async function POST(request: Request) {
   // masquée dans l'interface.
   const bloque = await bloquerSiExpiree();
   if (bloque) return bloque;
-  if (!can(session.role, "parametres.utilisateurs")) {
+  if (!(await peut(session, "parametres.utilisateurs"))) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
 

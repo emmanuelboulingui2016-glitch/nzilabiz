@@ -5,8 +5,7 @@ import { NextResponse } from "next/server";
 import { eq, and, desc } from "drizzle-orm";
 import { db } from "@/db/client";
 import { clients, debtRepayments, sales } from "@/db/schema";
-import { getSession } from "@/lib/auth/session";
-import { can } from "@/lib/auth/rbac";
+import { getSession, peut } from "@/lib/auth/session";
 import { bloquerSiExpiree } from "@/lib/abonnement";
 
 const ALLOWED_MODES = new Set(["ESPECES", "MOBILE_MONEY", "CREDIT"]);
@@ -20,7 +19,7 @@ function n(value: string | number | null | undefined): number {
 export async function GET() {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
-  if (!can(session.role, "creances.view")) {
+  if (!(await peut(session, "creances.view"))) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
 
@@ -76,7 +75,7 @@ export async function POST(request: Request) {
   // masquée dans l'interface.
   const bloque = await bloquerSiExpiree();
   if (bloque) return bloque;
-  if (!can(session.role, "creances.edit")) {
+  if (!(await peut(session, "creances.edit"))) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
 

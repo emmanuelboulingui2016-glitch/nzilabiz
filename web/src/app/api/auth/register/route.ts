@@ -9,6 +9,10 @@ import { deviceNameFromUserAgent } from "@/lib/device-name";
 import { clientIp, rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { isSuperAdminEmail } from "@/lib/auth/superadmin";
 import { verifierCodeTest, messageRefus } from "@/lib/test-access";
+import { VALIDITE_MINUTES, creerJetonVerification } from "@/lib/auth/email-verification-token";
+import { emailConfigure, envoyerEmail } from "@/lib/email/envoyer";
+import { emailVerificationInscription } from "@/lib/email/modeles";
+import { getPlatformSettings } from "@/lib/platform-settings";
 
 // L'inscription crée une boutique complète : sans limite, un script pourrait en créer des
 // milliers. 5 par adresse et par heure laisse largement de quoi corriger une erreur de saisie.
@@ -92,6 +96,26 @@ export async function POST(request: Request) {
     nom: user.nom,
   });
   await setSessionCookie(token);
+
+  // E-mail de vérification — jamais bloquant (voir le commentaire sur `users.emailVerifieLe` dans
+  // le schéma). Aucun identifiant d'envoi n'est garanti configuré en production : si `emailConfigure()`
+  // répond `false`, ou si l'envoi échoue, l'inscription aboutit quand même. Seul un bandeau dans
+  // l'application signalera ensuite l'adresse non confirmée — jamais un blocage à l'entrée.
+  if (user.email && emailConfigure()) {
+    const reglages = await getPlatformSettings();
+    const jeton = await creerJetonVerification(user.id, "INSCRIPTION", user.email, clientIp(request));
+    const base = process.env.APP_URL ?? new URL(request.url).origin;
+    const envoye = await envoyerEmail({
+      a: user.email,
+      ...emailVerificationInscription({
+        nom: user.nom,
+        lien: `${base}/verifier-email/${jeton}`,
+        nomApplication: reglages.nomApplication,
+        valableHeures: Math.round(VALIDITE_MINUTES / 60),
+      }),
+    });
+    if (!envoye) console.error(`inscription : e-mail de vérification pour ${user.email} non envoyé.`);
+  }
 
   return NextResponse.json({ ok: true, storeId: store.id });
 }

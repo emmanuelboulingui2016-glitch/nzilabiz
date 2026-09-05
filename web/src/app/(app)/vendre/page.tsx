@@ -33,6 +33,10 @@ export default async function VendrePage() {
       storeId={session.storeId}
       userId={session.userId}
       storeName={store?.nom ?? "NzilaBiz"}
+      // Le champ de prix n'est même rendu côté client que si ce droit est vrai (voir cart-panel.tsx) ;
+      // le serveur revalide de toute façon le même droit à l'enregistrement (POST /api/vendre et
+      // /api/vendre/sync) — cette prop ne pilote que l'affichage, jamais l'acceptation d'un prix.
+      canModifierPrix={can(session.role, "vendre.prix.modifier")}
     />
   );
 }

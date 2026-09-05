@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { economiePourcent, TARIFS_DEFAUT, type Grille } from "./tarifs";
+import { calculerPeriode, economiePourcent, TARIFS_DEFAUT, type Grille } from "./tarifs";
 
 describe("economiePourcent", () => {
   it("ne calcule aucune économie sur le cycle mensuel (référence de comparaison)", () => {
@@ -39,5 +39,59 @@ describe("economiePourcent", () => {
   it("retourne 0 quand le tarif mensuel de référence est nul", () => {
     const grille: Grille = { ESSENTIEL: { mensuel: 0, annuel: 1000 }, PREMIUM: {}, ENTREPRISE: {} };
     expect(economiePourcent(grille, "ESSENTIEL", "annuel")).toBe(0);
+  });
+
+  it("Entreprise n'a plus aucun tarif par défaut — le prix se négocie, il ne se lit plus ici", () => {
+    expect(TARIFS_DEFAUT.ENTREPRISE).toEqual({});
+  });
+});
+
+describe("calculerPeriode", () => {
+  const maintenant = new Date("2026-09-04T10:00:00.000Z");
+
+  it("part d'aujourd'hui quand il n'y a aucune échéance en cours", () => {
+    const { debut, fin } = calculerPeriode("mensuel", null, maintenant);
+    expect(debut).toEqual(maintenant);
+    expect(fin).toEqual(new Date("2026-10-04T10:00:00.000Z"));
+  });
+
+  it("part d'aujourd'hui quand l'échéance en cours est déjà dépassée (pas de mois offert)", () => {
+    const echeancePassee = new Date("2026-08-01T00:00:00.000Z");
+    const { debut, fin } = calculerPeriode("mensuel", echeancePassee, maintenant);
+    expect(debut).toEqual(maintenant);
+    expect(fin).toEqual(new Date("2026-10-04T10:00:00.000Z"));
+  });
+
+  it("prolonge depuis l'échéance en cours quand elle est encore future", () => {
+    const echeanceFuture = new Date("2026-09-20T00:00:00.000Z");
+    const { debut, fin } = calculerPeriode("mensuel", echeanceFuture, maintenant);
+    expect(debut).toEqual(echeanceFuture);
+    expect(fin).toEqual(new Date("2026-10-20T00:00:00.000Z"));
+  });
+
+  it("couvre trois mois pour le cycle trimestriel", () => {
+    const { debut, fin } = calculerPeriode("trimestriel", null, maintenant);
+    expect(debut).toEqual(maintenant);
+    expect(fin).toEqual(new Date("2026-12-04T10:00:00.000Z"));
+  });
+
+  it("couvre douze mois pour le cycle annuel", () => {
+    const { debut, fin } = calculerPeriode("annuel", null, maintenant);
+    expect(debut).toEqual(maintenant);
+    expect(fin).toEqual(new Date("2027-09-04T10:00:00.000Z"));
+  });
+
+  it("ne mute pas la date d'échéance passée en paramètre", () => {
+    const echeanceFuture = new Date("2026-09-20T00:00:00.000Z");
+    const copie = new Date(echeanceFuture);
+    calculerPeriode("mensuel", echeanceFuture, maintenant);
+    expect(echeanceFuture).toEqual(copie);
+  });
+
+  it("dépassement de fin de mois : repousse sur le mois suivant plutôt que de raccourcir (31 janvier + 1 mois)", () => {
+    const debutJanvier31 = new Date("2026-01-31T00:00:00.000Z");
+    const { fin } = calculerPeriode("mensuel", debutJanvier31, debutJanvier31);
+    // Février n'a pas de 31 : le décalage se reporte au 3 mars plutôt que de tronquer au 28.
+    expect(fin).toEqual(new Date("2026-03-03T00:00:00.000Z"));
   });
 });
